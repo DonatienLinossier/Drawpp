@@ -1,0 +1,8 @@
+[project]
+name = "pydpp"
+version = "0.1.0"
+description = "A drawing programming language"
+
+[build-system]
+build-backend = "flit_core.buildapi"
+requires = ["flit_core >=3.2,<4"]
