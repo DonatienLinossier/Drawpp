@@ -5,7 +5,8 @@ Un langage de programmation pour dessiner procéduralement des images, avec un I
 ## Prérequis
 
 - Python 3.12
-- Pipenv : `pip install --user pipenv` puis redémarrer le terminal
+- Pipenv : `pip install --user pipenv`   
+  **Sur Windows :** Si l'installation émet un avertissement car `pipenv.exe` est inacessible depuis le PATH, ajoutez le long chemin contenu dans le message d'erreur (qui commence par `C:\Users\[user]\AppData\Local\Packages\`) dans votre PATH (voir [cet article](https://lecrabeinfo.net/modifier-le-path-de-windows-ajouter-un-dossier-au-path.html)), sinon pipenv ne sera pas accessible depuis le terminal
 - CMake avec un toolchain pour du C (gcc, clang, ou Visual Studio sur Windows)
 
 ## Commencer à développer
@@ -28,7 +29,7 @@ Pour lancer un fichier Python, la manière la plus efficace, sur le terminal, es
   **Exemple 2** : `pipenv run python -m pydpp.ide` correspond à `pydpp/ide/__main__.py`
 
 C'est aussi possible d'utiliser l'IDE (Visual Studio Code et PyCharm), ce qui marche s'il trouve
-pas le venv, sinon il faut trouver un moyen de l'indiquer (il est dans le dossier `.venv`)
+le venv, sinon il faut trouver un moyen de l'indiquer (il est dans le dossier `.venv`)
 
 Pour installer un paquet, là on utiliserait normalement `pip`, on utilise `pipenv`. Par exemple, `pipenv install customtkinter`.
 
