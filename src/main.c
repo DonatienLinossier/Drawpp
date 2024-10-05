@@ -16,44 +16,6 @@ int main(int argc, char* args[]) {
         return -1;
     }
 
-    VariableHandler vh = vh_create();
-
-    char* test_int = "testInt";
-    vh_createInt(&vh, test_int, 5);
-    printf("%d", vh_getInt(&vh, test_int));
-
-    char* test_int2 = "testInt2";
-    vh_createInt(&vh, test_int2, 50);
-    printf("%d", vh_getInt(&vh, test_int));
-
-    char* test_int3 = "testInt3";
-    vh_createInt(&vh, test_int3, 100);
-    printf("%d", vh_getInt(&vh, test_int));
-
-    char* test_double = "testDouble";
-    vh_createDouble(&vh, test_double, 5.2);
-    printf("%d", vh_getInt(&vh, test_double));
-
-    char* test_double2 = "testDouble2";
-    vh_createDouble(&vh, test_double2, 15.5);
-    printf("%d", vh_getInt(&vh, test_double));
-
-    char* test_double3 = "testDouble3";
-    vh_createDouble(&vh, test_double3, 10.5);
-    printf("%d", vh_getInt(&vh, test_double));
-
-    vh_addToInt(&vh, test_int2, 5);
-
-    vh_addToInt(&vh, test_double2, 6.2);
-
-    vh_addToInt(&vh, test_int3, -10);
-
-    vh_addToInt(&vh, test_double3, -9.2);
-
-    vh_debug_getAllVar(&vh);
-
-
-
 
     Color myColor = {100, 0, 0, 1};
 
