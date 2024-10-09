@@ -1,0 +1,276 @@
+(*
+    DRAFT GRAMMAR FOR DRAW++
+    ------------------------
+    This is a draft of the EBNF grammar for the Draw++ language.
+
+    It serves as a guideline to how the language should be parsed, and should 
+    ultimately be the reference for the parser implementation, although the parser
+    can diverge slightly for ease of use or ease of implementation.
+
+    Things to note:
+    - Whitespace is ignored by the grammar, this is handled by the tokenizer.
+    - Strings and identifiers are defined "loosely" (i.e. without large unions like 'letter = "a" | "b" | ...)
+      to allow for a variety of unicode characters.
+
+    This file uses the ISO/IEC 14977:1996 standard for EBNF notation.
+    You can find it on Wikipedia: https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form
+    But here's a quick reference sheet:
+    - A | B  : match A or B
+    - [x]    : [0..1] occurrences of x
+    - {x}    : [0..N] occurrences of x
+    - a, b   : concatenation of a and b
+    - (x)    : grouping of x (doesn't actually add parentheses to the grammar)
+    - "abc"  : string to match exactly
+    - ? hi ? : a special sequence, describing custom syntax using natural language when EBNF isn't practical
+    - ;      : end of a definition
+*)  
+
+(* The program starts with a list of statements. This is the root node read by the parser. *)
+program = statement_list;
+
+(* A list of [0..N] statements. *)
+statement_list = {statement};
+
+(* 
+    STATEMENTS
+    -----------------------
+    A statement is basically an "instruction" given to the compiler.
+    Defining variables, calling functions, conditionally doing something... that's a statement.
+    However, calculating 5+8 is not a statement, it's an expression.
+    But expressions can also be statements too! That's mainly for function calls so you don't have to panic.
+*)
+statement =   variable_declaration_stmt
+            | function_call_stmt
+            | block_stmt
+            | function_decl_stmt
+            | if_stmt
+            | while_stmt;
+
+(* 
+    A variable declaration, with a type and optional value.
+    Example: int x = 5; 
+*)
+variable_declaration_stmt = type, identifier, {'=', expression}, statement_end;
+(* 
+    An expression evaluated as a statement in the program.
+    In practice, it's just a function call.
+    Examples: 
+        - CursorCreate("cool cursor");
+        - 4+2;  // This is a valid statement, but it does nothing, and should issue a warning.
+*)
+expression_stmt = expression, statement_end;
+(*
+    A list of [0..N] statements surrounded by curly braces ({})
+    Example: { int x = 5; int y = 6; }
+*)
+block_stmt = '{', statement_list, '}';
+(*
+    A function declaration, defining a function with its name, arguments and body.
+    TODO: Currently, user-made functions can't return values!
+    Example:
+        fct(int x, int y) {
+            Line(x, y);
+        }
+*)
+function_decl_stmt = 'fct', '(', comma_sep_expression_list, ')', block_stmt;
+(*
+    An if statement with a conditional expression, followed by [0..N] "else if" statements and [0..1] "else" statement.
+    Examples:
+        if x > 5 {
+            Line(x);
+        } else if x < 0 {
+            Line(-20);
+        } else {
+            Circle(4, 2, 10);
+        }
+
+        if x < 3 {
+            Line(999);
+        }
+*)
+if_stmt = 'if', expression, block_stmt, {'else', 'if', expression, block_stmt}, ['else', block_stmt];
+(*
+    A while statement that loops through a series of instructions while a condition is true.
+    Example:
+        while x < 10 {
+            Line(x);
+            x = x + 1;
+        }
+*)
+while_stmt = 'while', expression, block_stmt;
+
+(* The delimiter that marks the end of a statement (except if/while/fct blocks)
+   Later we may decide to use newlines instead, so that's why it's defined.
+*)
+statement_end = ';';
+
+(*
+    A comma separated list of [0..N] expressions.
+    Example: 8, 2, my_func(840), "artichaut"
+*)
+comma_sep_expression_list = [expression, {',', expression}];
+
+(*
+    EXPRESSIONS
+    -----------------
+    Expressions are, in a nutshell, values. They can be of any type! Here's a few examples:
+    - 478                       : number
+    - 90+2*5                    : number  ; this is read as: 90+(2*5)
+    - "hello"                   : string
+    - true                      : boolean
+    - my_iq > my_weight         : boolean ; my_iq and my_weight are variables
+    - func(4, 8) + 90           : number  ; func returns a number
+    - not true == false         : boolean ; this is read as: (not true) == false
+    - a or b and c              : boolean ; this is read as: a or (b and c)
+
+    We can also have nonsensical expressions: not("jambon" + 85) > "plage"    ; it's a "readable" expression, but doesn't make sense!
+    It's the compiler's (semantic analyser, precisely) role to detect those and issue an error.
+
+    In this grammar, expressions are defined in the "reverse" order of their precedence.
+    Precedence is what determines which operators are evaluated first. 
+    You surely know that in 2*8+5, 2*8 is evaluated first, then the + is calculated after.
+    We say that * has higher precedence than +.
+
+    Now, that way of defining the grammar looks a bit awkward and odd to process at first. But it does make sense!
+    Think of it as functions calling each other sequentially, sometimes even with some recursion (like parentheses).
+    Let's make use of a simpler example:
+
+        expression = add_exp;
+        add_exp = add_exp "+" add_exp | mul_exp;
+        mul_exp = mul_exp "*" mul_exp | number;
+        number = digit, {digit};
+    
+    What if we use this grammar to parse 7+2*4? In each line, we'll use the f [abc]|n notation: abc is processed tokens, n is the next, f is current function.
+    - First, we enter into "add_exp" with 7 as the first token
+        => add_exp []|7     The rule 'add_exp "+" add_exp' isn't considered, we're at the beginning of the expression.
+        => add_exp []|7     The rule 'mul_exp' is used instead.
+            => mul_exp []|7     The rule 'mul_exp "*" mul_exp' is not of use here, we're at the beginning of the expression.
+            => mul_exp []|7     The rule 'number is used instead.
+                => number []|7     We read the number 7, now back onto the 'mul_exp' rule.
+            => mul_exp [7]|+     7 is considered a 'mul_exp', since it's a 'number', BUT we have a '+' next and not a '*', so leave it to add_exp!!
+        => add_exp [7]|+     The rule 'add_exp "+" add_exp" is used since 7, the LHS, is an add_exp and we have a '+' next.
+        => add_exp [7+]|2     The rule 'mul_exp' is used, since 2 is now the start of a new expression
+            => mul_exp [7+]|2     Same thing as before, the rule 'number' is used
+                => number [7+]|2     The number is read as 2, back onto 'mul_exp'
+            => mul_exp [7+2]|*     The rule 'mul_exp "*" mul_exp' is used, since we have a '*' next!!
+                => mul_exp [7+2*]|4     The rule 'number' is used
+                    => number [7+2*]|4     The number is read as 4, back onto 'mul_exp'
+            => mul_exp [7+2*4]|eof     4 is read, and we're done with the expression!
+        => add_exp [7+2*4]|eof    We have 2*4 on the RHS as add_exp, we're done! 
+
+    Here, the expression starts with the "or" binary operator, which has the lowest precedence.
+    Remark: Successive binary operators of the same precedence are left-associative. (Example: 2+3+4 is parsed as (2+3)+4)
+*)
+expression = or_exp;
+
+(* 
+    A logical OR expression, with the "or" operator.
+    Example: true or false
+*)
+or_exp = or_exp, "or", or_exp | and_exp;
+(* 
+    A logical AND expression, with the "and" operator.
+    Example: true and false
+*)
+and_exp = and_exp, "and", and_exp | logic_exp;
+(* 
+    A numerical comparison expression, with standard equal/less/greater operator.
+    Example: 85 >= 20
+*)
+logic_exp = logic_exp, "==" | "!=" | "<" | "<=" | ">" | ">=", logic_exp | additive_exp;
+(* 
+    An addition or subtraction expression.
+    Example: 32 + 50 - 10
+*)
+additive_exp = additive_exp, "+"|"-", additive_exp | multiplicative_exp;
+(* 
+    A multipliation or division expression.
+    Example: 84*20/4
+*)
+multiplicative_exp = multiplicative_exp, "*"|"/", multiplicative_exp | unary_exp;
+(*
+    An expression with prefix/suffixes such as numeric negative (-456) or logical negation (not true).
+    Example: -5, not false 
+*)
+unary_exp = ["-"|"not"], unary_exp | function_exp;
+(*
+    A function call expression, defined by an identifier followed by parentheses with a list of expressions.
+    Example: my_func(5, 8)
+*)
+function_exp = identifier, "(", comma_sep_expression_list, ")" | parens_exp;
+(*
+    An expression surrounded by parentheses.
+    Example: (5+8)
+*)
+parens_exp = "(", expression, ")" | value;
+(*
+    A value, which can be a constant literal or an identifier (variable/constant).
+    Example: 5, true, "hello", my_var
+*)
+value = literal | identifier;
+
+(*
+    LITERALS
+    -----------------
+    Those are compile-time constant values given by the developer.
+    Numbers like 420, booleans like true/false, and strings like "hello".
+*)
+literal = number_literal | bool_literal | string_literal;
+(* 
+    A number literal, a sequence of digits with, optionally, a decimal part.
+    Purely decimal numbers must begin with a zero.
+    Example: 42, 17.2, 0.25
+*)
+number_literal = digit, {digit}, [".", digit, {digit}];
+(*
+    A boolean literal, either true or false.
+    Example: true, false
+*)
+bool_literal = "true" | "false";
+(*
+    A string literal, a sequence of characters surrounded by double quotes.
+    Every unicode character is valid inside a string, even newlines. 
+    However, the following escaping rules apply:
+    - \" for producing double quotes => "
+    - \\ for producing backslashes => \
+    - \n for producing newlines => LF
+
+    Example: "hello there", "RECETTE D'ŒUFS AU PLAT", "hey, \"you doin' good?\"", "the path is a\\b\\c"
+*)
+string_literal = '"', { string_char }, '"';
+string_char = ? Any Unicode character, quotes must escaped with a backslash \ ?;
+
+(*
+    TYPES
+    -----------------
+    The type of a variable or a function argument.
+    Currently, only primitive types are supported.
+    Examples: int, float, bool, string, cursor
+*)
+type = primitive_type; (* Will we ever have user-defined types? => | identifier *)
+primitive_type = "int" | "float" | "bool" | "string" | "cursor";
+
+(*
+    IDENTIFIERS
+    -----------------
+    An identifier is a valid "name" for a symbol in the program: functions, variables, constants
+    are all named using identifiers.
+
+    An identifier is a sequence of valid characters which can be either:
+    - unicode characters in the "letters" category (Ll, Lm, Lo, Lt, Lu)
+    - underscores (_)
+    - european digits, EXCEPT as the first character (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+
+    The design goal for identifiers is to allow and even encourage multi-lingual programming.
+    Accentuated characters, cyrillic, arabic, chinese, armenian... all are valid and supported without any surprise in Draw++.
+
+    Identifiers are case-sensitive: var1 and Var1 are two different identifiers.
+
+    TODO: Should emojis be supported too? There's a unicode category for these...
+
+    Examples: direction, popularité, MyVar5, salty_lol_player, 你好, привет, սեղան
+*)
+identifier = ident_char, {ident_char | digit};
+ident_char = letter | "_";
+letter = ? Unicode character of letter category (Ll, Lm, Lo, Lt, Lu) ?;
+digit =  "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "0";
