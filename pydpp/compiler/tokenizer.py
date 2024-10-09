@@ -25,6 +25,10 @@ class TokenKind(Enum):
     "Keyword for function: fct"
     KW_NOT = auto()
     "Keyword for logical negation: not"
+    KW_AND = auto()
+    "Keyword for logical and: and"
+    KW_OR = auto()
+    "Keyword for logical or: or"
     SYM_EQ = auto()
     "Symbol for equality: =="
     SYM_NEQ = auto()
@@ -37,10 +41,6 @@ class TokenKind(Enum):
     "Symbol for greater than: >"
     SYM_GEQ = auto()
     "Symbol for greater than or equal to: >="
-    SYM_AND = auto()
-    "Symbol for logical and: and"
-    SYM_OR = auto()
-    "Symbol for logical or: or"
     SYM_PLUS = auto()
     "Symbol for addition: +"
     SYM_MINUS = auto()
@@ -247,14 +247,14 @@ class _Tokenizer:
         "string": TokenKind.KW_STRING,
         "fct": TokenKind.KW_FCT,
         "not": TokenKind.KW_NOT,
+        "and": TokenKind.KW_AND,
+        "or": TokenKind.KW_OR,
         "==": TokenKind.SYM_EQ,
         "!=": TokenKind.SYM_NEQ,
         "<": TokenKind.SYM_LT,
         "<=": TokenKind.SYM_LEQ,
         ">": TokenKind.SYM_GT,
         ">=": TokenKind.SYM_GEQ,
-        "and": TokenKind.SYM_AND,
-        "or": TokenKind.SYM_OR,
         "+": TokenKind.SYM_PLUS,
         "-": TokenKind.SYM_MINUS,
         "*": TokenKind.SYM_STAR,
