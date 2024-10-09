@@ -136,23 +136,23 @@ comma_sep_expression_list = [expression, {',', expression}];
     Let's make use of a simpler example:
 
         expression = add_exp;
-        add_exp = add_exp "+" add_exp | mul_exp;
-        mul_exp = mul_exp "*" mul_exp | number;
+        add_exp = add_exp "+" mul_exp | mul_exp;
+        mul_exp = mul_exp "*" number | number;
         number = digit, {digit};
     
     What if we use this grammar to parse 7+2*4? In each line, we'll use the f [abc]|n notation: abc is processed tokens, n is the next, f is current function.
     - First, we enter into "add_exp" with 7 as the first token
-        => add_exp []|7     The rule 'add_exp "+" add_exp' isn't considered, we're at the beginning of the expression.
+        => add_exp []|7     The rule 'add_exp "+" mul_exp' isn't considered, we're at the beginning of the expression.
         => add_exp []|7     The rule 'mul_exp' is used instead.
-            => mul_exp []|7     The rule 'mul_exp "*" mul_exp' is not of use here, we're at the beginning of the expression.
+            => mul_exp []|7     The rule 'mul_exp "*" number' is not of use here, we're at the beginning of the expression.
             => mul_exp []|7     The rule 'number is used instead.
                 => number []|7     We read the number 7, now back onto the 'mul_exp' rule.
             => mul_exp [7]|+     7 is considered a 'mul_exp', since it's a 'number', BUT we have a '+' next and not a '*', so leave it to add_exp!!
-        => add_exp [7]|+     The rule 'add_exp "+" add_exp" is used since 7, the LHS, is an add_exp and we have a '+' next.
+        => add_exp [7]|+     The rule 'add_exp "+" mul_exp" is used since 7, the LHS, is an add_exp and we have a '+' next.
         => add_exp [7+]|2     The rule 'mul_exp' is used, since 2 is now the start of a new expression
             => mul_exp [7+]|2     Same thing as before, the rule 'number' is used
                 => number [7+]|2     The number is read as 2, back onto 'mul_exp'
-            => mul_exp [7+2]|*     The rule 'mul_exp "*" mul_exp' is used, since we have a '*' next!!
+            => mul_exp [7+2]|*     The rule 'mul_exp "*" number' is used, since we have a '*' next!!
                 => mul_exp [7+2*]|4     The rule 'number' is used
                     => number [7+2*]|4     The number is read as 4, back onto 'mul_exp'
             => mul_exp [7+2*4]|eof     4 is read, and we're done with the expression!
@@ -160,34 +160,41 @@ comma_sep_expression_list = [expression, {',', expression}];
 
     Here, the expression starts with the "or" binary operator, which has the lowest precedence.
     Remark: Successive binary operators of the same precedence are left-associative. (Example: 2+3+4 is parsed as (2+3)+4)
+            This is thanks to the RHS (right hand side) of the rule forcing an expression of being higher precedence.
 *)
 expression = or_exp;
 
 (* 
     A logical OR expression, with the "or" operator.
     Example: true or false
+
+    Example:  a or b or c
+              ______    _
+              or_exp    and_exp
+              ___________
+                or_exp
 *)
-or_exp = or_exp, "or", or_exp | and_exp;
+or_exp = or_exp, "or", and_exp | and_exp;
 (* 
     A logical AND expression, with the "and" operator.
     Example: true and false
 *)
-and_exp = and_exp, "and", and_exp | logic_exp;
+and_exp = and_exp, "and", logic_exp | logic_exp;
 (* 
     A numerical comparison expression, with standard equal/less/greater operator.
     Example: 85 >= 20
 *)
-logic_exp = logic_exp, "==" | "!=" | "<" | "<=" | ">" | ">=", logic_exp | additive_exp;
+logic_exp = logic_exp, "==" | "!=" | "<" | "<=" | ">" | ">=", additive_exp | additive_exp;
 (* 
     An addition or subtraction expression.
     Example: 32 + 50 - 10
 *)
-additive_exp = additive_exp, "+"|"-", additive_exp | multiplicative_exp;
+additive_exp = additive_exp, "+"|"-", multiplicative_exp | multiplicative_exp;
 (* 
     A multipliation or division expression.
     Example: 84*20/4
 *)
-multiplicative_exp = multiplicative_exp, "*"|"/", multiplicative_exp | unary_exp;
+multiplicative_exp = multiplicative_exp, "*"|"/", unary_exp | unary_exp;
 (*
     An expression with prefix/suffixes such as numeric negative (-456) or logical negation (not true).
     Example: -5, not false 
