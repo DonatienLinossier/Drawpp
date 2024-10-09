@@ -97,6 +97,10 @@ class Token:
     the coordinates of the starting and ending character in the file.
     """
 
+    __slots__ = ("kind", "pos")
+    """Register slots for Token objects to save lots of memory, since we'll have thousands of them.
+    Subclasses should also register their own slots!"""
+
     def __init__(self, kind: TokenKind, pos: Optional[FileSpan] = None):
         self.kind = kind
         """The kind of the token. See the TokenKind enum for all possible values.
@@ -112,6 +116,9 @@ class Token:
 
 @final
 class NumberLiteralToken(Token):
+
+    __slots__ = ("integer_val", "decimal_part")
+
     def __init__(self, integer_val: int, decimal_part: Optional[int], pos: Optional[FileSpan] = None):
         super().__init__(TokenKind.LITERAL_NUM, pos)
         self.integer_val = integer_val
@@ -129,6 +136,9 @@ class NumberLiteralToken(Token):
 
 @final
 class BoolLiteralToken(Token):
+
+    __slots__ = ("value",)
+
     def __init__(self, value: bool, pos: Optional[FileSpan] = None):
         super().__init__(TokenKind.LITERAL_BOOL, pos)
         self.value = value
@@ -140,6 +150,9 @@ class BoolLiteralToken(Token):
 
 @final
 class StringLiteralToken(Token):
+
+    __slots__ = ("value",)
+
     def __init__(self, value: str, pos: Optional[FileSpan] = None):
         super().__init__(TokenKind.LITERAL_STRING, pos)
         self.value = value
@@ -151,6 +164,9 @@ class StringLiteralToken(Token):
 
 @final
 class IdentifierToken(Token):
+
+    __slots__ = ("name",)
+
     def __init__(self, name: str, pos: Optional[FileSpan] = None):
         super().__init__(TokenKind.IDENTIFIER, pos)
         self.name = name
@@ -201,19 +217,23 @@ class _Tokenizer:
         Returns a list of Token objects.
         """
 
+        # First consume any whitespace before checking for end-of-file.
         self.consume_whitespace()
         while not self.eof:
+            # Try to recognize various kinds of tokens.
+            # Identifiers come last since they cover any sequence of letters.
             if self.recognize_kw_sym():
                 pass
             elif self.recognize_literal():
                 pass
             elif self.recognize_identifier():
                 pass
-            elif not self.eof: # Check for eof since recognize can consume whitespace
+            elif not self.eof:  # Check for eof since recognize can consume whitespace
                 # Unrecognized character! It wasn't recognized by any function!
                 # What do we do with this character? Consume it and move on.
                 self.consume(1, err=True)  # Consume the character and mark it as an error.
 
+        # If still have unrecognized error characters left, flush them into an error message.
         self.flush_unrecognized_error()
         return self.tokens
 
@@ -278,7 +298,7 @@ class _Tokenizer:
 
     def recognize_literal(self) -> bool:
         """
-        Recognizes a literal in the code.
+        Recognizes a literal in the code: numbers (1, 56.25), booleans (true, false) and strings ("hello").
         If a literal is found, the corresponding token is added to the list of tokens.
         Returns true if a literal was recognized, false otherwise.
         """
@@ -293,12 +313,12 @@ class _Tokenizer:
                 # Cannot fail! We know that the first character is a digit.
                 # First read the "integer" part
                 integer = int(self.consume_regex(self.digits_regex))
-                decimal = None # Initialise the decimal part to none
+                decimal = None  # Initialise the decimal part to none
                 if self.peek(1) == ".":
                     # We have a decimal part! Read it.
-                    self.consume(1) # Consume the dot.
-                    decimal_str = self.consume_regex(self.digits_regex) # May be empty
-                    if not decimal_str: # Is it empty?
+                    self.consume(1)  # Consume the dot.
+                    decimal_str = self.consume_regex(self.digits_regex)  # May be empty
+                    if not decimal_str:  # Is it empty?
                         self.problems.append(problem="Partie décimale attendue après un point (« . »).",
                                              severity=ProblemSeverity.ERROR,
                                              pos=FileSpan(start_pos, self.pos))
@@ -344,13 +364,18 @@ class _Tokenizer:
                         elif escape and character == "n":
                             # Add a newline character when escaped
                             val += "\n"
-                        else: # escape and character != "t" and character != "\""
+                        else:  # escape and character != "t" and character != "\""
                             self.problems.append(problem=f"Caractère d'échappement inconnu : « \\{character} ».",
                                                  severity=ProblemSeverity.ERROR,
                                                  pos=FileSpan(start_pos, self.pos))
                             # Ignore character
                         escape = False
                     character = self.consume(1)
+                if character == "":
+                    # Then it's EOF!
+                    self.problems.append(problem="Chaîne de caractères non terminée.",
+                                         severity=ProblemSeverity.ERROR,
+                                         pos=FileSpan(start_pos, self.pos))
                 self.tokens.append(StringLiteralToken(val, FileSpan(start_pos, self.pos)))
                 return True
             else:
@@ -363,7 +388,7 @@ class _Tokenizer:
             return True
         elif string_literal():
             return True
-        else: # No literal found
+        else:  # No literal found
             return False
 
     def recognize_identifier(self) -> bool:
@@ -390,7 +415,7 @@ class _Tokenizer:
         else:
             return False
 
-    def consume(self, n: int, err = False) -> str:
+    def consume(self, n: int, err=False) -> str:
         """
         Consumes the next n characters of the code.
 
@@ -500,6 +525,7 @@ class _Tokenizer:
                                  severity=ProblemSeverity.ERROR,
                                  pos=FileSpan(self.err_start, self.pos))
             self.err_start = None
+
 
 def tokenize(code: str, problems: ProblemSet) -> list[Token]:
     return _Tokenizer(code, problems).tokenize()

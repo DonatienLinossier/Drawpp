@@ -13,6 +13,9 @@ class Problem:
     Represents a problem during the entire compilation pipeline.
     Consists of a message, a severity and an optional position value: where the problem occurred.
     """
+
+    __slots__ = ("message", "severity", "pos")
+
     def __init__(self, message: str, severity: ProblemSeverity, pos: Optional[FileSpan] = None):
         self.message = message
         "The message of the problem, localized to the user's language."
@@ -32,6 +35,9 @@ class ProblemSet:
     Basically a list of problems, which can grow during the pipeline.
     Can be used as if it was a list of problems! You can use for/len/in etc. on it.
     """
+
+    __slots__ = ("problems", "grouped")
+
     def __init__(self):
         self.problems = []
         "The list of problems."

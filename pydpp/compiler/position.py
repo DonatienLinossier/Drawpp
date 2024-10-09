@@ -6,6 +6,8 @@ class FileCoordinates:
     Represents a position in a file, with a line (y) and a column (x) number.
     """
 
+    __slots__ = ("index", "line", "column")
+
     def __init__(self, index: int, line: int, column: int):
         self.index = index
         "The index of the character in the file, UTF-8 spanning more than one byte only use one index. Starts by 0."
@@ -26,7 +28,10 @@ class FileCoordinates:
         return f"{self.line}:{self.column}"
 
 
-FileSpan = namedtuple("FileSpan", ["start", "end"])
+class FileSpan(namedtuple("FileSpan", ["start", "end"])):
+    __slots__ = ()
+    def __str__(self):
+        return f"[{self.start}; {self.end}]"
 """
     An inclusive interval of characters within a file. That's [start; end], but with chars. 
 """
