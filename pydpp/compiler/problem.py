@@ -28,7 +28,7 @@ class Problem:
         return f"Problem({self.message!r}, {self.severity!r}, {self.pos!r})"
 
     def __str__(self):
-        return f"{self.severity.value.capitalize()}: {self.message}"
+        return f"{self.severity.value.capitalize()}: {self.message} (à {self.pos})"
 
 class ProblemSet:
     """
@@ -52,9 +52,11 @@ class ProblemSet:
         - append("message", severity, pos): creates a problem with the given parameters and adds it, ERROR by default.
         """
 
+        # When we're given a string inside the first argument, we need to construct a new Problem.
         if isinstance(problem, str):
             problem = Problem(problem, severity, pos)
 
+        # Add the problem to the list and to the grouped dictionary.
         self.problems.append(problem)
         self.grouped[problem.severity].append(problem)
 

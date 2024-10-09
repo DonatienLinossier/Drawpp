@@ -5,8 +5,10 @@ from pydpp.compiler.position import FileCoordinates, FileSpan
 from pydpp.compiler.problem import ProblemSet, ProblemSeverity
 import re
 
-
 class TokenKind(Enum):
+    """
+    A kind of token, that qualifies what a token *is* exactly. See the Token class below for more information.
+    """
     KW_IF = auto()
     "The if keyword: if"
     KW_ELSE = auto()
@@ -237,6 +239,8 @@ class _Tokenizer:
         self.flush_unrecognized_error()
         return self.tokens
 
+    # Map of all known keywords and symbols to their token kind.
+    # Used in the recognize_kw_sym function.
     kw_sym_map = {
         "if": TokenKind.KW_IF,
         "else": TokenKind.KW_ELSE,
@@ -334,6 +338,7 @@ class _Tokenizer:
             "Boolean literal recognition: true & false"
 
             start_pos = self.pos
+            # If it's true, then create a true token, else if it's false, create a false token. Simple enough!
             if self.consume_exact("true"):
                 self.tokens.append(BoolLiteralToken(True, FileSpan(start_pos, self.pos)))
                 return True
@@ -349,8 +354,11 @@ class _Tokenizer:
             # Consume all characters into one "val" string until the next non-escaped quote
             start_pos = self.pos
             if self.consume_exact("\""):
+                # The final "real" value of the string, with escape sequences resolved and all.
                 val = ""
+                # The current character we're reading
                 character = self.consume(1)
+                # Whether we're in an escape sequence
                 escape = False
                 while character != "" and (escape or character != "\""):
                     if character == '\\' and not escape:
@@ -365,14 +373,16 @@ class _Tokenizer:
                             # Add a newline character when escaped
                             val += "\n"
                         else:  # escape and character != "t" and character != "\""
+                            # Unknown escape sequence! Weird right?
                             self.problems.append(problem=f"Caractère d'échappement inconnu : « \\{character} ».",
                                                  severity=ProblemSeverity.ERROR,
                                                  pos=FileSpan(start_pos, self.pos))
                             # Ignore character
                         escape = False
+                    # Onto the next character.
                     character = self.consume(1)
                 if character == "":
-                    # Then it's EOF!
+                    # Then it's EOF! Report an error.
                     self.problems.append(problem="Chaîne de caractères non terminée.",
                                          severity=ProblemSeverity.ERROR,
                                          pos=FileSpan(start_pos, self.pos))
@@ -381,7 +391,10 @@ class _Tokenizer:
             else:
                 return False
 
+        # Skip any unwanted whitespace
         self.consume_whitespace()
+
+        # Try each literal type. Order doesn't matter here, it's random.
         if number_literal():
             return True
         elif bool_literal():
@@ -404,7 +417,11 @@ class _Tokenizer:
         # Scan all characters until we find an ineligible character.
         # Note that i is exclusive: the valid char range is [self.cursor; i[
         i = self.cursor
-        while i < len(self.code) and (self.code[i].isalpha() or self.code[i] == "_"):
+        while i < len(self.code) and (
+                self.code[i].isalpha()
+                or (i != self.cursor and self.code[i].isdigit())
+                or self.code[i] == "_"
+        ):
             i += 1
 
         # Add a token if we have at least one character.
@@ -449,12 +466,16 @@ class _Tokenizer:
                 # Else, just add one to the column (x coordinate)
                 col += 1
 
+            # Onto the next character!
             self.cursor += 1
             n -= 1
 
+        # Update the position and eof flags respectively.
+        # pos isn't mutated, so previous references to it are left untouched.
         self.pos = FileCoordinates(self.cursor, line, col)
         self.eof = self.cursor >= len(self.code)
 
+        # Return the consumed substring, may be less than n characters if eof is reached.
         return substr
 
     def consume_exact(self, s: str) -> bool:
@@ -484,28 +505,36 @@ class _Tokenizer:
         Returns the matching string if the regex matched, an empty string otherwise.
         """
 
+        # Does the regex match the string beginning from the cursor?
         m = regex.match(self.code, self.cursor)
         if m is None:
+            # No, return empty
             return ""
         else:
+            # Yes! Consume the matched string and return it.
             return self.consume(len(m.group()))
 
     def peek(self, n: int = 1) -> str:
         """
         Peeks the next character in the code, without consuming it.
-        Characters beyond the end of file are ignored
+        Characters beyond the end of file are ignored, so the string might be shorter than n characters.
         """
         return self.code[self.cursor:self.cursor + n]
 
     def peek_until_whitespace(self):
+        """
+        Peeks the next "word" in the code, until we reach a whitespace character or the EOF.
+        Doesn't consume the word.
+        """
         i = self.cursor  # i is exclusive
+        # Is the current character valid (not a space)?
         while i < len(self.code) and not self.code[i].isspace():
             i += 1  # This character is okay, onto the next!
             return self.code[self.cursor:i]  # Ranges are [a; b[ (exclusive end)
 
     def peek_regex(self, regex: re.Pattern[str]) -> str:
         """
-        Peeks the next characters in the code, without consuming them.
+        Peeks the next characters that match the given regex, without consuming them.
         Returns the characters that match the regex; with no match, returns an empty string.
         """
 
@@ -517,7 +546,7 @@ class _Tokenizer:
 
     def flush_unrecognized_error(self):
         """
-        Flushes the current error, if any.
+        Flushes the current error to the problem set, if any.
         """
         if self.err_start is not None:
             chars = self.code[self.err_start.index:self.cursor]
@@ -528,4 +557,11 @@ class _Tokenizer:
 
 
 def tokenize(code: str, problems: ProblemSet) -> list[Token]:
+    """
+    Tokenizes the given code into a sequence of tokens.
+    Requires a ProblemSet to report any errors happening during tokenization.
+    :param code: The code to tokenize.
+    :param problems: The problem set which may contain errors afterward.
+    :return: A list of tokens.
+    """
     return _Tokenizer(code, problems).tokenize()
