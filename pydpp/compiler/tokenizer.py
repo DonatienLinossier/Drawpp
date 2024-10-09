@@ -486,7 +486,7 @@ class _Tokenizer:
 
         m = regex.match(self.code, self.cursor)
         if m is None:
-            return False
+            return ""
         else:
             return self.consume(len(m.group()))
 
