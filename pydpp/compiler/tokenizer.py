@@ -1,9 +1,10 @@
 from collections import namedtuple
 from enum import Enum, auto
-from typing import Optional, final
+from typing import Optional, final, Union, Literal
 from pydpp.compiler.position import FileCoordinates, FileSpan
 from pydpp.compiler.problem import ProblemSet, ProblemSeverity
 import re
+
 
 class TokenKind(Enum):
     """
@@ -118,7 +119,6 @@ class Token:
 
 @final
 class NumberLiteralToken(Token):
-
     __slots__ = ("integer_val", "decimal_part")
 
     def __init__(self, integer_val: int, decimal_part: Optional[int], pos: Optional[FileSpan] = None):
@@ -138,7 +138,6 @@ class NumberLiteralToken(Token):
 
 @final
 class BoolLiteralToken(Token):
-
     __slots__ = ("value",)
 
     def __init__(self, value: bool, pos: Optional[FileSpan] = None):
@@ -152,7 +151,6 @@ class BoolLiteralToken(Token):
 
 @final
 class StringLiteralToken(Token):
-
     __slots__ = ("value",)
 
     def __init__(self, value: str, pos: Optional[FileSpan] = None):
@@ -166,7 +164,6 @@ class StringLiteralToken(Token):
 
 @final
 class IdentifierToken(Token):
-
     __slots__ = ("name",)
 
     def __init__(self, name: str, pos: Optional[FileSpan] = None):
@@ -177,6 +174,39 @@ class IdentifierToken(Token):
     def __repr__(self):
         return f"{self.kind.name}({self.name!r})"
 
+# Map of all known keywords and symbols to their token kind.
+# Used in the recognize_kw_sym function.
+_kw_sym_map = {
+    "if": TokenKind.KW_IF,
+    "else": TokenKind.KW_ELSE,
+    "while": TokenKind.KW_WHILE,
+    "int": TokenKind.KW_INT,
+    "float": TokenKind.KW_FLOAT,
+    "bool": TokenKind.KW_BOOL,
+    "string": TokenKind.KW_STRING,
+    "fct": TokenKind.KW_FCT,
+    "not": TokenKind.KW_NOT,
+    "and": TokenKind.KW_AND,
+    "or": TokenKind.KW_OR,
+    "==": TokenKind.SYM_EQ,
+    "!=": TokenKind.SYM_NEQ,
+    "<": TokenKind.SYM_LT,
+    "<=": TokenKind.SYM_LEQ,
+    ">": TokenKind.SYM_GT,
+    ">=": TokenKind.SYM_GEQ,
+    "+": TokenKind.SYM_PLUS,
+    "-": TokenKind.SYM_MINUS,
+    "*": TokenKind.SYM_STAR,
+    "/": TokenKind.SYM_SLASH,
+    "(": TokenKind.SYM_LPAREN,
+    ")": TokenKind.SYM_RPAREN,
+    "{": TokenKind.SYM_LBRACE,
+    "}": TokenKind.SYM_RBRACE,
+    ";": TokenKind.SYM_SEMICOLON,
+    "=": TokenKind.SYM_ASSIGN
+}
+_kw_sym_longest = max(len(k) for k in _kw_sym_map.keys())
+_kw_sym_first_chars = set(k[0] for k in _kw_sym_map.keys())
 
 class _Tokenizer:
     """
@@ -239,61 +269,33 @@ class _Tokenizer:
         self.flush_unrecognized_error()
         return self.tokens
 
-    # Map of all known keywords and symbols to their token kind.
-    # Used in the recognize_kw_sym function.
-    kw_sym_map = {
-        "if": TokenKind.KW_IF,
-        "else": TokenKind.KW_ELSE,
-        "while": TokenKind.KW_WHILE,
-        "int": TokenKind.KW_INT,
-        "float": TokenKind.KW_FLOAT,
-        "bool": TokenKind.KW_BOOL,
-        "string": TokenKind.KW_STRING,
-        "fct": TokenKind.KW_FCT,
-        "not": TokenKind.KW_NOT,
-        "and": TokenKind.KW_AND,
-        "or": TokenKind.KW_OR,
-        "==": TokenKind.SYM_EQ,
-        "!=": TokenKind.SYM_NEQ,
-        "<": TokenKind.SYM_LT,
-        "<=": TokenKind.SYM_LEQ,
-        ">": TokenKind.SYM_GT,
-        ">=": TokenKind.SYM_GEQ,
-        "+": TokenKind.SYM_PLUS,
-        "-": TokenKind.SYM_MINUS,
-        "*": TokenKind.SYM_STAR,
-        "/": TokenKind.SYM_SLASH,
-        "(": TokenKind.SYM_LPAREN,
-        ")": TokenKind.SYM_RPAREN,
-        "{": TokenKind.SYM_LBRACE,
-        "}": TokenKind.SYM_RBRACE,
-        ";": TokenKind.SYM_SEMICOLON,
-        "=": TokenKind.SYM_ASSIGN
-    }
-
     def recognize_kw_sym(self) -> bool:
         """
         Recognizes a keyword (KW_XXX) or a symbol (SYM_XXX) in the code.
         If a keyword or a symbol is found, the corresponding token is added to the list of tokens.
         Returns true if a keyword or a symbol was recognized, false otherwise.
         """
-
         self.consume_whitespace()
 
+        # Make sure that there is at least one keyword/symbol starting with the next character.
+        # If not, well, that's surely not a keyword or symbol.
+        nxt = self.peek()
+        if nxt not in _kw_sym_first_chars:
+            return False
+
         start_pos = self.pos
-        word = self.peek_until_whitespace()
 
-        # Fast path: Keyword/symbol is separated by whitespace
-        if word in self.kw_sym_map:
-            self.consume(len(word))
-            self.tokens.append(Token(self.kw_sym_map[word], FileSpan(start_pos, self.pos)))
-            return True
-
-        # We may have no whitespace: like in if{ or else{
-        # TODO: Optimise? Prefix tree? Stop until symbol?
-        for k, v in self.kw_sym_map.items():
-            if self.consume_exact(k):
-                self.tokens.append(Token(v, FileSpan(start_pos, self.pos)))
+        # Try out all substrings of length [1..k] with k the length of the longest keyword/symbol,
+        # in the reverse order.
+        # For example: if we see "if (ab", we'll try "if (ab", "if (a", "if (", "if", "i", in that order.
+        for i in range(_kw_sym_longest, 0, -1):
+            # Take the substring of length i
+            w = self.peek(i)
+            m = _kw_sym_map.get(w)
+            if m is not None:
+                # The substring matches! Consume it and add a token.
+                self.consume(i)
+                self.tokens.append(Token(m, FileSpan(start_pos, self.pos)))
                 return True
 
         return False
@@ -434,7 +436,7 @@ class _Tokenizer:
 
     def consume(self, n: int, err=False) -> str:
         """
-        Consumes the next n characters of the code.
+        Consumes the next n characters of the code: increments the cursor by n.
 
         Returns the n characters if there are more characters to consume, or an empty string else.
 
@@ -497,7 +499,9 @@ class _Tokenizer:
         i = self.cursor  # i is exclusive
         while i < len(self.code) and self.code[i].isspace():
             i += 1  # This character is okay, onto the next!
-        self.consume(i - self.cursor)
+
+        if i != self.cursor:
+            self.consume(i - self.cursor)
 
     def consume_regex(self, regex: re.Pattern[str]) -> str:
         """
@@ -530,7 +534,7 @@ class _Tokenizer:
         # Is the current character valid (not a space)?
         while i < len(self.code) and not self.code[i].isspace():
             i += 1  # This character is okay, onto the next!
-            return self.code[self.cursor:i]  # Ranges are [a; b[ (exclusive end)
+        return self.code[self.cursor:i]  # Ranges are [a; b[ (exclusive end)
 
     def peek_regex(self, regex: re.Pattern[str]) -> str:
         """

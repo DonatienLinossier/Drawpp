@@ -30,7 +30,7 @@ class FileCoordinates:
 
 class FileSpan(namedtuple("FileSpan", ["start", "end"])):
     """
-        An inclusive interval of characters within a file. That's [start; end], but with chars.
+        An interval of characters within a file. That's [start; end[, but with chars.
     """
     __slots__ = ()
     def __str__(self):
