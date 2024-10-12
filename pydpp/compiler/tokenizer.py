@@ -61,6 +61,8 @@ class TokenKind(Enum):
     "Symbol for right brace: }"
     SYM_SEMICOLON = auto()
     "Symbol for semicolon: ;"
+    SYM_COMMA = auto()
+    "Symbol for comma: ,"
     SYM_ASSIGN = auto()
     "Symbol for assignment: ="
     LITERAL_NUM = auto()
@@ -126,27 +128,27 @@ class Token:
 
 @final
 class NumberLiteralToken(Token):
-    "A number literal (LITERAL_NUMBER), which can have a decimal/integer part."
-    __slots__ = ("integer_val", "decimal_part")
+    """A number literal (LITERAL_NUMBER), which can have a decimal/integer part."""
+    __slots__ = ("int_part", "dec_part")
 
-    def __init__(self, integer_val: int, decimal_part: Optional[int], pos: Optional[FileSpan] = None):
+    def __init__(self, int_part: int, dec_part: Optional[int], pos: Optional[FileSpan] = None):
         super().__init__(TokenKind.LITERAL_NUM, pos)
-        self.integer_val = integer_val
+        self.int_part = int_part
         "The integer part of the number. Example: in 5.25, it's 5."
 
-        self.decimal_part = decimal_part
+        self.dec_part = dec_part
         "The decimal part of the number, which may be null if the number is an integer. Example: in 5.25, it's 25."
 
     def __repr__(self):
-        if self.decimal_part:
-            return f"{self.kind.name}({self.integer_val!r}.{self.decimal_part!r})"
+        if self.dec_part:
+            return f"{self.kind.name}({self.int_part!r}.{self.dec_part!r})"
         else:
-            return f"{self.kind.name}({self.integer_val!r})"
+            return f"{self.kind.name}({self.int_part!r})"
 
     def __eq__(self, other):
         return isinstance(other, NumberLiteralToken) \
-            and self.integer_val == other.integer_val \
-            and self.decimal_part == other.decimal_part
+            and self.int_part == other.int_part \
+            and self.dec_part == other.dec_part
 
 
 @final
@@ -229,7 +231,8 @@ _kw_sym_map = {
     "{": TokenKind.SYM_LBRACE,
     "}": TokenKind.SYM_RBRACE,
     ";": TokenKind.SYM_SEMICOLON,
-    "=": TokenKind.SYM_ASSIGN
+    "=": TokenKind.SYM_ASSIGN,
+    ",": TokenKind.SYM_COMMA
 }
 # The length of the longest keyword/symbol
 _kw_sym_longest = max(len(k) for k in _kw_sym_map.keys())
@@ -247,33 +250,6 @@ class _Tokenizer:
     The other files should just use the "tokenize" function :)
     """
 
-    tokens: list[Token] = []
-    """
-    The list of tokens we have created so far.
-    """
-
-    cursor = 0
-    """
-    The currently read index of the cursor in the code.
-    When this is N, the call to peek(1) will yield the N'th character of the code and cursor will be N+1.
-    When the cursor is equal to len(code), we have reached the end of the file and eof will be True.
-    """
-
-    err_start: Optional[FileCoordinates] = None
-    """
-    The starting position of the current "error", which is set when a character is not recognized at all.
-    Set to None once we get a valid character (i.e. consumed by self.consume normally).
-    
-    This allows us to raise an error message for a sequence of invalid characters, instead of 
-    spitting out an error message *per* invalid character.
-    """
-
-    pos: FileCoordinates = FileCoordinates(0, 1, 1)
-    """
-    The current position of the cursor in file coordinates.
-    The tuple is (index, line, column), and is immutable, so you can use it freely without copying it.
-    """
-
     def __init__(self, code: str, problems: ProblemSet):
         self.code = code
         "The code to tokenize."
@@ -283,6 +259,33 @@ class _Tokenizer:
 
         self.problems = problems
         "The problem set so we can report errors during tokenization."
+
+        self.tokens: list[Token] = []
+        """
+        The list of tokens we have created so far.
+        """
+
+        self.cursor = 0
+        """
+        The currently read index of the cursor in the code.
+        When this is N, the call to peek(1) will yield the N'th character of the code and cursor will be N+1.
+        When the cursor is equal to len(code), we have reached the end of the file and eof will be True.
+        """
+
+        self.err_start: Optional[FileCoordinates] = None
+        """
+        The starting position of the current "error", which is set when a character is not recognized at all.
+        Set to None once we get a valid character (i.e. consumed by self.consume normally).
+
+        This allows us to raise an error message for a sequence of invalid characters, instead of 
+        spitting out an error message *per* invalid character.
+        """
+
+        self.pos: FileCoordinates = FileCoordinates(0, 1, 1)
+        """
+        The current position of the cursor in file coordinates.
+        The tuple is (index, line, column), and is immutable, so you can use it freely without copying it.
+        """
 
     def tokenize(self) -> list[Token]:
         """

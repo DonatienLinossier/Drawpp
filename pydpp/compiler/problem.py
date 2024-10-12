@@ -53,17 +53,16 @@ class ProblemSet:
     At the end of the pipeline, this will contain all problems found during the compilation process,
     which should all be displayed to the user on the IDE. The IDE will be able to use this class to do so.
 
-    Contains lists of problem for each severity (ProblemSeverity) in the `grouped` attribute, which can be
+    Contains lists of problem for each severity (``ProblemSeverity``) in the ``grouped`` attribute, which can be
     useful to get all warnings, all errors...
 
     Can be used as if it was a list of problems! You can use for/len/in etc. on it.
-    For example, the following code works:
+    For example, the following code works: ::
 
-    ```python
-    ps = ProblemSet()
-    # < fill it with some stuff >
-    for problem in ps:
-        print(problem)
+        ps = ProblemSet()
+        add_tons_of_errors(ps)
+        for problem in ps:
+            print(problem)
     """
 
     __slots__ = ("problems", "grouped")
