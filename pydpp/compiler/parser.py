@@ -19,6 +19,8 @@ class Parser:
     It has a similar structure as the tokenizer, with the same cursor system.
     """
 
+    __slots__ = ("tokens", "cursor", "eof", "program_statements", "problems")
+
     def __init__(self, tokens: list[Token], problems: ProblemSet):
         self.tokens = tokens
         "The list of tokens to parse."
@@ -350,6 +352,25 @@ class Parser:
         tkn = self.consume()
         return BuiltInType(built_type, tkn.pos)
 
+    # Precedence of all binary operators, from lowest to highest.
+    # Precedence is what tells which expression is evaluated first. As in a+b*c, b*c is evaluated first.
+    # The higher the precedence, deeper it is present in the syntax tree.
+    # Inversely, a low precedence means it's higher up in the tree.
+    op_to_prec = {
+        TokenKind.KW_OR: (0, BinaryOperator.OR),
+        TokenKind.KW_AND: (1, BinaryOperator.AND),
+        TokenKind.SYM_EQ: (2, BinaryOperator.EQ),
+        TokenKind.SYM_NEQ: (2, BinaryOperator.NEQ),
+        TokenKind.SYM_LT: (2, BinaryOperator.LT),
+        TokenKind.SYM_LEQ: (2, BinaryOperator.LEQ),
+        TokenKind.SYM_GT: (2, BinaryOperator.GT),
+        TokenKind.SYM_GEQ: (2, BinaryOperator.GEQ),
+        TokenKind.SYM_PLUS: (3, BinaryOperator.ADD),
+        TokenKind.SYM_MINUS: (3, BinaryOperator.SUB),
+        TokenKind.SYM_STAR: (4, BinaryOperator.MUL),
+        TokenKind.SYM_SLASH: (4, BinaryOperator.DIV)
+    }
+
     def parse_expression(self):
         """
         Parses the next expression.
@@ -363,9 +384,8 @@ class Parser:
         # EXPRESSION PARSING
         # ============================================
         # To parse expressions, we have two "levels" of parsing:
-        # 1. Binary operations: Using a recursive *ascent* parser to read all binary operations, while
+        # 1. Binary operations: Using a precedence climbing parser to read all binary operations, while
         #    handling precedence correctly.
-        #    This one is tricky to understand, see below for a thorough explanation.
         # 2. Non-binary expressions: Using a usual recursive descent parser, we try each possible
         #    expression type in order (unary, function call, parenthesized, variable, literal).
 
@@ -373,36 +393,7 @@ class Parser:
         # BINARY OPERATION PARSING
         # ------
 
-        # Precedence of all binary operators, from lowest to highest.
-        # Precedence is what tells which expression is evaluated first. As in a+b*c, b*c is evaluated first.
-        # The higher the precedence, deeper it is present in the syntax tree.
-        # Inversely, a low precedence means it's higher up in the tree.
-        precedence_sets = [
-            {
-                TokenKind.KW_OR: BinaryOperator.OR
-            },
-            {
-                TokenKind.KW_AND: BinaryOperator.AND
-            },
-            {
-                TokenKind.SYM_EQ: BinaryOperator.EQ,
-                TokenKind.SYM_NEQ: BinaryOperator.NEQ,
-                TokenKind.SYM_LT: BinaryOperator.LT,
-                TokenKind.SYM_LEQ: BinaryOperator.LEQ,
-                TokenKind.SYM_GT: BinaryOperator.GT,
-                TokenKind.SYM_GEQ: BinaryOperator.GEQ
-            },
-            {
-                TokenKind.SYM_PLUS: BinaryOperator.ADD,
-                TokenKind.SYM_MINUS: BinaryOperator.SUB
-            },
-            {
-                TokenKind.SYM_STAR: BinaryOperator.MUL,
-                TokenKind.SYM_SLASH: BinaryOperator.DIV,
-            }
-        ]
-
-        # The recursive ascent parser for binary operations.
+        # The precedence climbing expression parser for binary operations.
         # set_idx is the index of the precedent set in precedent_sets.
         #
         # --------------------------------
@@ -414,6 +405,12 @@ class Parser:
         #    ...
         #    precN_expr = precN_expr, "opN", non_binary_expr | non_binary_expr
         #    non_binary_expr = literal | variable | "(", prec0_expr, ")"
+        #
+        # Which can also be interpreted as
+        #    prec0_expr = prec0_expr {"op0" prec1_expr} | prec1_expr
+        #    prec1_expr = prec1_expr {"op1" prec2_expr} | prec2_expr
+        #    ...
+        #    precN_expr = precN_expr {"opN" non_binary_expr} | non_binary_expr
         #
         # The goal of these rules is to make sure that:
         #    - Operations of higher precedence are located "deeper" in the tree.
@@ -448,54 +445,61 @@ class Parser:
         # <prec0_expr "op0" prec1_expr> production rule, where prec0_expr can be E.
         # If we don't, we would have no way to parse successive operators of the same precedence, such as 4 + 5 + 6!
         #
-        # Doing this is easy with a recursive call: just call the function again, but tell it that the LHS is E.
-        # Problem sorted!
-        def binary_op_left_assoc(set_idx: int, lhs=None):
-            if set_idx >= len(precedence_sets):
-                return non_binary_expr()
+        # We do this using an interative approach. We start do regular left-associative building when the
+        # operator is of the same precedence, but when we see a higher one, we give let another function
+        # call treat them in the RHS.
+        #
+        # See https://en.wikipedia.org/wiki/Operator-precedence_parser
+        def binary_op_left_assoc(lhs, min_prec: int=0):
+            op = None
 
-            higher_precedence = set_idx + 1
+            # Continue reading operators until we find one of lower precedence, in that is the case,
+            # the parent function call will take over reading expressions of lower precedence.
+            while (nxt := self.peek()) and (op := Parser.op_to_prec.get(nxt.kind)) and op[0] >= min_prec:
+                # Consume the read operator
+                self.consume()
 
-            if lhs is None:
-                lhs = binary_op_left_assoc(higher_precedence)
-
-            operation_map = precedence_sets[set_idx]
-            if lhs is not None and not self.eof and self.peek().kind in operation_map:
-                operator_tkn = self.consume()
-                kind = operator_tkn.kind
-                rhs = binary_op_left_assoc(higher_precedence)
-
+                # Read the RHS, and make one up if it's not there.
+                rhs = non_binary_expr()
                 if rhs is None:
-                    # We don't have an RHS! Make something up!
-                    rhs = ErrorExpr(invisible_span(operator_tkn.pos))
-                    self.problems.append(problem=f"Opérande de droite manquante après l'opérateur « {operator_tkn} » ",
+                    rhs = ErrorExpr(invisible_span(nxt.pos))
+                    self.problems.append(problem=f"Opérande de droite manquante après l'opérateur « {nxt} » ",
                                          severity=ProblemSeverity.ERROR,
-                                         pos=extend_span(lhs.pos, operator_tkn.pos))
+                                         pos=extend_span(lhs.pos, nxt.pos))
 
-                return binary_op_left_assoc(set_idx, BinaryOperationExpr(
-                    left=lhs,
-                    right=rhs,
-                    operator=operation_map[kind],
-                    pos=extend_span(lhs.pos, rhs.pos)
-                ))
-            else:
-                return lhs
-            pass
+                # If the next operator is one of HIGHER precedence, then "pause" this function's execution,
+                # and leave it to another call that will read all operators of higher precedence.
+                op2 = None
+                if (nxt := self.peek()) and (op2 := Parser.op_to_prec.get(nxt.kind)) and op2[0] > op[0]:
+                    # Make sure to give it the RHS we got as *its* LHS.
+                    # For instance, we can be reading 5+6*, while being at the '*' operator, with '+' having RHS=6
+                    # Then, the '*' expression should have an LHS of 6.
+                    rhs = binary_op_left_assoc(rhs, op2[0])
+
+                # If we didn't enter the loop above, that means we've read an operator of same precedence,
+                # or that we don't have operators anymore.
+
+                # Associate the LHS with the RHS we've read.
+                lhs = BinaryOperationExpr(lhs, op[1], rhs, extend_span(lhs.pos, rhs.pos))
+
+            return lhs
 
         def non_binary_expr() -> Optional[Expression]:
             """Recognizes non-binary expressions, expressions that don't involve binary operators."""
 
             # Try all non-binary expressions.
             # Order is important here (function expression needs to come before identifier).
-            if expr := unary():
+            # Else it's just ordered by most likely to less likely.
+
+            if expr := literal():
+                return expr
+            elif expr := unary():
                 return expr
             elif expr := self.parse_function_expression():  # This one has its own function for direct parsing reasons.
                 return expr
-            elif expr := parenthesized():
-                return expr
             elif expr := variable():
                 return expr
-            elif expr := literal():
+            elif expr := parenthesized():
                 return expr
             pass
 
@@ -573,8 +577,12 @@ class Parser:
             else:
                 return None
 
-        # Start with the lowest precedence.
-        return binary_op_left_assoc(0)
+        # Start reading the expression.
+        l = non_binary_expr()
+        if l:
+            return binary_op_left_assoc(l)
+        else:
+            return None
 
     def parse_function_expression(self) -> Optional[FunctionExpr]:
         def flush_trash_tokens(tt: list[Token]):
@@ -598,6 +606,10 @@ class Parser:
             expression_missing = False
             # The tokens of the invalid expression.
             trash_tokens = []
+
+            # Continue reading the argument list until we find a closing parenthesis or a semicolon.
+            # NOTE: The semicolon check is a bit of a weird choice, we might just give up reading the list
+            # instead of waiting for an end of statement.
             while (nxt := self.peek()) and nxt.kind != TokenKind.SYM_RPAREN and nxt.kind != TokenKind.SYM_SEMICOLON:
                 if expression_missing:
                     if nxt.kind == TokenKind.SYM_COMMA:
