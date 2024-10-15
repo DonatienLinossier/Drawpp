@@ -111,6 +111,7 @@ class Parser:
             # We got an if keyword, try looking for a condition.
             condition = self.parse_expression()
             if condition is None:
+                # No condition, make one up and error out.
                 condition = ErrorExpr(invisible_span(if_kw.pos))
                 self.problems.append(problem="Condition manquante après un « if ».",
                                      severity=ProblemSeverity.ERROR,
@@ -124,9 +125,23 @@ class Parser:
                                      severity=ProblemSeverity.ERROR,
                                      pos=if_kw.pos)
 
+            # Read all "else" blocks after the if.
             elses = []
+            # Set to True when we've seen an "else" block (not an "else if")
+            # Used to report errors when we see another "else"/"else if" after an "else"
+            saw_final_else = False
             while else_stmt := self.parse_else_statement():
+                # Add the else statement.
                 elses.append(else_stmt)
+
+                # If we got another "else" block, report an error.
+                if saw_final_else:
+                    block_name = "else" if else_stmt.condition is None else "else if"
+                    self.problems.append(problem=f"Bloc « {block_name} » situé après un « else » existant.",
+                                         severity=ProblemSeverity.ERROR,
+                                         pos=else_stmt.pos)
+                else:
+                    saw_final_else = else_stmt.condition is None
 
             return IfStmt(condition, block, elses, extend_span(if_kw.pos, block.pos))
 

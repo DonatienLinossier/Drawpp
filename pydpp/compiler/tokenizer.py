@@ -293,8 +293,8 @@ class _Tokenizer:
         Returns a list of Token objects.
         """
 
-        # First consume any whitespace before checking for end-of-file.
-        self.consume_whitespace()
+        # First consume any whitespace or comments before checking for end-of-file.
+        self.consume_auxiliary()
         while not self.eof:
             # Try to recognize various kinds of tokens.
             # Identifiers come last since they cover any sequence of letters.
@@ -321,7 +321,7 @@ class _Tokenizer:
         """
 
         # First skip any unwanted whitespace
-        self.consume_whitespace()
+        self.consume_auxiliary()
 
         # Make sure that there is at least one keyword/symbol starting with the next character.
         # If not, well, that's surely not a keyword or symbol. This saves up some time.
@@ -460,7 +460,7 @@ class _Tokenizer:
                 return False
 
         # Skip any unwanted whitespace
-        self.consume_whitespace()
+        self.consume_auxiliary()
 
         # Try each literal type. Order doesn't matter here, it's random.
         if number_literal():
@@ -479,7 +479,7 @@ class _Tokenizer:
         Returns true if an identifier was recognized, false otherwise.
         """
 
-        self.consume_whitespace()
+        self.consume_auxiliary()
         start_pos = self.pos
 
         # Scan all characters until we find an ineligible character.
@@ -562,13 +562,25 @@ class _Tokenizer:
         else:
             return False
 
-    def consume_whitespace(self):
+    def consume_auxiliary(self):
         """
-        Consumes all the whitespace characters until the next non-whitespace character.
+        Consumes all the whitespace characters until the next non-whitespace character,
+        and comments (single-line only).
         """
         i = self.cursor  # i is exclusive
-        while i < len(self.code) and self.code[i].isspace():
-            i += 1  # This character is okay, onto the next!
+
+        # Continue extending the interval as long as we find a space or a slash.
+        slash = False # True when we have may have a comment starting
+        while i < len(self.code) and (self.code[i].isspace() or (slash := self.code[i] == '/')):
+            # Is this is a comment start?
+            if slash and self.code[i:i+2] == "//":
+                # We're in a comment! Consume all characters until the end of the line.
+                while i < len(self.code) and self.code[i] != "\n":
+                    i += 1
+                slash = False
+            else:
+                # It's a space, consume it and go to the next character
+                i += 1
 
         if i != self.cursor:
             self.consume(i - self.cursor)
