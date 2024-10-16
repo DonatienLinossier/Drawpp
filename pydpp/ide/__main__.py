@@ -55,7 +55,7 @@ class App(customtkinter.CTk):
         self.scaling_optionemenu.grid(row=8, column=0, padx=20, pady=(10, 20))
 
         # create main entry and button
-        self.entry = customtkinter.CTkEntry(self, placeholder_text="CTkEntry")
+        self.entry = customtkinter.CTkEntry(self, placeholder_text="ctk")
         self.entry.grid(row=3, column=1, columnspan=2, padx=(20, 0), pady=(20, 20), sticky="nsew")
 
         self.main_button_1 = customtkinter.CTkButton(master=self, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"))
@@ -68,26 +68,19 @@ class App(customtkinter.CTk):
         # create tabview
         self.tabview = customtkinter.CTkTabview(self, width=250)
         self.tabview.grid(row=0, column=2, padx=(20, 0), pady=(20, 0), sticky="nsew")
-        self.tabview.add("CTkTabview")
+        self.tabview.add("Menu").grid_columnconfigure(0, weight=1)
 
         self.textboxes = {} #liste de références de textbox pour les tab
 
-        self.optionmenu_1 = customtkinter.CTkOptionMenu(self.tabview.tab("CTkTabview"), dynamic_resizing=False,
-                                                        values=["Value 1", "Value 2", "Value Long Long Long"])
-        self.optionmenu_1.grid(row=0, column=0, padx=20, pady=(20, 10))
-        self.combobox_1 = customtkinter.CTkComboBox(self.tabview.tab("CTkTabview"),
-                                                    values=["Value 1", "Value 2", "Value Long....."])
-        self.combobox_1.grid(row=1, column=0, padx=20, pady=(10, 10))
-        self.string_input_button = customtkinter.CTkButton(self.tabview.tab("CTkTabview"), text="Open CTkInputDialog",
-                                                           command=self.open_input_dialog_event)
-        self.string_input_button.grid(row=2, column=0, padx=20, pady=(10, 10))
+        text=customtkinter.CTkTextbox(self.tabview.tab("Menu")) #création de la textbox du tab Menu
+        text.insert("1.0","Ici les règles et commandes") #Ne marche pas pour l'instant
+        self.textboxes["Menu"] = text #rajout de la textbox à la liste de textbox
+
 
 
         # set default values
         self.appearance_mode_optionemenu.set("Dark")
         self.scaling_optionemenu.set("100%")
-        self.optionmenu_1.set("CTkOptionmenu")
-        self.combobox_1.set("CTkComboBox")
         self.textbox.insert("0.0", "CTkTextbox\n\n" + "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.\n\n" * 20)
         
     def open_input_dialog_event(self):
@@ -109,18 +102,19 @@ class App(customtkinter.CTk):
 
     def sauv_event(self):
         tab = self.tabview.get()  # Connaitre le nom du tab ouvert actuellement
-        textbox = self.textboxes.get(tab)  # Récupérer la Textbox correspondante
+        if tab!="Menu":
+            textbox = self.textboxes.get(tab)  # Récupérer la Textbox correspondante
 
-        if textbox:
-            text = textbox.get("1.0", "end-1c")  # Récupérer le contenu de la Textbox
-            print(f"Contenu du textbox dans le tab '{tab}':", text)
-            file=filedialog.asksaveasfilename(defaultextension=".txt", #type par défaut
-                                         filetypes=[("txt fichier",".txt"),("pdf fichier",".pdf")], #possible d'ouvir (et donc impossible d'ouvrir les autres si il est créé)et agit en tuples (nombre de tuples infini max) dans une liste
-                                         initialfile=tab
-                                         )
-            if file:
-                with open(file, "w") as f:
-                    f.write(text)   
+            if textbox:
+                text = textbox.get("1.0", "end-1c")  # Récupérer le contenu de la Textbox
+                print(f"Contenu du textbox dans le tab '{tab}':", text)
+                file=filedialog.asksaveasfilename(defaultextension=".txt", #type par défaut
+                                            filetypes=[("txt fichier",".txt"),("pdf fichier",".pdf")], #possible d'ouvir (et donc impossible d'ouvrir les autres si il est créé)et agit en tuples (nombre de tuples infini max) dans une liste
+                                            initialfile=tab
+                                            )
+                if file:
+                    with open(file, "w") as f:
+                        f.write(text)   
 
 
 
@@ -132,6 +126,10 @@ class App(customtkinter.CTk):
                                         )   
         if file:    
             file_name=os.path.basename(file)
+            if file_name=="Menu":
+                while(file_name=="Menu"):
+                    questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
+                    file_name=questionname.get_input()
             self.tabview.add(file_name).grid_columnconfigure(0, weight=1)    #création du tab 
             labelimp=customtkinter.CTkLabel(self.tabview.tab(file_name)) #label si on veut le rajouter 
             labelimp.pack(pady=15)
@@ -147,6 +145,10 @@ class App(customtkinter.CTk):
     def newfile(self):
         questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
         name=questionname.get_input()
+        if name=="Menu":
+                while(name=="Menu"):
+                    questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
+                    name=questionname.get_input()
         if name:
             self.tabview.add(name).grid_columnconfigure(0, weight=1)
             labelimp=customtkinter.CTkLabel(self.tabview.tab(name)) #label si on veut le rajouter
@@ -158,4 +160,3 @@ class App(customtkinter.CTk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
-    
