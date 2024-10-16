@@ -4,6 +4,10 @@ import tkinter
 import tkinter.messagebox
 import customtkinter
 
+from pydpp.compiler import ProblemSet, ProblemSeverity
+from pydpp.compiler.parser import parse
+from pydpp.compiler.tokenizer import tokenize, TokenKind
+
 customtkinter.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
 customtkinter.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
 
@@ -89,7 +93,30 @@ class App(customtkinter.CTk):
         self.optionmenu_1.set("CTkOptionmenu")
         self.combobox_1.set("CTkComboBox")
         self.textbox.insert("0.0", "CTkTextbox\n\n" + "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.\n\n" * 20)
-       
+
+        # --- SYNTAX HIGHILIGHTING ---
+        # Initialize color tags
+        self.init_highlighting(self.textbox)
+        # Bind the Modified event to update the syntax highlighting on type/paste/delete/etc.
+        self.textbox.bind("<<Modified>>", lambda e: self.update_highlighting(self.textbox))
+        # Change font of textbox because existing one is UGLY
+        # Try all monospace fonts I know so it works on both Windows and Linux.
+        fonts = tkinter.font.families()
+        if "Cascadia Code" in fonts:
+            fam = "Cascadia Code"
+        elif "Consolas" in fonts:
+            fam = "Consolas"
+        elif "Ubuntu Mono" in fonts:
+            fam = "Ubuntu Mono"
+        elif "Noto Mono" in fonts:
+            fam = "Noto Mono"
+        elif "Liberation Mono" in fonts:
+            fam = "Liberation Mono"
+        elif "Lucida Console" in fonts:
+            fam = "Lucida Console"
+        else:
+            fam = fonts[0]
+        self.textbox.configure(font=customtkinter.CTkFont(family=fam, size=13))
 
     def open_input_dialog_event(self):
         dialog = customtkinter.CTkInputDialog(text="Type in a number:", title="CTkInputDialog")
@@ -114,6 +141,65 @@ class App(customtkinter.CTk):
     def imp_event(self):
         print("j'importe le fichier")
         self.tabview.add("Tab ajouté")
+
+    def init_highlighting(self, txt: customtkinter.CTkTextbox):
+        # Configure all syntax highlighting tags
+        txt.tag_config("kw", foreground="#268bd2")
+        txt.tag_config("str", foreground="#cb4b16")
+        txt.tag_config("num", foreground="#859900")
+        txt.tag_config("err", underline=True, underlinefg="red")
+
+        def err_enter(er):
+            print("ERROR ENTER: cursor is at", txt.index("current"))
+            # Then use that coordinate to find where the error is and show a tooltip... somehow
+
+        def err_exit(er):
+            print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
+
+        # Bind some functions to run when the cursor enters or leaves an error in the text.
+        # We can use that to show tooltips!
+        txt.tag_bind("err", "<Enter>", err_enter)
+        txt.tag_bind("err", "<Leave>", err_exit)
+
+    def update_highlighting(self, txt: customtkinter.CTkTextbox):
+        # Converts FileCoordinates into tkinter coordinates
+        def fc_to_idx(fc):
+            return f"{fc.line}.{fc.column-1}"
+
+        # Clear all existing highlighting
+        txt.tag_remove("kw", "1.0", "end")
+        txt.tag_remove("str", "1.0", "end")
+        txt.tag_remove("num", "1.0", "end")
+        txt.tag_remove("err", "1.0", "end")
+
+        # Get the entire text of the textbox
+        t = txt.get("1.0", "end")
+
+        # Run the tokenizer (for primary syntax highlighting) and the parser (for error recognition)
+        ps = ProblemSet() # Errors will be there
+        tkn_list = tokenize(t, ps)
+        tree = parse(tkn_list, ps) # not used yet, costly!
+
+        # Highlight every portion of the text that matches with a token
+        for t in tkn_list:
+            if t.kind.name.startswith("KW") or t.kind == TokenKind.LITERAL_BOOL:
+                # Keyword
+                txt.tag_add("kw", fc_to_idx(t.pos.start), fc_to_idx(t.pos.end))
+            elif t.kind == TokenKind.LITERAL_STRING:
+                # String
+                txt.tag_add("str", fc_to_idx(t.pos.start), fc_to_idx(t.pos.end))
+            elif t.kind == TokenKind.LITERAL_NUM:
+                # Number
+                txt.tag_add("num", fc_to_idx(t.pos.start), fc_to_idx(t.pos.end))
+
+        # Highlight every error (not warnings for now)
+        for e in ps.grouped[ProblemSeverity.ERROR]:
+            txt.tag_add("err", fc_to_idx(e.pos.start), fc_to_idx(e.pos.end))
+
+        # Set modified to False so the event triggers again (it's dumb but that's how it works)
+        txt.edit_modified(False)
+
+
 if __name__ == "__main__":
     app = App()
     app.mainloop()
