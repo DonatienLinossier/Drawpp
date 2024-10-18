@@ -10,7 +10,7 @@ from pydpp.compiler.types import BuiltInTypeKind
 # parser.py: The magic parser transforming tokens into a syntax tree
 # =============================================================================
 
-class Parser:
+class _Parser:
     """
     Takes a list of tokens, and processes it to create a syntax tree from it.
 
@@ -470,7 +470,7 @@ class Parser:
 
             # Continue reading operators until we find one of lower precedence, in that is the case,
             # the parent function call will take over reading expressions of lower precedence.
-            while (nxt := self.peek()) and (op := Parser.op_to_prec.get(nxt.kind)) and op[0] >= min_prec:
+            while (nxt := self.peek()) and (op := _Parser.op_to_prec.get(nxt.kind)) and op[0] >= min_prec:
                 # Consume the read operator
                 self.consume()
 
@@ -485,7 +485,7 @@ class Parser:
                 # If the next operator is one of HIGHER precedence, then "pause" this function's execution,
                 # and leave it to another call that will read all operators of higher precedence.
                 op2 = None
-                if (nxt := self.peek()) and (op2 := Parser.op_to_prec.get(nxt.kind)) and op2[0] > op[0]:
+                if (nxt := self.peek()) and (op2 := _Parser.op_to_prec.get(nxt.kind)) and op2[0] > op[0]:
                     # Make sure to give it the RHS we got as *its* LHS.
                     # For instance, we can be reading 5+6*, while being at the '*' operator, with '+' having RHS=6
                     # Then, the '*' expression should have an LHS of 6.
@@ -748,4 +748,4 @@ def parse(tokens: list[Token], problems: ProblemSet) -> Program:
     """
     Parses the given list of tokens and returns the root Program node.
     """
-    return Parser(tokens, problems).parse()
+    return _Parser(tokens, problems).parse()

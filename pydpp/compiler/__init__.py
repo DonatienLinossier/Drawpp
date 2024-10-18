@@ -2,7 +2,7 @@
 # Import the pydpp.compiler module to use it!
 
 # ======================
-# PUBLIC IMPORTS
+# IMPORTS
 # ======================
 # Import all useful types that the IDE module will take usage of.
 #
@@ -10,25 +10,36 @@
 #   from pydpp.compiler import ProblemSet, FileSpan
 from .problem import ProblemSet, Problem, ProblemSeverity
 from .position import FileCoordinates, FileSpan
+from .tokenizer import tokenize
+from .parser import parse
+from .semantic import analyse
+from .transpiler import transpile
+
+# Make all submodules available when importing the compiler module
+from . import problem, position, tokenizer, semantic, syntax, transpiler, types, transpiler
 
 # ======================
-# PRIVATE IMPORTS
-# ======================
-# Import modules with an underscore prefix to avoid importing pipeline elements (tokenizer, parser)
-# when importing pydpp.compiler.
-from . import tokenizer as _tokenizer
-
-
-# ======================
-# PUBLIC FUNCTIONS
+# FUNCTIONS
 # ======================
 # Functions that the IDE module will be able to use to do various stuff with code.
 
-# Draft version of the compilation pipeline
-def compile_code(code):
+# Draft version of the compilation pipeline, returns the path to the exe, or None if there was an error
+def compile_code(code) -> tuple[str | None, ProblemSet]:
     # Create a problem set to contain all errors during the compilation pipeline
     ps = ProblemSet()
     # Tokenize the code, and get a list of tokens
-    tokens = _tokenizer.tokenize(code, ps)
-    # And then...?
+    tokens = tokenize(code, ps)
+    # Take that list of tokens, and parse it to make a syntax tree
+    program = parse(tokens, ps)
+    # Do some semantic analysis on the tree, to check/compute types and references
+    semantic_info = analyse(program, ps)
+
+    # If we have an error, we can't transpile and compile, so return no path
+    if len(ps.grouped[ProblemSeverity.ERROR]) > 0:
+        return None, ps
+
+    # Generate the C code that will run the program's instructions
+    c_code = transpile(program, semantic_info, ps)
+
+    # And then...? We need to compile an EXE, and call CMake/gcc whatever!
     raise NotImplementedError("To be continued...!")

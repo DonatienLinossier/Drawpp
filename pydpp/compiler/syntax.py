@@ -1,3 +1,4 @@
+import typing
 from enum import Enum
 from typing import Optional, Iterable
 
@@ -114,7 +115,7 @@ class Node:
     different from your usual tree, which doesn't care about *why* children are there in the first place.
     """
 
-    __slots__ = ("pos", "is_fake")
+    __slots__ = ("pos", "is_fake", "semantic_info")
 
     def __init__(self, pos: Optional[FileSpan] = None):
         self.pos = pos
@@ -128,6 +129,16 @@ class Node:
         to "fix up" a broken node: like a missing operand, missing identifier...
         
         To create a fake node, its position must be of length 0.
+        """
+
+        self.semantic_info: typing.Any = None
+        """
+        The semantic information of the node, mainly containing info about types.
+        
+        This attribute is None when the semantic analysis hasn't been done on this node, 
+        or when this node doesn't need that.
+        
+        For now, it's can be anything, we haven't decided on what it should be yet.
         """
 
     @property
