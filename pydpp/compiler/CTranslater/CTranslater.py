@@ -1,6 +1,4 @@
 #Donatien
-
-
 header = """ 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -37,12 +35,18 @@ footer = """
                     
     return returnStatement;
 }"""
-from Function import Function
-from translater import translater
-from Variable import VarCall
+import os
+import sys
+
+sys.path.append(os.getcwd()+"\CTranslater_p")
+
+print(sys.path)
+
+from ._Function import Function
+from .Variable import VarCall
 
 
-class CTranslater(translater):
+class CTranslater:
     def __init__(self, filename):
         self.filename = filename
         self.file = open(self.filename, "w")
@@ -75,6 +79,7 @@ class CTranslater(translater):
 
     def addToVar(self, name, value):
         self.varDict[name] += value
+
 
     def drawCircle(self, x, y, radius):
         self.file.write("drawCircle(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ");\n")
@@ -145,8 +150,8 @@ class CTranslater(translater):
         self.file.close()
 
 
-if __name__ == '__main__':
-    test = CTranslater("output/test.c")
+"""if __name__ == '__main__':
+    test = CTranslater("../output/test.c")
 
 
     test.add_instruction("createVar", "b", 105)
@@ -166,69 +171,4 @@ if __name__ == '__main__':
     test.add_instruction("MyTestFunction", 5)
 
     test.run()
-
-
-
-    """test.createFunc("MyTestFunction", ["a"])
-    #test.addInstructionToFunction("MyTestFunction", "deb", VarCall("a"))
-
-
-    #TODO: need to verify function creation and utilization
-    #WTF, it parses 15, for the arguements
-    #Maybe create a func in a func is the pb
-    test.add_instruction("MyTestFunction", 15)
-
-
-    print("la", test.instr["MyTestFunction"].nb_param, "la")
-    #print(test.instr)
-
-    test.run()
-
-   
-
-    test.main.add_instruction(test.instr["deb"], "test de test bah test")
-    test.main()
-
-    parameterLista = []
-    funct = Function("test2", parameterLista)
-    test.instr["testre"] = funct
-    test.instr["testre"].add_instruction(test.instr["setColor"], 158, 40, 10, 0)
-    test.instr["testre"].add_instruction(test.instr["deb"], "test de test")
-
-    test.instr["testre"]()
-
-
-    parameterList = ["b"]
-    func = Function("test2", parameterList)
-    test.instr["test2"] = func
-    test.instr["test2"].add_instruction(test.instr["setColor"], 158, 40, VarCall("b"), 0)
-
-    #Create the fonc
-    parameterList = ["a"]
-    func = Function("test", parameterList)
-    test.instr["test"] = func
-
-    test.instr["test"].add_instruction(test.instr["deb"], "SAlut")
-    test.instr["test"].add_instruction(test.instr["deb"], VarCall("a"))
-    test.instr["test"].add_instruction(test.instr["deb"], 45)
-    test.instr["test"].add_instruction(test.instr["setColor"], 150, 40, 0, 0)
-    test.instr["test"].add_instruction(test.instr["test2"], 8)
-    test.instr["test"].add_instruction(test.instr["createVar"], VarCall("a"), 8)
-
-    test.instr["test"]("hiolaaaaa")
-    test.instr["createVar"]("test", 5)
-    test.instr["addToVar"]("test", 100)
-
-    test.instr["setColor"](100, 0, 0, 0)
-    test.instr["drawCircle"](2, test.instr["getVar"]("test"), 50)
-    test.instr["drawCircleFill"](20, 45, 50)
-
-    test.instr["returnStatement"](5)
-    exit()
-
-    test.instr["sleep"](10000)
-
-    test.instr["test"]("yyaiagekjzhekjh")
-    test.instr["setColor"](0, 100, 0, 0)
-    test.instr["drawRect"](100, 50, 48, 89)
-    test.instr["drawRectFill"](100, 60, 68, 46)"""
+"""

@@ -15,10 +15,17 @@ find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
-# Add executable
-add_executable(${PROJECT_NAME} src/main.c src/cursor.c src/sdlEncapsulation.c)
+SET(SRC_DIR src)
+SET(OUTPUT_DIR output)
 
-add_executable(pymain py/output/test.c src/cursor.c src/sdlEncapsulation.c)
+SET(SRC1 ${SRC_DIR}/main.c ${SRC_DIR}/cursor.c ${SRC_DIR}/sdlEncapsulation.c)
+SET(SRC2 ${OUTPUT_DIR}/test.c ${SRC_DIR}/cursor.c ${SRC_DIR}/sdlEncapsulation.c)
+
+
+# Add executable
+add_executable(${PROJECT_NAME} ${SRC1})
+add_executable(pymain ${SRC2})
+
 
 # Link SDL2 libraries
 target_link_libraries(pymain ${SDL2_LIBRARIES})

@@ -1,4 +1,4 @@
-from Variable import VarCall
+from .Variable import VarCall
 class Function:
     #Todo: get returned, and store it ? value from funct
     #Todo: Recursivity trouble. a function can call a func, but what about an instr calling another instr ??
