@@ -26,5 +26,4 @@ typedef struct {
 
 Cursor createCursor(int x, int y, unsigned short a, short visible, unsigned short thickness, Color color);
 void cursorJump(Cursor* cursor, int x, int y, SDL_Renderer* renderer);
-
 #endif //CURSOR_H

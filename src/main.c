@@ -3,7 +3,6 @@
 
 #include "cursor.h"
 #include "sdlEncapsulation.h"
-#include "drawppVar.h"
 
 
 int main(int argc, char* args[]) {
@@ -15,6 +14,7 @@ int main(int argc, char* args[]) {
     if (initSDL(&window, &renderer) != 0) {
         return -1;
     }
+
 
 
     Color myColor = {100, 0, 0, 1};

@@ -27,6 +27,7 @@ void cursorJump(Cursor* cursor, int x, int y, SDL_Renderer* renderer) {
     int lastPosY = cursor->y;
     cursor->x+=x;
     cursor->y+=y;
+    //TODO: check if the cursor is visible before drawing it
     SDL_RenderDrawLine(renderer, lastPosX, lastPosY, cursor->x, cursor->y);
 }
 
