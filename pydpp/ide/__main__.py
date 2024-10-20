@@ -6,7 +6,7 @@ import customtkinter
 from tkinter import filedialog
 import os
 customtkinter.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
-customtkinter.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
+customtkinter.set_default_color_theme('Drawpp/pydpp/ide/Metadata/style.json')  # Themes: "blue" (standard), "green", "dark-blue"
 
 
 class App(customtkinter.CTk):
@@ -20,7 +20,7 @@ class App(customtkinter.CTk):
         # configure grid layout (4x4)
         self.grid_columnconfigure(1, weight=1)
         self.grid_columnconfigure((2, 3), weight=0)
-        self.grid_rowconfigure((0, 1, 2), weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
         # create sidebar frame with widgets
         self.sidebar_frame = customtkinter.CTkFrame(self, width=140, corner_radius=0)
@@ -30,7 +30,7 @@ class App(customtkinter.CTk):
         self.logo_label = customtkinter.CTkLabel(self.sidebar_frame, text="Draw++", font=customtkinter.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
-        self.sidebar_button_NewF = customtkinter.CTkButton(self.sidebar_frame, text="nouveau fichier", command=self.newfile)
+        self.sidebar_button_NewF = customtkinter.CTkButton(self.sidebar_frame, text="nouveau fichier", command=self.new_tab)
         self.sidebar_button_NewF.grid(row=1, column=0, padx=20, pady=10)
 
         self.sidebar_button_imp = customtkinter.CTkButton(self.sidebar_frame, text= "importer",command=self.imp_event)
@@ -43,8 +43,6 @@ class App(customtkinter.CTk):
         self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
         self.appearance_mode_optionemenu = customtkinter.CTkOptionMenu(self.sidebar_frame, values=["Light", "Dark", "System"],
                                                                        command=self.change_appearance_mode_event)
-        self.set_default_color_theme_label=customtkinter.CTkLabel(self.sidebar_frame, text="theme:", anchor="w")
-        self.set_default_color_theme_label.grid(row=4, column=0, padx=20, pady=(10,0))
         self.set_default_color_theme_optionmenu=customtkinter.CTkOptionMenu(self.sidebar_frame, values=["blue", "dark-blue", "green"],
                                                                        command=self.change_theme_mode_event)
         self.appearance_mode_optionemenu.grid(row=6, column=0, padx=20, pady=(10, 10))
@@ -58,16 +56,11 @@ class App(customtkinter.CTk):
         self.entry = customtkinter.CTkEntry(self, placeholder_text="ctk")
         self.entry.grid(row=3, column=1, columnspan=2, padx=(20, 0), pady=(20, 20), sticky="nsew")
 
-        self.main_button_1 = customtkinter.CTkButton(master=self, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"))
-        self.main_button_1.grid(row=3, column=3, padx=(20, 20), pady=(20, 20), sticky="nsew")
-
-        # create textbox
-        self.textbox = customtkinter.CTkTextbox(self, width=250)
-        self.textbox.grid(row=0, column=1, rowspan=2 , padx=(20, 0), pady=(20, 0), sticky="nsew")
 
         # create tabview
         self.tabview = customtkinter.CTkTabview(self, width=250)
-        self.tabview.grid(row=0, column=2, padx=(20, 0), pady=(20, 0), sticky="nsew")
+        self.tabview.grid(row=0, column=1, padx=10, pady=(10, 0), sticky="nsew")
+        self.tabview.grid_columnconfigure(0, weight=1)
         self.tabview.add("Menu").grid_columnconfigure(0, weight=1)
 
         self.textboxes = {} #liste de références de textbox pour les tab
@@ -81,7 +74,6 @@ class App(customtkinter.CTk):
         # set default values
         self.appearance_mode_optionemenu.set("Dark")
         self.scaling_optionemenu.set("100%")
-        self.textbox.insert("0.0", "CTkTextbox\n\n" + "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.\n\n" * 20)
         
     def open_input_dialog_event(self):
         dialog = customtkinter.CTkInputDialog(text="Type in a number:", title="CTkInputDialog")
@@ -116,8 +108,6 @@ class App(customtkinter.CTk):
                     with open(file, "w") as f:
                         f.write(text)   
 
-
-
     def imp_event(self):
         file= filedialog.askopenfilename(title="Importer", #titre
                                         defaultextension=".txt", #type par défaut
@@ -130,31 +120,27 @@ class App(customtkinter.CTk):
                 while(file_name=="Menu"):
                     questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
                     file_name=questionname.get_input()
-            self.tabview.add(file_name).grid_columnconfigure(0, weight=1)    #création du tab 
-            labelimp=customtkinter.CTkLabel(self.tabview.tab(file_name)) #label si on veut le rajouter 
-            labelimp.pack(pady=15)
-            labelimp.configure(text=file_name)
-            showtext=customtkinter.CTkTextbox(self.tabview.tab(file_name))   #création du textbox
-            showtext.pack(pady=5,padx=5)
-            self.textboxes[file_name] = showtext    #ajout de la référence dans la liste des références de textbox
+
+            self.new_tab(file_name)
             fichier=open(file, "r") #ouverture du fichier en mode lecture
             lecture=fichier.readlines() #lecture du fichier
             for line in lecture:
-                showtext.insert("end", line) #insertion du text dans la textbox ligne par ligne
+                self.textboxes[file_name].insert("end", line) #insertion du text dans la textbox ligne par ligne
     
-    def newfile(self):
-        questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
-        name=questionname.get_input()
-        if name=="Menu":
-                while(name=="Menu"):
-                    questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
-                    name=questionname.get_input()
+    def new_tab(self, name : str = None, event=None):
+        print(name)
+        if not name:
+            questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
+            name=questionname.get_input()
+            if name=="Menu":
+                    while(name=="Menu"):
+                        questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
+                        name=questionname.get_input()
         if name:
             self.tabview.add(name).grid_columnconfigure(0, weight=1)
-            labelimp=customtkinter.CTkLabel(self.tabview.tab(name)) #label si on veut le rajouter
-            labelimp.pack(pady=15)
-            showtext=customtkinter.CTkTextbox(self.tabview.tab(name))   #création du textbox
-            showtext.pack(pady=5,padx=5)        
+            self.tabview.tab(name).grid_rowconfigure(0, weight=1)
+            showtext=customtkinter.CTkTextbox(self.tabview.tab(name))  
+            showtext.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")        
             self.textboxes[name] = showtext #ajout de la référence de la textbox dans la liste des références
 
 if __name__ == "__main__":
