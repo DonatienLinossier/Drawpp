@@ -6,7 +6,7 @@ import customtkinter
 from tkinter import filedialog
 import os
 customtkinter.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
-customtkinter.set_default_color_theme('Drawpp/pydpp/ide/Metadata/style.json')  # Themes: "blue" (standard), "green", "dark-blue"
+customtkinter.set_default_color_theme(os.path.join(os.path.dirname(__file__), 'Metadata/style.json'))  # Themes: "blue" (standard), "green", "dark-blue"
 
 
 class App(customtkinter.CTk):
@@ -109,15 +109,15 @@ class App(customtkinter.CTk):
                         f.write(text)   
 
     def imp_event(self):
-        file= filedialog.askopenfilename(title="Importer", #titre
+        file = filedialog.askopenfilename(title="Importer", #titre
                                         defaultextension=".txt", #type par défaut
                                         filetypes=[("txt fichier",".txt"),("pdf fichier",".pdf")], #possible d'ouvir (et donc impossible d'ouvrir les autres si il est créé)et agit en tuples (nombre de tuples infini max) dans une liste
                                         initialdir= r"PROJET", #endroit où on est redirigé de base pour ouvrir un fichier (mettre un r pour faire la diférence entre \ en tant que signe spécial et \ pour un caractère lambda)
                                         )   
         if file:    
             file_name=os.path.basename(file)
-            if file_name=="Menu":
-                while(file_name=="Menu"):
+            if file_name in self.textboxes:
+                while(file_name in self.textboxes):
                     questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
                     file_name=questionname.get_input()
 
@@ -128,13 +128,12 @@ class App(customtkinter.CTk):
                 self.textboxes[file_name].insert("end", line) #insertion du text dans la textbox ligne par ligne
     
     def new_tab(self, name : str = None, event=None):
-        print(name)
         if not name:
-            questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
+            questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="New File")
             name=questionname.get_input()
-            if name=="Menu":
-                    while(name=="Menu"):
-                        questionname = customtkinter.CTkInputDialog(text="Entrez le nom du nouveau fichier:", title="Nouveau fichier")
+            if name in self.textboxes:
+                    while(name in self.textboxes):
+                        questionname = customtkinter.CTkInputDialog(text="Entrez un meilleur nom de fichier:", title="New File")
                         name=questionname.get_input()
         if name:
             self.tabview.add(name).grid_columnconfigure(0, weight=1)
