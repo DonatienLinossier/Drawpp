@@ -16,8 +16,7 @@ from .semantic import analyse
 from .transpiler import transpile
 
 # Make all submodules available when importing the compiler module
-from . import problem, position, tokenizer, semantic, syntax, transpiler, types, transpiler
-
+from . import problem, position, tokenizer, semantic, syntax, transpiler, types, transpiler, CTranslater
 # ======================
 # FUNCTIONS
 # ======================
