@@ -38,9 +38,7 @@ footer = """
 import os
 import sys
 
-sys.path.append(os.getcwd()+"\CTranslater_p")
-
-print(sys.path)
+sys.path.append(os.getcwd()+"\\CTranslater_p")
 
 from ._Function import Function
 from .Variable import VarCall
