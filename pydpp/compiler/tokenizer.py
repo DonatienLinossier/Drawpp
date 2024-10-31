@@ -1,14 +1,59 @@
 from enum import Enum, auto
 from typing import Optional, final
-from pydpp.compiler.position import FileCoordinates, FileSpan
+from pydpp.compiler.position import TextSpan
 from pydpp.compiler.problem import ProblemSet, ProblemSeverity
 import re
+
+
+class AuxiliaryKind(Enum):
+    """
+    The kind of auxiliary text.
+    """
+    WHITESPACE = auto()
+    "Whitespace: spaces, tabs, newlines, etc."
+    SINGLE_LINE_COMMENT = auto()
+    "A single line comment: a sequence of characters that are ignored by the parser."
+    INVALID = auto()
+    "Invalid text: text that couldn't form tokens."
+
+
+class AuxiliaryText:
+    """
+    Auxiliary text is any "secondary" text that can be ignored by the parser:
+        - whitespace (newlines, space)
+        - comments (single-line comments & multi-line)
+        - invalid text (text that couldn't form tokens)
+    """
+    __slots__ = ("kind", "text")
+
+    def __init__(self, kind: AuxiliaryKind, text: str):
+        self.kind = kind
+        "The kind of auxiliary text."
+        self.text = text
+        "The text of the auxiliary text."
+
+    @staticmethod
+    def whitespace(text: str):
+        return AuxiliaryText(AuxiliaryKind.WHITESPACE, text)
+
+    @staticmethod
+    def single_line_comment(text: str):
+        return AuxiliaryText(AuxiliaryKind.SINGLE_LINE_COMMENT, text)
+
+    @staticmethod
+    def invalid(text: str):
+        return AuxiliaryText(AuxiliaryKind.INVALID, text)
+
+    def __repr__(self):
+        return f"{self.kind.name}({self.text!r})"
 
 
 class TokenKind(Enum):
     """
     A kind of token, that qualifies what a token *is* exactly. See the Token class below for more information.
     """
+    EOF = auto()
+    "The end-of-file, always at the end of the list."
     KW_IF = auto()
     "The if keyword: if"
     KW_ELSE = auto()
@@ -101,18 +146,31 @@ class Token:
     the coordinates of the starting and ending character in the file.
     """
 
-    __slots__ = ("kind", "pos")
+    __slots__ = ("kind", "pos", "text", "pre_auxiliary", "full_text")
     """Register slots for Token objects to save lots of memory, since we'll have thousands of them.
     Subclasses should also register their own slots!"""
 
-    def __init__(self, kind: TokenKind, pos: Optional[FileSpan] = None):
+    def __init__(self, kind: TokenKind, text: str, pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
         self.kind = kind
         """The kind of the token. See the TokenKind enum for all possible values.
         Tokens of some particular kinds may have additional information, which are stored as supplementary attributes.
         Check the various subclasses of Token for more information (like NumberLiteralToken)."""
 
-        self.pos = pos
-        """The position of the token in the file. May be null if we're not in a file."""
+        self.text = text
+        """The text of the token, as written in code."""
+
+        self.pre_auxiliary = pre_auxiliary
+        """All auxiliary text preceding this token."""
+
+        if len(pre_auxiliary) == 0:
+            ft = text
+        elif len(pre_auxiliary) == 1:
+            ft = pre_auxiliary[0].text + text
+        else:
+            ft = "".join(a.text for a in pre_auxiliary) + text
+
+        self.full_text = ft
+        """The full text of the token, including auxiliary text."""
 
     def __repr__(self):
         return f"{self.kind.name}"
@@ -125,14 +183,21 @@ class Token:
         """
         return self.kind == other.kind
 
+    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "Token":
+        """
+        Returns a new token with the given auxiliary text.
+        """
+        return Token(self.kind, self.text, pre_auxiliary)
+
 
 @final
 class NumberLiteralToken(Token):
     """A number literal (LITERAL_NUMBER), which can have a decimal/integer part."""
     __slots__ = ("int_part", "dec_part")
 
-    def __init__(self, int_part: int, dec_part: Optional[int], pos: Optional[FileSpan] = None):
-        super().__init__(TokenKind.LITERAL_NUM, pos)
+    def __init__(self, int_part: int, dec_part: Optional[int], text: str,
+                 pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
+        super().__init__(TokenKind.LITERAL_NUM, text, pre_auxiliary)
         self.int_part = int_part
         "The integer part of the number. Example: in 5.25, it's 5."
 
@@ -150,14 +215,20 @@ class NumberLiteralToken(Token):
             and self.int_part == other.int_part \
             and self.dec_part == other.dec_part
 
+    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "NumberLiteralToken":
+        """
+        Returns a new token with the given auxiliary text.
+        """
+        return NumberLiteralToken(self.int_part, self.dec_part, self.text, pre_auxiliary)
+
 
 @final
 class BoolLiteralToken(Token):
     """A boolean literal (LITERAL_BOOL), which can be either true or false."""
     __slots__ = ("value",)
 
-    def __init__(self, value: bool, pos: Optional[FileSpan] = None):
-        super().__init__(TokenKind.LITERAL_BOOL, pos)
+    def __init__(self, value: bool, pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
+        super().__init__(TokenKind.LITERAL_BOOL, "true" if value else "false", pre_auxiliary)
         self.value = value
         "The boolean value of the token: true or false."
 
@@ -167,14 +238,20 @@ class BoolLiteralToken(Token):
     def __eq__(self, other):
         return isinstance(other, BoolLiteralToken) and self.value == other.value
 
+    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "BoolLiteralToken":
+        """
+        Returns a new token with the given auxiliary text.
+        """
+        return BoolLiteralToken(self.value, pre_auxiliary)
+
 
 @final
 class StringLiteralToken(Token):
     """A string literal (LITERAL_STRING), having a string value."""
     __slots__ = ("value",)
 
-    def __init__(self, value: str, pos: Optional[FileSpan] = None):
-        super().__init__(TokenKind.LITERAL_STRING, pos)
+    def __init__(self, value: str, text: str, pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
+        super().__init__(TokenKind.LITERAL_STRING, text, pre_auxiliary)
         self.value = value
         "The string value contained within the string literal."
 
@@ -184,14 +261,20 @@ class StringLiteralToken(Token):
     def __eq__(self, other):
         return isinstance(other, StringLiteralToken) and self.value == other.value
 
+    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "StringLiteralToken":
+        """
+        Returns a new token with the given auxiliary text.
+        """
+        return StringLiteralToken(self.value, self.text, pre_auxiliary)
+
 
 @final
 class IdentifierToken(Token):
     """An identifier (IDENTIFIER), which is a name representing a variable or function."""
     __slots__ = ("name",)
 
-    def __init__(self, name: str, pos: Optional[FileSpan] = None):
-        super().__init__(TokenKind.IDENTIFIER, pos)
+    def __init__(self, name: str, pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
+        super().__init__(TokenKind.IDENTIFIER, name, pre_auxiliary)
         self.name = name
         "The name of the identifier."
 
@@ -201,10 +284,16 @@ class IdentifierToken(Token):
     def __eq__(self, other):
         return isinstance(other, IdentifierToken) and self.name == other.name
 
+    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "IdentifierToken":
+        """
+        Returns a new token with the given auxiliary text.
+        """
+        return IdentifierToken(self.name, pre_auxiliary)
+
 
 # Map of all known keywords and symbols to their token kind.
 # Used in the recognize_kw_sym function.
-_kw_map = {
+_kw_sym_map = {
     "if": TokenKind.KW_IF,
     "else": TokenKind.KW_ELSE,
     "while": TokenKind.KW_WHILE,
@@ -216,31 +305,30 @@ _kw_map = {
     "not": TokenKind.KW_NOT,
     "and": TokenKind.KW_AND,
     "or": TokenKind.KW_OR,
+    "==": TokenKind.SYM_EQ,
+    "!=": TokenKind.SYM_NEQ,
+    "<": TokenKind.SYM_LT,
+    "<=": TokenKind.SYM_LEQ,
+    ">": TokenKind.SYM_GT,
+    ">=": TokenKind.SYM_GEQ,
+    "+": TokenKind.SYM_PLUS,
+    "-": TokenKind.SYM_MINUS,
+    "*": TokenKind.SYM_STAR,
+    "/": TokenKind.SYM_SLASH,
+    "(": TokenKind.SYM_LPAREN,
+    ")": TokenKind.SYM_RPAREN,
+    "{": TokenKind.SYM_LBRACE,
+    "}": TokenKind.SYM_RBRACE,
+    ";": TokenKind.SYM_SEMICOLON,
+    "=": TokenKind.SYM_ASSIGN,
+    ",": TokenKind.SYM_COMMA
 }
-# Tuple of (kind, is_leaf). If is_leaf is false, we need to check the next character to determine the token.
-_sym_map = {
-    "==": (TokenKind.SYM_EQ, True),
-    "!=": (TokenKind.SYM_NEQ, True),
-    "<": (TokenKind.SYM_LT, False),
-    "<=": (TokenKind.SYM_LEQ, True),
-    ">": (TokenKind.SYM_GT, False),
-    ">=": (TokenKind.SYM_GEQ, True),
-    "+": (TokenKind.SYM_PLUS, True),
-    "-": (TokenKind.SYM_MINUS, True),
-    "*": (TokenKind.SYM_STAR, True),
-    "/": (TokenKind.SYM_SLASH, True),
-    "(": (TokenKind.SYM_LPAREN, True),
-    ")": (TokenKind.SYM_RPAREN, True),
-    "{": (TokenKind.SYM_LBRACE, True),
-    "}": (TokenKind.SYM_RBRACE, True),
-    ";": (TokenKind.SYM_SEMICOLON, True),
-    "=": (TokenKind.SYM_ASSIGN, False),
-    ",": (TokenKind.SYM_COMMA, True)
-}
-# The length of the longest symbol
-_sym_longest = max(len(k) for k in _sym_map.keys())
-# The length of the longest keyword
-_kw_longest = max(len(k) for k in _kw_map.keys())
+# The length of the longest keyword/symbol
+_kw_sym_longest = max(len(k) for k in _kw_sym_map.keys())
+# A set of all characters that start a keyword/symbol
+# Used to weed out non-keyword/symbol tokens from the get-go.
+_kw_sym_first_chars = set(k[0] for k in _kw_sym_map.keys())
+
 
 class _Tokenizer:
     """
@@ -273,7 +361,7 @@ class _Tokenizer:
         When the cursor is equal to len(code), we have reached the end of the file and eof will be True.
         """
 
-        self.err_start: Optional[FileCoordinates] = None
+        self.err_start: Optional[int] = None
         """
         The starting position of the current "error", which is set when a character is not recognized at all.
         Set to None once we get a valid character (i.e. consumed by self.consume normally).
@@ -282,10 +370,9 @@ class _Tokenizer:
         spitting out an error message *per* invalid character.
         """
 
-        self.pos: FileCoordinates = FileCoordinates(0, 1, 1)
+        self.pending_auxiliary: list[AuxiliaryText] = []
         """
-        The current position of the cursor in file coordinates.
-        The tuple is (index, line, column), and is immutable, so you can use it freely without copying it.
+        Auxiliary text that has been read, that will be put on the next pushed token.
         """
 
     def tokenize(self) -> list[Token]:
@@ -310,8 +397,10 @@ class _Tokenizer:
                 # What do we do with this character? Consume it, mark it as an erroneous character, and move on.
                 self.consume(1, err=True)  # Consume the character and mark it as an error.
 
-        # If still have unrecognized error characters left, don't forget to report the error for those!
+        # If still have unrecognized error characters left, don't forget to report the error for those,
+        # and add them to the auxiliary text of the last token.
         self.flush_unrecognized_error()
+        self.push_token(Token(TokenKind.EOF, "", self.flush_auxiliary()))
         return self.tokens
 
     def recognize_kw_sym(self) -> bool:
@@ -324,60 +413,25 @@ class _Tokenizer:
         # First skip any unwanted whitespace
         self.consume_auxiliary()
 
-        # Store the starting position of the Token position.
-        start_pos = self.pos
+        # Make sure that there is at least one keyword/symbol starting with the next character.
+        # If not, well, that's surely not a keyword or symbol. This saves up some time.
+        nxt = self.peek()
+        if nxt not in _kw_sym_first_chars:
+            return False
 
-        i = self.cursor
-        l = 0
-        while i < len(self.code) and self.code[i].isalnum():
-            i += 1
-            l += 1
-            if l > _kw_longest:
-                return False
-
-        if i != self.cursor:
-            w = self.code[self.cursor:i]
+        # Try out all substrings of length [1..k] with k the length of the longest keyword/symbol,
+        # in the reverse order. We need to do as not doing this will recognize ">=" as ">" only.
+        # For example: if we see "if (ab", we'll try "if (ab", "if (a", "if (", "if", "i", in that order.
+        for i in range(_kw_sym_longest, 0, -1):
+            # Take the substring of length i
+            w = self.peek(i)
             # See if it matches a keyword/symbol
-            m = _kw_map.get(w)
-            if w in _kw_map:
-                self.consume(l)
-                self.tokens.append(Token(m, FileSpan(start_pos, self.pos)))
+            m = _kw_sym_map.get(w)
+            if m is not None:
+                # The substring matches! Consume it and add a token.
+                self.consume(i)
+                self.push_token(Token(m, w, self.flush_auxiliary()))
                 return True
-        else:
-            last_ok = None
-            for i in range(1, _sym_longest):
-                s = self.peek(i)
-                m = _sym_map.get(s)
-                if m:
-                    kind, leaf = m
-                    if leaf:
-                        self.consume(i)
-                        self.tokens.append(Token(kind, FileSpan(start_pos, self.pos)))
-                        return True
-                    else:
-                        last_ok = kind, s
-
-            if last_ok:
-                kind, string_val = last_ok
-                self.consume(len(string_val))
-                self.tokens.append(Token(kind, FileSpan(start_pos, self.pos)))
-                return True
-            else:
-                return False
-
-        # # Try out all substrings of length [1..k] with k the length of the longest keyword/symbol,
-        # # in the reverse order. We need to do as not doing this will recognize ">=" as ">" only.
-        # # For example: if we see "if (ab", we'll try "if (ab", "if (a", "if (", "if", "i", in that order.
-        # for i in range(_kw_sym_longest, 0, -1):
-        #     # Take the substring of length i
-        #     w = self.peek(i)
-        #     # See if it matches a keyword/symbol
-        #     m = _kw_sym_map.get(w)
-        #     if m is not None:
-        #         # The substring matches! Consume it and add a token.
-        #         self.consume(i)
-        #         self.tokens.append(Token(m, FileSpan(start_pos, self.pos)))
-        #         return True
 
         return False
 
@@ -396,7 +450,7 @@ class _Tokenizer:
 
             # Are we starting with a digit? If so, that's a number we got here!
             if self.peek(1).isdigit():
-                start_pos = self.pos
+                start_pos = self.cursor
 
                 # First, let's read the "integer" part.
                 # We know that this integer conversion will succeed as the first character is a digit.
@@ -413,13 +467,14 @@ class _Tokenizer:
                         # just with a null decimal.
                         self.problems.append(problem="Partie décimale attendue après un point (« . »).",
                                              severity=ProblemSeverity.ERROR,
-                                             pos=FileSpan(start_pos, self.pos))
+                                             pos=TextSpan(start_pos, self.cursor))
                     else:
                         # We recognized the decimal part, convert it to an integer.
                         decimal = int(decimal_str)
 
                 # Finally add the token to the list.
-                self.tokens.append(NumberLiteralToken(integer, decimal, FileSpan(start_pos, self.pos)))
+                self.push_token(
+                    NumberLiteralToken(integer, decimal, self.code[start_pos:self.cursor], self.flush_auxiliary()))
                 return True
             else:
                 return False
@@ -427,13 +482,12 @@ class _Tokenizer:
         def bool_literal() -> bool:
             "Boolean literal recognition: true & false"
 
-            start_pos = self.pos
             # If it's true, then create a true token, else if it's false, create a false token. Simple enough!
             if self.consume_exact("true"):
-                self.tokens.append(BoolLiteralToken(True, FileSpan(start_pos, self.pos)))
+                self.push_token(BoolLiteralToken(True, self.flush_auxiliary()))
                 return True
             elif self.consume_exact("false"):
-                self.tokens.append(BoolLiteralToken(False, FileSpan(start_pos, self.pos)))
+                self.push_token(BoolLiteralToken(False, self.flush_auxiliary()))
                 return True
             else:
                 return False
@@ -442,7 +496,7 @@ class _Tokenizer:
             """String literal recognition:  "abc" """
 
             # Consume all characters into one "val" string until the next non-escaped quote
-            start_pos = self.pos
+            start_pos = self.cursor
             # Check if we have a quote next, if so, begin reading the string character by character.
             if self.consume_exact("\""):
                 # The final "real" value of the string, with escape sequences resolved and all.
@@ -473,7 +527,7 @@ class _Tokenizer:
                             # Unknown escape sequence! Weird right?
                             self.problems.append(problem=f"Caractère d'échappement inconnu : « \\{character} ».",
                                                  severity=ProblemSeverity.ERROR,
-                                                 pos=FileSpan(start_pos, self.pos))
+                                                 pos=TextSpan(start_pos, self.cursor))
                             # Ignore character
                         escape = False
                     # Onto the next character.
@@ -484,10 +538,10 @@ class _Tokenizer:
                     # TODO: Prevent this in some cases when detecting a newline after an escape character?
                     self.problems.append(problem="Chaîne de caractères non terminée.",
                                          severity=ProblemSeverity.ERROR,
-                                         pos=FileSpan(start_pos, self.pos))
+                                         pos=TextSpan(start_pos, self.cursor))
 
                 # Add the string token to the list.
-                self.tokens.append(StringLiteralToken(val, FileSpan(start_pos, self.pos)))
+                self.push_token(StringLiteralToken(val, self.code[start_pos:self.cursor], self.flush_auxiliary()))
                 return True
             else:
                 return False
@@ -513,7 +567,6 @@ class _Tokenizer:
         """
 
         self.consume_auxiliary()
-        start_pos = self.pos
 
         # Scan all characters until we find an ineligible character.
         # Note that i is exclusive: the valid char range is [self.cursor; i[
@@ -528,10 +581,25 @@ class _Tokenizer:
         # Add a token if we have at least one character.
         n = i - self.cursor
         if n > 0:
-            self.tokens.append(IdentifierToken(self.consume(n), FileSpan(start_pos, self.pos)))
+            self.push_token(IdentifierToken(self.consume(n), self.flush_auxiliary()))
             return True
         else:
             return False
+
+    def push_token(self, tkn: Token):
+        """
+        Pushes a token to the list of tokens.
+        """
+
+        self.tokens.append(tkn)
+
+    def flush_auxiliary(self):
+        """
+        Returns a tuple containing all pending auxiliary text, and clears the pending list.
+        """
+        t = tuple(self.pending_auxiliary)
+        self.pending_auxiliary.clear()
+        return t
 
     def consume(self, n: int, err=False) -> str:
         """
@@ -547,36 +615,16 @@ class _Tokenizer:
         if err and self.err_start is None:
             # We got an erroneous character!
             # Add an "error marker" here, we'll get rid of it on the next non-error consumption.
-            self.err_start = self.pos
+            self.err_start = self.cursor
         elif not err and self.err_start is not None:
             # We're consuming a valid character! Get rid of the error marker.
             self.flush_unrecognized_error()
 
-        # Note: this algorithm could be faster if we used smart search algorithms
-        #       but this is python and most calls have small n so it doesn't make sense.
-
-        # Store the substring to return, and the line/col coordinates to edit while scrubbing through the string.
+        # Store the substring to return; Update the cursor, and don't overshoot!
         substr = self.code[self.cursor:self.cursor + n]
-        line = self.pos.line
-        col = self.pos.column
+        self.cursor = min(self.cursor + n, len(self.code))
 
-        # Advance the cursor character by character so we can update the position accurately.
-        while self.cursor < len(self.code) and n > 0:
-            # Did we go through a new line? Update the position then!
-            if self.code[self.cursor] == "\n":
-                line += 1
-                col = 1
-            else:
-                # Else, just add one to the column (x coordinate)
-                col += 1
-
-            # Onto the next character!
-            self.cursor += 1
-            n -= 1
-
-        # Update the position and eof flags respectively.
-        # pos isn't mutated, so previous references to it are left untouched.
-        self.pos = FileCoordinates(self.cursor, line, col)
+        # Update the eof flag.
         self.eof = self.cursor >= len(self.code)
 
         # Return the consumed substring, may be less than n characters if eof is reached.
@@ -595,25 +643,45 @@ class _Tokenizer:
         else:
             return False
 
+    until_nl_regex = re.compile(r".*\n?")
+
     def consume_auxiliary(self):
         """
         Consumes all the whitespace characters until the next non-whitespace character,
         and comments (single-line only).
+
+        Creates auxiliary text nodes for each whitespace/comment consumed.
         """
         i = self.cursor  # i is exclusive
+        l = len(self.code)
 
-        # Continue extending the interval as long as we find a space or a slash.
-        slash = False  # True when we have may have a comment starting
-        while i < len(self.code) and (self.code[i].isspace() or (slash := self.code[i] == '/')):
-            # Is this is a comment start?
-            if slash and self.code[i:i + 2] == "//":
-                # We're in a comment! Consume all characters until the end of the line.
-                while i < len(self.code) and self.code[i] != "\n":
-                    i += 1
-                slash = False
-            else:
-                # It's a space, consume it and go to the next character
+        # Continue reading whitespace or comments until we read nothing.
+        # Make sure the cursor isn't at the EOF.
+        while i < l:
+            very_start = i
+
+            if self.code[i].isspace():
+                # Consume all whitespace characters
                 i += 1
+                while i < l and self.code[i].isspace():
+                    i += 1
+                self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.WHITESPACE, self.code[very_start:i]))
+
+                if i < l and self.code[i] != "/":
+                    break
+
+            elif self.code[i:i + 2] == "//" and i < l:
+                # We're in a comment! Consume all characters until the end of the line, including the newline.
+                # We may have no newline at the end of file though.
+                start = i
+                i += 2
+                m = self.until_nl_regex.match(self.code, i)
+                i += len(m.group(0)) if m else 0
+                self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.SINGLE_LINE_COMMENT, self.code[start:i]))
+
+            # If we've read nothing, exit the loop.
+            if very_start == i:
+                break
 
         if i != self.cursor:
             self.consume(i - self.cursor)
@@ -669,12 +737,14 @@ class _Tokenizer:
     def flush_unrecognized_error(self):
         """
         Flushes the current error to the problem set, if any.
+        Creates an auxiliary text node for the unrecognized characters.
         """
         if self.err_start is not None:
-            chars = self.code[self.err_start.index:self.cursor]
+            chars = self.code[self.err_start:self.cursor]
             self.problems.append(problem=f"Séquence de caractères non reconnue : « {chars} ».",
                                  severity=ProblemSeverity.ERROR,
-                                 pos=FileSpan(self.err_start, self.pos))
+                                 pos=TextSpan(self.err_start, self.cursor))
+            self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.INVALID, chars))
             self.err_start = None
 
 

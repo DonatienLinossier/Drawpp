@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from pydpp.compiler.position import FileSpan
+from pydpp.compiler.position import FileSpan, TextSpan
 
 
 class ProblemSeverity(Enum):
@@ -27,7 +27,7 @@ class Problem:
 
     __slots__ = ("message", "severity", "pos")
 
-    def __init__(self, message: str, severity: ProblemSeverity, pos: Optional[FileSpan] = None):
+    def __init__(self, message: str, severity: ProblemSeverity, pos: Optional[FileSpan | TextSpan] = None):
         self.message = message
         "The message of the problem, localized to the user's language."
         self.severity = severity
@@ -68,7 +68,7 @@ class ProblemSet:
     __slots__ = ("problems", "grouped")
 
     def __init__(self):
-        self.problems = []
+        self.problems: list[Problem] = []
         "The list of problems. (Don't append to it directly, use the append function!)"
 
         self.grouped = {e: [] for e in ProblemSeverity}
@@ -77,7 +77,7 @@ class ProblemSet:
     def append(self,
                problem: Problem | str,
                severity: ProblemSeverity = ProblemSeverity.ERROR,
-               pos: Optional[FileSpan] = None):
+               pos: Optional[FileSpan | TextSpan] = None):
         """
         Adds a problem to the list. Each problem has a message, a severity, and a position.
 

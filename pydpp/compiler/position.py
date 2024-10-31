@@ -62,6 +62,32 @@ class FileSpan(typing.NamedTuple):
         return f"FileSpan({self.start}, {self.end})"
 
 
+class TextSpan(typing.NamedTuple):
+    """
+    A span of text, using a pair of indices.
+
+    Example: (the string starts with the first letter "s", no whitespace) ::
+
+            soirée-champagne
+                   _________
+                     span
+
+            span = TextSpan(7, 16)
+            str(span) -> [7; 16[
+    """
+
+    start: int
+    "The start of the interval (inclusive!)."
+
+    end: int
+    "The end of the interval (exclusive!)."
+
+    def __str__(self):
+        return f"[{self.start}; {self.end}["
+
+    def __repr__(self):
+        return f"TextSpan({self.start}, {self.end})"
+
 def extend_span(a: typing.Optional["FileSpan"], b: typing.Optional["FileSpan"]) -> typing.Optional["FileSpan"]:
     """
     Extends the span to include the other span.
