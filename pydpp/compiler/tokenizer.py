@@ -293,7 +293,7 @@ class IdentifierToken(Token):
 
 # Map of all known keywords and symbols to their token kind.
 # Used in the recognize_kw_sym function.
-_kw_sym_map = {
+_kw_map = {
     "if": TokenKind.KW_IF,
     "else": TokenKind.KW_ELSE,
     "while": TokenKind.KW_WHILE,
@@ -305,30 +305,31 @@ _kw_sym_map = {
     "not": TokenKind.KW_NOT,
     "and": TokenKind.KW_AND,
     "or": TokenKind.KW_OR,
-    "==": TokenKind.SYM_EQ,
-    "!=": TokenKind.SYM_NEQ,
-    "<": TokenKind.SYM_LT,
-    "<=": TokenKind.SYM_LEQ,
-    ">": TokenKind.SYM_GT,
-    ">=": TokenKind.SYM_GEQ,
-    "+": TokenKind.SYM_PLUS,
-    "-": TokenKind.SYM_MINUS,
-    "*": TokenKind.SYM_STAR,
-    "/": TokenKind.SYM_SLASH,
-    "(": TokenKind.SYM_LPAREN,
-    ")": TokenKind.SYM_RPAREN,
-    "{": TokenKind.SYM_LBRACE,
-    "}": TokenKind.SYM_RBRACE,
-    ";": TokenKind.SYM_SEMICOLON,
-    "=": TokenKind.SYM_ASSIGN,
-    ",": TokenKind.SYM_COMMA
 }
-# The length of the longest keyword/symbol
-_kw_sym_longest = max(len(k) for k in _kw_sym_map.keys())
-# A set of all characters that start a keyword/symbol
-# Used to weed out non-keyword/symbol tokens from the get-go.
-_kw_sym_first_chars = set(k[0] for k in _kw_sym_map.keys())
-
+# Tuple of (kind, is_leaf). If is_leaf is false, we need to check the next character to determine the token.
+_sym_map = {
+    "==": (TokenKind.SYM_EQ, True),
+    "!=": (TokenKind.SYM_NEQ, True),
+    "<": (TokenKind.SYM_LT, False),
+    "<=": (TokenKind.SYM_LEQ, True),
+    ">": (TokenKind.SYM_GT, False),
+    ">=": (TokenKind.SYM_GEQ, True),
+    "+": (TokenKind.SYM_PLUS, True),
+    "-": (TokenKind.SYM_MINUS, True),
+    "*": (TokenKind.SYM_STAR, True),
+    "/": (TokenKind.SYM_SLASH, True),
+    "(": (TokenKind.SYM_LPAREN, True),
+    ")": (TokenKind.SYM_RPAREN, True),
+    "{": (TokenKind.SYM_LBRACE, True),
+    "}": (TokenKind.SYM_RBRACE, True),
+    ";": (TokenKind.SYM_SEMICOLON, True),
+    "=": (TokenKind.SYM_ASSIGN, False),
+    ",": (TokenKind.SYM_COMMA, True)
+}
+# The length of the longest symbol
+_sym_longest = max(len(k) for k in _sym_map.keys())
+# The length of the longest keyword
+_kw_longest = max(len(k) for k in _kw_map.keys())
 
 class _Tokenizer:
     """
@@ -413,25 +414,43 @@ class _Tokenizer:
         # First skip any unwanted whitespace
         self.consume_auxiliary()
 
-        # Make sure that there is at least one keyword/symbol starting with the next character.
-        # If not, well, that's surely not a keyword or symbol. This saves up some time.
-        nxt = self.peek()
-        if nxt not in _kw_sym_first_chars:
-            return False
+        i = self.cursor
+        l = 0
+        while i < len(self.code) and self.code[i].isalnum():
+            i += 1
+            l += 1
+            if l > _kw_longest:
+                return False
 
-        # Try out all substrings of length [1..k] with k the length of the longest keyword/symbol,
-        # in the reverse order. We need to do as not doing this will recognize ">=" as ">" only.
-        # For example: if we see "if (ab", we'll try "if (ab", "if (a", "if (", "if", "i", in that order.
-        for i in range(_kw_sym_longest, 0, -1):
-            # Take the substring of length i
-            w = self.peek(i)
+        if i != self.cursor:
+            w = self.code[self.cursor:i]
             # See if it matches a keyword/symbol
-            m = _kw_sym_map.get(w)
-            if m is not None:
-                # The substring matches! Consume it and add a token.
-                self.consume(i)
-                self.push_token(Token(m, w, self.flush_auxiliary()))
+            m = _kw_map.get(w)
+            if w in _kw_map:
+                self.consume(l)
+                self.tokens.append(Token(m, w, self.flush_auxiliary()))
                 return True
+        else:
+            last_ok = None
+            for i in range(1, _sym_longest):
+                s = self.peek(i)
+                m = _sym_map.get(s)
+                if m:
+                    kind, leaf = m
+                    if leaf:
+                        self.consume(i)
+                        self.push_token(Token(kind, s, self.flush_auxiliary()))
+                        return True
+                    else:
+                        last_ok = kind, s
+
+            if last_ok:
+                kind, string_val = last_ok
+                self.consume(len(string_val))
+                self.tokens.append(Token(kind, string_val, self.flush_auxiliary()))
+                return True
+            else:
+                return False
 
         return False
 
