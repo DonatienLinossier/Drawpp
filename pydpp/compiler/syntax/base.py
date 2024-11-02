@@ -1,6 +1,5 @@
 import typing
-from enum import Enum
-from typing import Optional, Iterable, TypeVar, Any, Union, Generic, Literal
+from typing import Optional, Iterable, TypeVar, Any, Generic, Literal
 import sys
 
 from pydpp.compiler.problem import ProblemSeverity
@@ -12,8 +11,7 @@ if sys.version_info[1] <= 10:
 else:
     from typing import Self
 
-from pydpp.compiler.tokenizer import Token, TokenKind, AuxiliaryText
-from pydpp.compiler.types import BuiltInTypeKind
+from pydpp.compiler.tokenizer import Token, TokenKind, AuxiliaryText, TokenProblem
 
 # ===========================================
 # syntax.py: Syntax Tree for the language
@@ -32,58 +30,56 @@ from pydpp.compiler.types import BuiltInTypeKind
 #   Nothing's impossible though! Check how Roslyn does it: https://ericlippert.com/2012/06/08/red-green-trees/
 #   We can also get inspiration from JavaScript's DOM API, this one's mutable and easy to use.
 
-Element = Union["Node", Token]
-E = TypeVar("E", bound="Element")
-P = TypeVar("P", bound="Node")
+P = TypeVar("P", bound="InnerNode")
+N = TypeVar("N", bound="Node")
 
 
-class NodeSlot(Generic[P, E]):
+class NodeSlot(Generic[P, N]):
     """
     Describes a slot containing children elements (nodes or tokens) in a node.
 
     Slots come in two variants: Single ([0; 1]) and Multi ([0; N]).
     """
-    __slots__ = ("attr", "name", "token", "el_type", "check_func", "optional")
+    __slots__ = ("attr", "name", "el_type", "check_func", "optional")
     multi: bool
 
-    def __init__(self, attr_: str, el_type: typing.Type[E],
-                 check_func: typing.Callable[[E], bool] | None = None,
+    def __init__(self, attr_: str, el_type: typing.Type[N],
+                 check_func: typing.Callable[[N], bool] | None = None,
                  optional: bool = True):
         # TODO: Optional support
         self.attr = attr_
         "The attribute name in the node containing the raw slot data (node or list of nodes)"
         self.name = attr_.lstrip('_')
-        self.token = el_type == Token
         self.el_type = el_type
         self.check_func = check_func
         self.optional = optional
 
-    def accepts(self, el: Element):
+    def accepts(self, el: "Node"):
         return isinstance(el, self.el_type) and (self.check_func is None or self.check_func(el))
 
     def __repr__(self):
         return f"{type(self).__name__}({self.attr!r})"
 
 
-class SingleNodeSlot(NodeSlot[P, E]):
+class SingleNodeSlot(NodeSlot[P, N]):
     multi: Literal[False] = False
 
 
-class MultiNodeSlot(NodeSlot[P, E]):
+class MultiNodeSlot(NodeSlot[P, N]):
     multi: Literal[True] = True
 
 
 T = TypeVar("T")
 
-class NodeProblem:
+class InnerNodeProblem:
     """
-    An issue related to a node during parsing, or semantic analysis.
+    An issue related to an inner node during parsing.
     """
     __slots__ = ("message", "severity", "slot")
 
     def __init__(self, message: str,
                  severity: ProblemSeverity = ProblemSeverity.ERROR,
-                 slot: NodeSlot["Node", Element] | None = None):
+                 slot: NodeSlot["InnerNode", "Node"] | None = None):
         self.message = message
         self.severity = severity
         self.slot = slot
@@ -94,7 +90,7 @@ class NodeProblem:
         If the slot is empty, the problems spans a 0-length node on the left of the slot.
         """
 
-    def compute_span(self, node: "Node") -> TextSpan:
+    def compute_span(self, node: "InnerNode") -> TextSpan:
         # TODO: Optimize with a span cache
 
         if self.slot is None:
@@ -123,11 +119,170 @@ class NodeProblem:
     def __repr__(self):
         return f"NodeProblem({self.message!r}, {self.severity!r})"
 
-
 class Node:
     """
-    A node in the syntax tree. Represents a whole recognized element in the source code, which may
-    have children nodes.
+    A node in the syntax tree, which can be either:
+    - An inner node (InnerNode), with children
+    - A leaf node (LeafNode), with no children
+    """
+    __slots__ = ("parent", "parent_slot")
+    parent: Optional["InnerNode"]
+    parent_slot: Optional[NodeSlot["InnerNode", "Node"]]
+    has_problems: bool
+
+    # =========================
+    # CHILDREN ATTACHMENT/DETACHMENT
+    # =========================
+
+    def register_attachment(self, other: "InnerNode", slot: NodeSlot["InnerNode", Self]):
+        """
+        Called when this node has been attached to another one, and sets the parent/parent slots accordingly.
+        """
+        assert self.parent is None
+
+        self.parent = other
+        self.parent_slot = slot
+
+    def register_detachment(self):
+        """
+        Called when this node has been detached from its parent, and resets the parent/parent slots accordingly.
+        """
+        self.parent = None
+        self.parent_slot = None
+
+    def detach_self(self) -> tuple["InnerNode", NodeSlot["InnerNode", "Node"], int] | None:
+        if self.parent is not None:
+            parent, slot, idx = self.parent, self.parent_slot, self.parent_slot_idx
+            if slot.multi:
+                parent.detach_child(slot, idx)
+            else:
+                parent.detach_child(slot)
+            return parent, slot, idx
+        else:
+            return None
+
+
+    @property
+    def parent_slot_idx(self) -> int | None:
+        if self.parent_slot is None or not self.parent_slot.multi:
+            return None
+        else:
+            return self.parent.get(self.parent_slot).index(self)
+
+    # =========================
+    # POSITION & TEXT
+    # =========================
+
+    @property
+    def full_span_start(self) -> int:
+        """
+        Returns the index of the first character of this node, including auxiliary text.
+        """
+        # The goal here is to find all left siblings of this node, and add all their length.
+        pre_len = 0
+        par = self.parent
+        # The node which contains this node, which we need to "stop" at.
+        excluded = self
+        while par is not None:
+            for c in par.children:
+                if c is excluded:  # "is" so we don't get an error with token equality.
+                    break
+                pre_len += len(c.full_text)
+            excluded = par
+            par = par.parent
+
+        return pre_len
+
+    @property
+    def span_start(self) -> int:
+        """
+        Returns the index of the first character of this node, excluding auxiliary text.
+        """
+        return self.full_span_start + self._pre_auxiliary_length()
+
+    @property
+    def span(self) -> TextSpan:
+        """
+        Returns the span of characters covered by this node, excluding auxiliary text.
+        Cost of this property ramps up the deeper the node is, so be mindful!
+        """
+        s = self.span_start
+        return TextSpan(s, s + len(self.text))
+
+    @property
+    def full_span(self) -> TextSpan:
+        """
+        Returns the full span of characters covered by this node, including auxiliary text.
+        Cost of this property ramps up the deeper the node is, so be mindful!
+        """
+        s = self.full_span_start
+        return TextSpan(s, s + len(self.full_text))
+
+    @property
+    def full_text(self) -> str:
+        raise NotImplementedError()
+    
+    @property
+    def text(self) -> str:
+        """
+        Returns the text representation of this node, without any auxiliary text.
+        """
+
+        # TODO: Maybe cache this in the future? It isn't very costly to calculate though...
+
+        # Take the full text representation, and use the first token of the node
+        # to remove the preceding auxiliary text
+        ft = self.full_text
+        return ft[self._pre_auxiliary_length():]
+
+    @property
+    def pre_auxiliary(self) -> tuple[AuxiliaryText, ...]:
+        raise NotImplementedError()
+
+    def _pre_auxiliary_length(self):
+        # Calculate the length of all auxiliary text of the first token in this node and its descendants.
+        return sum(len(a.text) for a in self.pre_auxiliary)
+
+    # =========================
+    # CHILDREN PROPERTIES
+    # =========================
+
+    @property
+    def children(self) -> Iterable["Node"]:
+        raise NotImplementedError()
+
+    @property
+    def child_inner_nodes(self) -> Iterable["InnerNode"]:
+        raise NotImplementedError()
+
+    def child_node_at(self, idx: int):
+        """
+        Returns the child node at the given index.
+        :param idx: the index of the child node
+        :return: the child node
+        """
+        for i, n in enumerate(self.child_inner_nodes):
+            if i == idx:
+                return n
+        return None
+
+    # =========================
+    # PROBLEM PROPERTIES
+    # =========================
+
+    @property
+    def problems(self) -> tuple[InnerNodeProblem | TokenProblem, ...]:
+        raise NotImplementedError()
+
+    @property
+    def has_problems(self) -> bool:
+        raise NotImplementedError()
+
+
+class InnerNode(Node):
+    """
+    An inner node in the syntax tree.
+    Represents a whole recognized element in the source code, which may have children nodes.
 
     Nodes usually fall into either of these categories:
         - statements  (variable declarations, if/else blocks, while loops, etc.)
@@ -216,10 +371,10 @@ class Node:
     different from your usual tree, which doesn't care about *why* children are there in the first place.
     """
 
-    __slots__ = ("semantic_info", "_cached_text", "parent", "parent_slot", "problems", "has_problems")
+    __slots__ = ("semantic_info", "_cached_text", "problems", "has_problems")
 
-    element_slots: tuple[NodeSlot[Self, Element], ...] = ()
-    node_slots: tuple[NodeSlot[Self, "Node"], ...] = ()
+    element_slots: tuple[NodeSlot[Self, "InnerNode"], ...] = ()
+    inner_node_slots: tuple[NodeSlot[Self, "InnerNode"], ...] = ()
 
     def __init__(self):
         self.semantic_info: Any = None
@@ -234,12 +389,12 @@ class Node:
 
         self._cached_text: str | None = None
 
-        self.parent: Node | None = None
+        self.parent: InnerNode | None = None
         "The parent node of this node. None if this node is the root node or not attached yet."
-        self.parent_slot: NodeSlot[Node, Node] | None = None
+        self.parent_slot: NodeSlot[InnerNode, InnerNode] | None = None
         "The slot in the parent node where this node is attached. None if this node is the root node or not attached yet."
 
-        self.problems: tuple[NodeProblem, ...] = ()
+        self.problems: tuple[InnerNodeProblem, ...] = ()
         "A list of all problems related to this node."
 
         self.has_problems = False
@@ -253,7 +408,7 @@ class Node:
     # =========================
 
     @property
-    def children(self) -> Iterable[Element]:
+    def children(self) -> Iterable["InnerNode"]:
         """
         Returns all children elements of this node: tokens and nodes.
         """
@@ -266,42 +421,17 @@ class Node:
                     yield v
 
     @property
-    def child_nodes(self) -> Iterable["Node"]:
+    def child_inner_nodes(self) -> Iterable["InnerNode"]:
         """
         Returns all children nodes of this node. Only returns nodes, not tokens!
         """
-        for s in self.node_slots:
+        for s in self.inner_node_slots:
             v = getattr(self, s.attr)
             if s.multi:
                 yield from v
             else:
                 if v is not None:
                     yield v
-
-    @property
-    def children_with_slots(self) -> Iterable[tuple[Element, NodeSlot["Node", Element]]]:
-        """
-        Returns all children elements of this node, along with their slots.
-        """
-        for s in self.element_slots:
-            v = getattr(self, s.attr)
-            if s.multi:
-                for el in v:
-                    yield el, s
-            else:
-                if v is not None:
-                    yield v, s
-
-    def child_node_at(self, idx: int):
-        """
-        Returns the child node at the given index.
-        :param idx: the index of the child node
-        :return: the child node
-        """
-        for i, n in enumerate(self.child_nodes):
-            if i == idx:
-                return n
-        return None
 
     # =========================
     # COMPUTED PROPS (TEXT, POSITION, AUXILIARY)
@@ -321,71 +451,6 @@ class Node:
         return self._cached_text
 
     @property
-    def text(self) -> str:
-        """
-        Returns the text representation of this node, without any auxiliary text.
-        """
-
-        # TODO: Maybe cache this in the future? It isn't very costly to calculate though...
-
-        # Take the full text representation, and use the first token of the node
-        # to remove the preceding auxiliary text
-        ft = self.full_text
-        return ft[self._pre_auxiliary_length():]
-
-    @property
-    def parent_slot_idx(self) -> int | None:
-        if self.parent_slot is None or not self.parent_slot.multi:
-            return None
-        else:
-            return self.parent.get(self.parent_slot).index(self)
-
-    @property
-    def full_span_start(self) -> int:
-        """
-        Returns the index of the first character of this node, including auxiliary text.
-        """
-        # The goal here is to find all left siblings of this node, and add all their length.
-        pre_len = 0
-        par = self.parent
-        # The node which contains this node, which we need to "stop" at.
-        excluded = self
-        while par is not None:
-            for c in par.children:
-                if c is excluded:  # "is" so we don't get an error with token equality.
-                    break
-                pre_len += len(c.full_text)
-            excluded = par
-            par = par.parent
-
-        return pre_len
-
-    @property
-    def span_start(self) -> int:
-        """
-        Returns the index of the first character of this node, excluding auxiliary text.
-        """
-        return self.full_span_start + self._pre_auxiliary_length()
-
-    @property
-    def span(self) -> TextSpan:
-        """
-        Returns the span of characters covered by this node, excluding auxiliary text.
-        Cost of this property ramps up the deeper the node is, so be mindful!
-        """
-        s = self.full_span_start
-        return TextSpan(s, s + len(self.full_text))
-
-    @property
-    def full_span(self) -> TextSpan:
-        """
-        Returns the full span of characters covered by this node, including auxiliary text.
-        Cost of this property ramps up the deeper the node is, so be mindful!
-        """
-        s = self.span_start
-        return TextSpan(s, s + len(self.full_text))
-
-    @property
     def pre_auxiliary(self) -> tuple[AuxiliaryText, ...]:
         """
         All auxiliary text preceding this node. Can be set to change the preceding auxiliary text.
@@ -393,9 +458,9 @@ class Node:
         """
 
         # Calculate the length of all auxiliary text of the first token in this node and its descendants.
-        def first_tok(n: Node) -> Token | None:
+        def first_tok(n: InnerNode) -> LeafNode | None:
             for x in n.children:
-                if isinstance(x, Token):
+                if isinstance(x, LeafNode):
                     return x
                 else:
                     return first_tok(x)
@@ -407,15 +472,11 @@ class Node:
     def pre_auxiliary(self, value: tuple[AuxiliaryText, ...]):
         raise NotImplementedError("TODO :D")
 
-    def _pre_auxiliary_length(self):
-        # Calculate the length of all auxiliary text of the first token in this node and its descendants.
-        return sum(len(a.text) for a in self.pre_auxiliary)
-
     # =========================
     # CHILDREN ATTACHMENT/DETACHMENT
     # =========================
 
-    def _children_updated(self, slot: NodeSlot[Self, Element], elements: Iterable[Element], removed: bool):
+    def _children_updated(self, slot: NodeSlot[Self, N], elements: Iterable[N], removed: bool):
         """
         Called when a child or more have been attached or detached after initialization.
         """
@@ -431,7 +492,7 @@ class Node:
                 self._update_has_problems(x.has_problems and not removed)
                 return
 
-    def attach_child(self, slot: NodeSlot[Self, E], el: E, idx=None) -> E:
+    def attach_child(self, slot: NodeSlot[Self, N], el: N, idx=None) -> N:
         a = slot.attr
 
         assert el.parent is None, "Cannot attach a node that's already attached somewhere else."
@@ -439,9 +500,8 @@ class Node:
         assert slot.accepts(el), f"Slot {slot} cannot accept the node {el!r}"
 
         if not slot.multi:
-            if not slot.token and (prev := getattr(self, a)):
-                node: Node = prev
-                node._register_detachment()
+            if prev := getattr(self, a):
+                prev.register_detachment()
             setattr(self, a, el)
         else:
             val = getattr(self, a)
@@ -451,76 +511,47 @@ class Node:
             else:
                 val.insert(idx, el)
 
-        if not slot.token:
-            el._register_attachment(self, slot)
+        el.register_attachment(self, slot)
 
         self._children_updated(slot, (el, ), False)
 
         return el
 
-    def detach_child(self, slot: NodeSlot[Self, E], idx=None) -> tuple[E, ...]:
+    def detach_child(self, slot: NodeSlot[Self, N], idx=None) -> tuple[N, ...]:
         a = slot.attr
 
         assert hasattr(self, a), f"Node {type(self).__name__} has no slot {a}"
         assert slot.multi or idx is None, "Cannot a specific index node on a single slot."
 
         if slot.multi:
-            el_list: list[E] = getattr(self, a)
+            el_list: list[N] = getattr(self, a)
             if idx is None:
                 els = tuple(el_list)
                 el_list.clear()
             else:
                 els = (el_list.pop(idx),)
         else:
-            el = getattr(self, a)
+            el: InnerNode = getattr(self, a)
             els = (el,) if el else ()
 
         if len(els) == 0:
             return ()
 
-        if not slot.token:
-            for el in els:
-                el._register_detachment()
+        for el in els:
+            el.register_detachment()
 
         self._children_updated(slot, els, True)
 
         return els
 
-    def detach_self(self) -> tuple["Node", NodeSlot["Node", "Node"], int] | None:
-        if self.parent is not None:
-            parent, slot, idx = self.parent, self.parent_slot, self.parent_slot_idx
-            if slot.multi:
-                parent.detach_child(slot, idx)
-            else:
-                parent.detach_child(slot)
-            return parent, slot, idx
-        else:
-            return None
-
-    def get(self, slot: NodeSlot[Self, E]) -> list[E] | E | None:
+    def get(self, slot: NodeSlot[Self, N]) -> list[N] | N | None:
         return getattr(self, slot.attr)
-
-    def _register_attachment(self, other: "Node", slot: NodeSlot["Node", Self]):
-        """
-        Called when this node has been attached to another one, and sets the parent/parent slots accordingly.
-        """
-        assert self.parent is None
-
-        self.parent = other
-        self.parent_slot = slot
-
-    def _register_detachment(self):
-        """
-        Called when this node has been detached from its parent, and resets the parent/parent slots accordingly.
-        """
-        self.parent = None
-        self.parent_slot = None
 
     # =========================
     # PROBLEMS MANAGEMENT
     # =========================
 
-    def with_problems(self, *problems: NodeProblem):
+    def with_problems(self, *problems: InnerNodeProblem):
         self.problems = problems
 
         if len(self.problems) != len(problems):
@@ -548,32 +579,25 @@ class Node:
     # SLOT MANAGEMENT
     # =========================
 
-    def _init_single_slot(self, el: E, slot: SingleNodeSlot[Self, Element]) -> E | None:
+    def _init_single_slot(self, el: N, slot: SingleNodeSlot[Self, N]) -> N | None:
         assert el is None or slot.accepts(el), f"Slot {slot} cannot accept the node {el!r}"
 
         if el:
             setattr(self, slot.attr, el)
-            if not slot.token:
-                n: Node = el
-                n._register_attachment(self, slot)
+            el.register_attachment(self, slot)
 
             if el.has_problems: self._update_has_problems(True)
 
         return el
 
-    def _init_multi_slot(self, el_list: Iterable[E], slot: MultiNodeSlot[Self, Element]) -> list[E]:
+    def _init_multi_slot(self, el_list: Iterable[N], slot: MultiNodeSlot[Self, N]) -> list[N]:
         l = list(el_list)
 
         if l:
-            if not slot.token:
-                for node in l:
-                    assert slot.accepts(node), f"Slot {slot} cannot accept the node {node!r}"
-                    node._register_attachment(self, slot)
-                    if node.has_problems: self._update_has_problems(True)
-            else:
-                for el in l:
-                    assert slot.accepts(el), f"Slot {slot} cannot accept the token {el!r}"
-                    if el.has_problems: self._update_has_problems(True)
+            for el in l:
+                assert slot.accepts(el), f"Slot {slot} cannot accept the token {el!r}"
+                el.register_attachment(self, slot)
+                if el.has_problems: self._update_has_problems(True)
 
             setattr(self, slot.attr, l)
 
@@ -619,7 +643,7 @@ class Node:
             # Get the value of the property
             value = getattr(self, p)
 
-            if isinstance(value, Node):
+            if isinstance(value, InnerNode):
                 # It's a node ==> call pretty_print recursively
                 append(value.pretty_print(indent))
             elif isinstance(value, list):
@@ -635,7 +659,7 @@ class Node:
                         append_indent("")
 
                         # Print the value out
-                        if isinstance(v, Node):
+                        if isinstance(v, InnerNode):
                             append(v.pretty_print(indent))
                         else:
                             append(repr(v))
@@ -650,7 +674,7 @@ class Node:
                 else:
                     append("[]")
             else:
-                # It's something else ==> print it using repr()
+                # It's something else or a LeafNode ==> print it using repr()
                 append(repr(value))
 
             # Add a newline after each property
@@ -663,11 +687,63 @@ class Node:
         return result
 
 
+class LeafNode(Node):
+    __slots__ = ("token", )
+
+    def __init__(self, token: Token):
+        assert token is not None
+        self.token = token
+        self.parent = None
+        self.parent_slot = None
+
+    @property
+    def full_text(self) -> str:
+        return self.token.full_text
+
+    @property
+    def text(self) -> str:
+        return self.token.text
+
+    @property
+    def pre_auxiliary(self) -> tuple[AuxiliaryText, ...]:
+        return self.token.pre_auxiliary
+
+    @property
+    def kind(self) -> TokenKind:
+        return self.token.kind
+
+    @property
+    def value(self):
+        return self.token.value
+
+    @property
+    def children(self) -> Iterable["InnerNode"]:
+        return []
+
+    @property
+    def child_nodes(self) -> Iterable["InnerNode"]:
+        return []
+
+    @property
+    def has_problems(self) -> bool:
+        return self.token.has_problems
+
+    @property
+    def problems(self) -> tuple[TokenProblem, ...]:
+        return self.token.problems
+
+    def __str__(self):
+        return f"LeafNode({self.token})"
+
+
+def leaf(t: Token | None):
+    return LeafNode(t) if t is not None else None
+
 # ----------
 # Base classes for statements and expressions
 # ----------
 
-class Statement(Node):
+class Statement(InnerNode):
     """
     A statement node, which can be an instruction or a declaration in the program.
 
@@ -679,7 +755,7 @@ class Statement(Node):
     pass
 
 
-class Expression(Node):
+class Expression(InnerNode):
     """
     An expression node, which represents a value that can be evaluated to produce a result.
 
@@ -694,7 +770,7 @@ class Expression(Node):
 # The root node: Program
 # ----------
 
-class Program(Node):
+class Program(InnerNode):
     """
     The root node of the syntax tree, representing the entire program, containing all statements to
     be run when executing the program.
@@ -703,10 +779,10 @@ class Program(Node):
     __slots__ = ("_statements", "_eof")
 
     statements_slot: MultiNodeSlot["Program", Statement] = MultiNodeSlot("_statements", Statement)
-    eof_slot: SingleNodeSlot["Program", Token] = SingleNodeSlot("_eof", Token,
-                                                                  check_func=lambda t: t.kind == TokenKind.EOF)
+    eof_slot: SingleNodeSlot["Program", LeafNode] = SingleNodeSlot("_eof", LeafNode,
+                                                                   check_func=lambda t: t.kind == TokenKind.EOF)
 
-    def __init__(self, statements: Iterable[Statement], eof: Token):
+    def __init__(self, statements: Iterable[Statement], eof: LeafNode):
         super().__init__()
         self._init_multi_slot(statements, self.statements_slot)
         self._init_single_slot(eof, self.eof_slot)
@@ -722,13 +798,13 @@ class Program(Node):
         return self._eof
 
     @property
-    def children(self) -> Iterable[Element]:
+    def children(self) -> Iterable["InnerNode"]:
         yield from self.statements
         yield self.eof
 
     @property
-    def child_nodes(self) -> Iterable["Node"]:
+    def child_inner_nodes(self) -> Iterable["InnerNode"]:
         return self._statements
 
 Program.element_slots = (Program.statements_slot, Program.eof_slot)
-Program.node_slots = (Program.statements_slot, )
+Program.inner_node_slots = (Program.statements_slot, )

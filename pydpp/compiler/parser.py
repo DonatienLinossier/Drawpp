@@ -7,7 +7,7 @@ from pydpp.compiler.tokenizer import *
 # parser.py: The magic parser transforming tokens into a syntax tree
 # =============================================================================
 
-N = TypeVar("N", bound=Node)
+N = TypeVar("N", bound=InnerNode)
 
 class _Parser:
     """
@@ -41,7 +41,7 @@ class _Parser:
         """
         if self.eof:
             # We have no tokens! Return an empty program.
-            return Program([], self.eof_token)
+            return Program([], leaf(self.eof_token))
 
         # The list of statements that make up the program.
         program_statements = []
@@ -71,7 +71,7 @@ class _Parser:
         flush_invalid_tokens()
 
         # Make the Program node, and return it!
-        return Program(program_statements, self.eof_token)
+        return Program(program_statements, leaf(self.eof_token))
 
     def parse_statement(self) -> Optional[Statement]:
         """
@@ -90,7 +90,7 @@ class _Parser:
             return stmt
         elif stmt := self.parse_else_statement():
             # todo: change this to move the logic down in if_statement that should check for else
-            return stmt.with_problems(NodeProblem("Bloc « else » sans « if » correspondant."))
+            return stmt.with_problems(InnerNodeProblem("Bloc « else » sans « if » correspondant."))
         elif stmt := self.parse_block_statement():
             return stmt
         elif stmt := self.parse_assign_statement():
@@ -112,14 +112,14 @@ class _Parser:
             condition = self.parse_expression()
             if condition is None:
                 # No condition, keep it null
-                if_problems.append(NodeProblem(message="Condition manquante après un « if ».",
-                                               slot=IfStmt.condition_slot))
+                if_problems.append(InnerNodeProblem(message="Condition manquante après un « if ».",
+                                                    slot=IfStmt.condition_slot))
 
             block = self.parse_block_statement()
             if block is None:
                 # No block?? Keep it null
-                if_problems.append(NodeProblem(message="Bloc d'instructions manquant après un « if ».",
-                                               slot=IfStmt.then_block_slot))
+                if_problems.append(InnerNodeProblem(message="Bloc d'instructions manquant après un « if ».",
+                                                    slot=IfStmt.then_block_slot))
 
             # Read all "else" blocks after the if.
             elses = []
@@ -133,12 +133,12 @@ class _Parser:
                 # If we got another "else" block, report an error.
                 if saw_final_else:
                     block_name = "else" if else_stmt.condition is None else "else if"
-                    prob = NodeProblem(f"Bloc « {block_name} » situé après un « else » existant.")
+                    prob = InnerNodeProblem(f"Bloc « {block_name} » situé après un « else » existant.")
                     else_stmt.with_problems(prob)
                 else:
                     saw_final_else = else_stmt.condition is None
 
-            return IfStmt(if_kw, condition, block, elses).with_problems(*if_problems)
+            return IfStmt(leaf(if_kw), condition, block, elses).with_problems(*if_problems)
 
     def parse_else_statement(self) -> Optional[ElseStmt]:
         """
@@ -154,20 +154,20 @@ class _Parser:
                 condition = self.parse_expression()
                 if condition is None:
                     # No condition found despite it being "else if"
-                    problems.append(NodeProblem(message="Condition manquante après un « else if ».",
-                                                severity=ProblemSeverity.ERROR,
-                                                slot=ElseStmt.condition_slot))
+                    problems.append(InnerNodeProblem(message="Condition manquante après un « else if ».",
+                                                     severity=ProblemSeverity.ERROR,
+                                                     slot=ElseStmt.condition_slot))
 
             block = self.parse_block_statement()
             if block is None:
                 # No block?? Make none!
                 name = "else if" if condition else "else"
-                problems.append(NodeProblem(message=f"Bloc d'instructions manquant après un « {name} ».",
-                                            severity=ProblemSeverity.ERROR,
-                                            slot=ElseStmt.block_slot))
+                problems.append(InnerNodeProblem(message=f"Bloc d'instructions manquant après un « {name} ».",
+                                                 severity=ProblemSeverity.ERROR,
+                                                 slot=ElseStmt.block_slot))
 
             # Make the node and return it.
-            return ElseStmt(else_kw, if_kw, condition, block).with_problems(*problems)
+            return ElseStmt(leaf(else_kw), leaf(if_kw), condition, block).with_problems(*problems)
 
         return None
 
@@ -207,11 +207,11 @@ class _Parser:
             rbrace = self.consume()
         else:
             # EOF, no closing brace! Report an error
-            problems.append(NodeProblem("Bloc d'instructions non fermé."))
+            problems.append(InnerNodeProblem("Bloc d'instructions non fermé."))
 
         flush_invalid_tokens()
 
-        return BlockStmt(lbrace, statements, rbrace).with_problems(*problems)
+        return BlockStmt(leaf(lbrace), statements, leaf(rbrace)).with_problems(*problems)
 
     def parse_function_call_statement(self):
         """
@@ -221,7 +221,7 @@ class _Parser:
         if fc := self.parse_function_expression():
             problems = []
             sm = self.expect_semicolon_2(problems, FunctionCallStmt.semi_colon_slot)
-            return FunctionCallStmt(fc, sm).with_problems(*problems)
+            return FunctionCallStmt(fc, leaf(sm)).with_problems(*problems)
         else:
             return None
 
@@ -242,20 +242,20 @@ class _Parser:
                     # We have an assignment operator, now we need to find the value.
                     value = self.parse_expression()
                     if value is None:
-                        problems.append(NodeProblem(message="Valeur manquante après l'assignation '='.",
-                                                    severity=ProblemSeverity.ERROR,
-                                                    slot=VariableDeclarationStmt.assign_token_slot))
+                        problems.append(InnerNodeProblem(message="Valeur manquante après l'assignation '='.",
+                                                         severity=ProblemSeverity.ERROR,
+                                                         slot=VariableDeclarationStmt.assign_token_slot))
 
                 sm = self.expect_semicolon_2(problems, VariableDeclarationStmt.semi_colon_slot)
-                return VariableDeclarationStmt(var_type, ident, assign, value, sm).with_problems(*problems)
+                return VariableDeclarationStmt(var_type, leaf(ident), leaf(assign), value, leaf(sm)).with_problems(*problems)
             else:
                 # No identifier? Then it'll be None.
-                problems.append(NodeProblem(message="Identificateur manquant après le type de variable.",
-                                            severity=ProblemSeverity.ERROR,
-                                            slot=VariableDeclarationStmt.name_token_slot))
+                problems.append(InnerNodeProblem(message="Identificateur manquant après le type de variable.",
+                                                 severity=ProblemSeverity.ERROR,
+                                                 slot=VariableDeclarationStmt.name_token_slot))
 
                 sm = self.expect_semicolon_2(problems, VariableDeclarationStmt.semi_colon_slot)
-                return VariableDeclarationStmt(var_type, None, None, None, sm).with_problems(*problems)
+                return VariableDeclarationStmt(var_type, None, None, None, leaf(sm)).with_problems(*problems)
 
     def parse_assign_statement(self):
         """
@@ -272,12 +272,12 @@ class _Parser:
                 problems = []
                 if (val := self.parse_expression()) is None:
                     # No expression after the equal sign: keep it None and report an error.
-                    problems.append(NodeProblem(message="Valeur manquante après l'assignation '='.",
-                                                severity=ProblemSeverity.ERROR,
-                                                slot=AssignStmt.value_slot))
+                    problems.append(InnerNodeProblem(message="Valeur manquante après l'assignation '='.",
+                                                     severity=ProblemSeverity.ERROR,
+                                                     slot=AssignStmt.value_slot))
 
                 sm = self.expect_semicolon_2(problems, AssignStmt.semi_colon_slot)
-                return AssignStmt(ident, assign, val, sm).with_problems(*problems)
+                return AssignStmt(leaf(ident), leaf(assign), val, leaf(sm)).with_problems(*problems)
 
         return None
 
@@ -292,21 +292,21 @@ class _Parser:
             # We got a while keyword, try looking for a condition.
             condition = self.parse_expression()
             if condition is None:
-                problems.append(NodeProblem(message="Condition manquante après un « while ».",
-                                            severity=ProblemSeverity.ERROR,
-                                            slot=WhileStmt.condition_slot))
+                problems.append(InnerNodeProblem(message="Condition manquante après un « while ».",
+                                                 severity=ProblemSeverity.ERROR,
+                                                 slot=WhileStmt.condition_slot))
 
             block = self.parse_block_statement()
             if block is None:
-                problems.append(NodeProblem(message="Bloc d'instructions manquant après un « while ».",
-                                            severity=ProblemSeverity.ERROR,
-                                            slot=WhileStmt.block_slot))
+                problems.append(InnerNodeProblem(message="Bloc d'instructions manquant après un « while ».",
+                                                 severity=ProblemSeverity.ERROR,
+                                                 slot=WhileStmt.block_slot))
 
-            return WhileStmt(while_kw, condition, block).with_problems(*problems)
+            return WhileStmt(leaf(while_kw), condition, block).with_problems(*problems)
         else:
             return None
 
-    def expect_semicolon_2(self, problems: list[NodeProblem], sm_slot: SingleNodeSlot[Node, Token]) -> Token | None:
+    def expect_semicolon_2(self, problems: list[InnerNodeProblem], sm_slot: SingleNodeSlot[InnerNode, LeafNode]) -> Token | None:
         """
         Consumes the incoming semicolon token. Errors out if not present.
         """
@@ -315,9 +315,9 @@ class _Parser:
             return tkn
         else:
             # We don't! Report and error and given the position of the last parsed token.
-            problems.append(NodeProblem(message="Point-virgule manquant à la fin d'une instruction.",
-                                        severity=ProblemSeverity.ERROR,
-                                        slot=sm_slot))
+            problems.append(InnerNodeProblem(message="Point-virgule manquant à la fin d'une instruction.",
+                                             severity=ProblemSeverity.ERROR,
+                                             slot=sm_slot))
             return None
 
     def parse_built_in_type(self):
@@ -331,7 +331,7 @@ class _Parser:
         match self.peek().kind:
             case TokenKind.KW_INT | TokenKind.KW_FLOAT | TokenKind.KW_STRING | TokenKind.KW_BOOL:
                 tkn = self.consume()
-                return BuiltInType(tkn)
+                return BuiltInType(leaf(tkn))
             case _:
                 return None
 
@@ -438,7 +438,7 @@ class _Parser:
 
             # Continue reading operators until we find one of lower precedence, in that is the case,
             # the parent function call will take over reading expressions of lower precedence.
-            while (operator := self.peek()) and (prec := _Parser.op_to_prec.get(operator.kind)) and prec >= min_prec:
+            while (operator := self.peek()) and (prec := _Parser.op_to_prec.get(operator.kind)) is not None and prec >= min_prec:
                 # Consume the operator we've just read
                 self.consume()
 
@@ -446,7 +446,7 @@ class _Parser:
                 rhs = non_binary_expr()
                 if rhs is None:
                     # Unsure what to do here. Exceptionally using an empty ErrorExpr.
-                    rhs = ErrorExpr([]).with_problems(NodeProblem(
+                    rhs = ErrorExpr([]).with_problems(InnerNodeProblem(
                         f"Opérande de droite manquante après l'opérateur « {operator} » "))
 
                 # If the next operator is one of HIGHER precedence, then "pause" this function's execution,
@@ -462,7 +462,7 @@ class _Parser:
                 # or that we don't have operators anymore.
 
                 # Associate the LHS with the RHS we've read.
-                lhs = BinaryOperationExpr(lhs, operator, rhs)
+                lhs = BinaryOperationExpr(lhs, leaf(operator), rhs)
 
             return lhs
 
@@ -500,12 +500,12 @@ class _Parser:
             expression = non_binary_expr()
             if expression is None:
                 # No expression following the prefix? Error out.
-                problem = NodeProblem(message=f"Expression manquante après « {op} » ",
-                                      severity=ProblemSeverity.ERROR,
-                                      slot=UnaryExpr.op_token_slot)
+                problem = InnerNodeProblem(message=f"Expression manquante après « {op} » ",
+                                           severity=ProblemSeverity.ERROR,
+                                           slot=UnaryExpr.op_token_slot)
 
             # Create the according expression node.
-            return UnaryExpr(op, expression).with_problems(problem)
+            return UnaryExpr(leaf(op), expression).with_problems(problem)
 
         def parenthesized():
             """Recognizes parenthesized expressions, like (expr)."""
@@ -520,19 +520,19 @@ class _Parser:
 
                 if not expr:
                     # We didn't find one? Make it none
-                    problems.append(NodeProblem(message="Expression manquante après une parenthèse ouvrante.",
-                                                severity=ProblemSeverity.ERROR,
-                                                slot=ParenthesizedExpr.expr_slot))
+                    problems.append(InnerNodeProblem(message="Expression manquante après une parenthèse ouvrante.",
+                                                     severity=ProblemSeverity.ERROR,
+                                                     slot=ParenthesizedExpr.expr_slot))
 
                 # Find the closing parenthesis and we're done!
                 if (rparen := self.consume_exact(TokenKind.SYM_RPAREN)) is None:
                     # Unfinished parenthesized expression! Make it None.
-                    problems.append(NodeProblem(
+                    problems.append(InnerNodeProblem(
                         message="Parenthèse fermante manquante après une expression entre parenthèses.",
                         severity=ProblemSeverity.ERROR,
                         slot=ParenthesizedExpr.rparen_token_slot))
 
-                return ParenthesizedExpr(lparen, expr, rparen).with_problems(*problems)
+                return ParenthesizedExpr(leaf(lparen), expr, leaf(rparen)).with_problems(*problems)
             else:
                 return None
 
@@ -540,7 +540,7 @@ class _Parser:
             """Recognizes variable expressions, like myVar, cool_var."""
             # See if we have an identifier coming, and if so that's a variable expression.
             if ident := self.consume_exact(TokenKind.IDENTIFIER):
-                return VariableExpr(ident)
+                return VariableExpr(leaf(ident))
             else:
                 return None
 
@@ -551,7 +551,7 @@ class _Parser:
             match tkn.kind:
                 case TokenKind.LITERAL_NUM | TokenKind.LITERAL_STRING | TokenKind.LITERAL_BOOL:
                     self.consume()
-                    return LiteralExpr(tkn)
+                    return LiteralExpr(leaf(tkn))
 
         # Start reading the expression.
         l = non_binary_expr()
@@ -568,7 +568,7 @@ class _Parser:
 
             # TODO: Err if arg list empty
 
-            return FunctionExpr(ident, arg_list)
+            return FunctionExpr(leaf(ident), arg_list)
 
     def parse_arg_list(self) -> Optional[ArgumentList]:
         # Find the (possibly) identifier token and opening parenthesis "(" token
@@ -593,27 +593,28 @@ class _Parser:
                            and nxt.kind != TokenKind.SYM_RPAREN
                            and nxt.kind != TokenKind.SYM_SEMICOLON
                            and nxt.kind != TokenKind.SYM_COMMA):
-                        erroneous.append(self.consume())
+                        erroneous.append(leaf(self.consume()))
                     arg = ErrorExpr(erroneous)
 
                 # TODO: Err if comma missing
-                args.append(Argument(arg, self.consume_exact(TokenKind.SYM_COMMA)))
+                n = self.consume_exact(TokenKind.SYM_COMMA)
+                args.append(Argument(arg, leaf(n) if n else None))
 
             rparen = self.consume_exact(TokenKind.SYM_RPAREN)
             # TODO: Err if rparen missing
-            return ArgumentList(lparen, args, rparen)
+            return ArgumentList(leaf(lparen), args, leaf(rparen))
 
     def make_error_expr(self, tokens: list[Token]) -> ErrorExpr:
         """
         Makes an error expression from a list of tokens.
         """
-        return ErrorExpr(tokens).with_problems(NodeProblem("Expression invalide."))
+        return ErrorExpr(leaf(t) for t in tokens).with_problems(InnerNodeProblem("Expression invalide."))
 
     def make_error_stmt(self, tokens: list[Token]) -> ErrorStmt:
         """
         Makes an error statement from a list of tokens.
         """
-        return ErrorStmt(tokens).with_problems(NodeProblem("Instruction invalide."))
+        return ErrorStmt(leaf(t) for t in tokens).with_problems(InnerNodeProblem("Instruction invalide."))
 
     def peek(self, skip=0):
         """

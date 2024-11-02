@@ -15,26 +15,27 @@ class BuiltInType(Statement):
     """
     __slots__ = ('_kind_token', )
 
-    kind_token_slot: SingleNodeSlot["BuiltInType", Token] = SingleNodeSlot('_kind_token', Token)
+    kind_token_slot: SingleNodeSlot["BuiltInType", LeafNode] = SingleNodeSlot('_kind_token', LeafNode)
     "The token representing the type."
 
-    def __init__(self, kind_token: Token | None):
+    def __init__(self, kind_token: LeafNode | None):
         super().__init__()
         assert kind_token is None or BuiltInType.kind_token_slot.accepts(kind_token)
         self._kind_token = kind_token
         if kind_token is not None: 
+            kind_token.register_attachment(self, BuiltInType.kind_token_slot)
             if kind_token.has_problems: self._update_has_problems(True)
 
 
     @property
-    def kind_token(self) -> Token | None:
+    def kind_token(self) -> LeafNode | None:
         """
         The token representing the type.
         """
         return self._kind_token
 
     @kind_token.setter
-    def kind_token(self, value: Token | None):
+    def kind_token(self, value: LeafNode | None):
         self._kind_token = self.attach_child(self.kind_token_slot, value)
 
     @property
@@ -42,14 +43,14 @@ class BuiltInType(Statement):
         if self._kind_token is not None: yield self._kind_token
 
     @property
-    def child_nodes(self):
-        return []
+    def child_inner_nodes(self):
+        if self._kind_token is not None: yield self._kind_token
 
 BuiltInType.element_slots = (BuiltInType.kind_token_slot, )
-BuiltInType.node_slots = ()
+BuiltInType.inner_node_slots = (BuiltInType.kind_token_slot, )
 
 
-class Argument(Node):
+class Argument(InnerNode):
     """
     An argument to a function call.
     """
@@ -57,20 +58,21 @@ class Argument(Node):
 
     expr_slot: SingleNodeSlot["Argument", Expression] = SingleNodeSlot('_expr', Expression)
     "The expression representing the argument."
-    comma_token_slot: SingleNodeSlot["Argument", Token] = SingleNodeSlot('_comma_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_COMMA)
+    comma_token_slot: SingleNodeSlot["Argument", LeafNode] = SingleNodeSlot('_comma_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_COMMA)
     "The ',' token."
 
-    def __init__(self, expr: Expression | None, comma_token: Token | None):
+    def __init__(self, expr: Expression | None, comma_token: LeafNode | None):
         super().__init__()
         assert expr is None or Argument.expr_slot.accepts(expr)
         self._expr = expr
         if expr is not None: 
-            expr._register_attachment(self, Argument.expr_slot)
+            expr.register_attachment(self, Argument.expr_slot)
             if expr.has_problems: self._update_has_problems(True)
 
         assert comma_token is None or Argument.comma_token_slot.accepts(comma_token)
         self._comma_token = comma_token
         if comma_token is not None: 
+            comma_token.register_attachment(self, Argument.comma_token_slot)
             if comma_token.has_problems: self._update_has_problems(True)
 
 
@@ -86,14 +88,14 @@ class Argument(Node):
         self._expr = self.attach_child(self.expr_slot, value)
 
     @property
-    def comma_token(self) -> Token | None:
+    def comma_token(self) -> LeafNode | None:
         """
         The ',' token.
         """
         return self._comma_token
 
     @comma_token.setter
-    def comma_token(self, value: Token | None):
+    def comma_token(self, value: LeafNode | None):
         self._comma_token = self.attach_child(self.comma_token_slot, value)
 
     @property
@@ -102,54 +104,57 @@ class Argument(Node):
         if self._comma_token is not None: yield self._comma_token
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
         if self._expr is not None: yield self._expr
+        if self._comma_token is not None: yield self._comma_token
 
 Argument.element_slots = (Argument.expr_slot, Argument.comma_token_slot, )
-Argument.node_slots = (Argument.expr_slot, )
+Argument.inner_node_slots = (Argument.expr_slot, Argument.comma_token_slot, )
 
 
-class ArgumentList(Node):
+class ArgumentList(InnerNode):
     """
     A list of arguments to a function call.
     """
     __slots__ = ('_lparen_token', '_arguments', '_rparen_token', )
 
-    lparen_token_slot: SingleNodeSlot["ArgumentList", Token] = SingleNodeSlot('_lparen_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_LPAREN)
+    lparen_token_slot: SingleNodeSlot["ArgumentList", LeafNode] = SingleNodeSlot('_lparen_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_LPAREN)
     "The '(' token."
     arguments_slot: MultiNodeSlot["ArgumentList", Argument] = MultiNodeSlot('_arguments', Argument)
     "The arguments to the function."
-    rparen_token_slot: SingleNodeSlot["ArgumentList", Token] = SingleNodeSlot('_rparen_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_RPAREN)
+    rparen_token_slot: SingleNodeSlot["ArgumentList", LeafNode] = SingleNodeSlot('_rparen_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_RPAREN)
     "The ')' token."
 
-    def __init__(self, lparen_token: Token | None, arguments: Iterable[Argument], rparen_token: Token | None):
+    def __init__(self, lparen_token: LeafNode | None, arguments: Iterable[Argument], rparen_token: LeafNode | None):
         super().__init__()
         assert lparen_token is None or ArgumentList.lparen_token_slot.accepts(lparen_token)
         self._lparen_token = lparen_token
         if lparen_token is not None: 
+            lparen_token.register_attachment(self, ArgumentList.lparen_token_slot)
             if lparen_token.has_problems: self._update_has_problems(True)
 
         self._arguments = list(arguments)
         for s_init_el in self._arguments:
             assert s_init_el is not None and ArgumentList.arguments_slot.accepts(s_init_el)
-            s_init_el._register_attachment(self, ArgumentList.arguments_slot)
+            s_init_el.register_attachment(self, ArgumentList.arguments_slot)
             if s_init_el.has_problems: self._update_has_problems(True)
 
         assert rparen_token is None or ArgumentList.rparen_token_slot.accepts(rparen_token)
         self._rparen_token = rparen_token
         if rparen_token is not None: 
+            rparen_token.register_attachment(self, ArgumentList.rparen_token_slot)
             if rparen_token.has_problems: self._update_has_problems(True)
 
 
     @property
-    def lparen_token(self) -> Token | None:
+    def lparen_token(self) -> LeafNode | None:
         """
         The '(' token.
         """
         return self._lparen_token
 
     @lparen_token.setter
-    def lparen_token(self, value: Token | None):
+    def lparen_token(self, value: LeafNode | None):
         self._lparen_token = self.attach_child(self.lparen_token_slot, value)
 
     @property
@@ -160,14 +165,14 @@ class ArgumentList(Node):
         return self._arguments
 
     @property
-    def rparen_token(self) -> Token | None:
+    def rparen_token(self) -> LeafNode | None:
         """
         The ')' token.
         """
         return self._rparen_token
 
     @rparen_token.setter
-    def rparen_token(self, value: Token | None):
+    def rparen_token(self, value: LeafNode | None):
         self._rparen_token = self.attach_child(self.rparen_token_slot, value)
 
     @property
@@ -177,11 +182,13 @@ class ArgumentList(Node):
         if self._rparen_token is not None: yield self._rparen_token
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._lparen_token is not None: yield self._lparen_token
         yield from self._arguments
+        if self._rparen_token is not None: yield self._rparen_token
 
 ArgumentList.element_slots = (ArgumentList.lparen_token_slot, ArgumentList.arguments_slot, ArgumentList.rparen_token_slot, )
-ArgumentList.node_slots = (ArgumentList.arguments_slot, )
+ArgumentList.inner_node_slots = (ArgumentList.lparen_token_slot, ArgumentList.arguments_slot, ArgumentList.rparen_token_slot, )
 
 
 class LiteralExpr(Expression):
@@ -193,25 +200,26 @@ class LiteralExpr(Expression):
     """
     __slots__ = ('_token', )
 
-    token_slot: SingleNodeSlot["LiteralExpr", Token] = SingleNodeSlot('_token', Token, check_func=lambda x: x.kind in {TokenKind.LITERAL_NUM, TokenKind.LITERAL_STRING, TokenKind.LITERAL_BOOL})
+    token_slot: SingleNodeSlot["LiteralExpr", LeafNode] = SingleNodeSlot('_token', LeafNode, check_func=lambda x: x.kind in {TokenKind.LITERAL_NUM, TokenKind.LITERAL_STRING, TokenKind.LITERAL_BOOL})
     "The token representing the literal."
 
-    def __init__(self, token: Token):
+    def __init__(self, token: LeafNode):
         super().__init__()
         assert token is not None and LiteralExpr.token_slot.accepts(token)
         self._token = token
+        token.register_attachment(self, LiteralExpr.token_slot)
         if token.has_problems: self._update_has_problems(True)
 
 
     @property
-    def token(self) -> Token:
+    def token(self) -> LeafNode:
         """
         The token representing the literal.
         """
         return self._token
 
     @token.setter
-    def token(self, value: Token):
+    def token(self, value: LeafNode):
         self._token = self.attach_child(self.token_slot, value)
 
     @property
@@ -219,11 +227,11 @@ class LiteralExpr(Expression):
         yield self._token
 
     @property
-    def child_nodes(self):
-        return []
+    def child_inner_nodes(self):
+        yield self._token
 
 LiteralExpr.element_slots = (LiteralExpr.token_slot, )
-LiteralExpr.node_slots = ()
+LiteralExpr.inner_node_slots = (LiteralExpr.token_slot, )
 
 
 class BinaryOperationExpr(Expression):
@@ -239,28 +247,29 @@ class BinaryOperationExpr(Expression):
 
     left_slot: SingleNodeSlot["BinaryOperationExpr", Expression] = SingleNodeSlot('_left', Expression)
     "The left side of the operation."
-    operator_token_slot: SingleNodeSlot["BinaryOperationExpr", Token] = SingleNodeSlot('_operator_token', Token, check_func=lambda x: x.kind in {TokenKind.KW_OR, TokenKind.KW_AND, TokenKind.SYM_EQ, TokenKind.SYM_NEQ, TokenKind.SYM_LT, TokenKind.SYM_LEQ, TokenKind.SYM_GT, TokenKind.SYM_GEQ, TokenKind.SYM_PLUS, TokenKind.SYM_MINUS, TokenKind.SYM_STAR, TokenKind.SYM_SLASH})
+    operator_token_slot: SingleNodeSlot["BinaryOperationExpr", LeafNode] = SingleNodeSlot('_operator_token', LeafNode, check_func=lambda x: x.kind in {TokenKind.KW_OR, TokenKind.KW_AND, TokenKind.SYM_EQ, TokenKind.SYM_NEQ, TokenKind.SYM_LT, TokenKind.SYM_LEQ, TokenKind.SYM_GT, TokenKind.SYM_GEQ, TokenKind.SYM_PLUS, TokenKind.SYM_MINUS, TokenKind.SYM_STAR, TokenKind.SYM_SLASH})
     "The operator token."
     right_slot: SingleNodeSlot["BinaryOperationExpr", Expression] = SingleNodeSlot('_right', Expression)
     "The right side of the operation."
 
-    def __init__(self, left: Expression | None, operator_token: Token | None, right: Expression | None):
+    def __init__(self, left: Expression | None, operator_token: LeafNode | None, right: Expression | None):
         super().__init__()
         assert left is None or BinaryOperationExpr.left_slot.accepts(left)
         self._left = left
         if left is not None: 
-            left._register_attachment(self, BinaryOperationExpr.left_slot)
+            left.register_attachment(self, BinaryOperationExpr.left_slot)
             if left.has_problems: self._update_has_problems(True)
 
         assert operator_token is None or BinaryOperationExpr.operator_token_slot.accepts(operator_token)
         self._operator_token = operator_token
         if operator_token is not None: 
+            operator_token.register_attachment(self, BinaryOperationExpr.operator_token_slot)
             if operator_token.has_problems: self._update_has_problems(True)
 
         assert right is None or BinaryOperationExpr.right_slot.accepts(right)
         self._right = right
         if right is not None: 
-            right._register_attachment(self, BinaryOperationExpr.right_slot)
+            right.register_attachment(self, BinaryOperationExpr.right_slot)
             if right.has_problems: self._update_has_problems(True)
 
 
@@ -276,14 +285,14 @@ class BinaryOperationExpr(Expression):
         self._left = self.attach_child(self.left_slot, value)
 
     @property
-    def operator_token(self) -> Token | None:
+    def operator_token(self) -> LeafNode | None:
         """
         The operator token.
         """
         return self._operator_token
 
     @operator_token.setter
-    def operator_token(self, value: Token | None):
+    def operator_token(self, value: LeafNode | None):
         self._operator_token = self.attach_child(self.operator_token_slot, value)
 
     @property
@@ -304,12 +313,13 @@ class BinaryOperationExpr(Expression):
         if self._right is not None: yield self._right
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
         if self._left is not None: yield self._left
+        if self._operator_token is not None: yield self._operator_token
         if self._right is not None: yield self._right
 
 BinaryOperationExpr.element_slots = (BinaryOperationExpr.left_slot, BinaryOperationExpr.operator_token_slot, BinaryOperationExpr.right_slot, )
-BinaryOperationExpr.node_slots = (BinaryOperationExpr.left_slot, BinaryOperationExpr.right_slot, )
+BinaryOperationExpr.inner_node_slots = (BinaryOperationExpr.left_slot, BinaryOperationExpr.operator_token_slot, BinaryOperationExpr.right_slot, )
 
 
 class ParenthesizedExpr(Expression):
@@ -318,41 +328,43 @@ class ParenthesizedExpr(Expression):
     """
     __slots__ = ('_lparen_token', '_expr', '_rparen_token', )
 
-    lparen_token_slot: SingleNodeSlot["ParenthesizedExpr", Token] = SingleNodeSlot('_lparen_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_LPAREN)
+    lparen_token_slot: SingleNodeSlot["ParenthesizedExpr", LeafNode] = SingleNodeSlot('_lparen_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_LPAREN)
     "The '(' token."
     expr_slot: SingleNodeSlot["ParenthesizedExpr", Expression] = SingleNodeSlot('_expr', Expression)
     "The expression inside the parentheses."
-    rparen_token_slot: SingleNodeSlot["ParenthesizedExpr", Token] = SingleNodeSlot('_rparen_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_RPAREN)
+    rparen_token_slot: SingleNodeSlot["ParenthesizedExpr", LeafNode] = SingleNodeSlot('_rparen_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_RPAREN)
     "The ')' token."
 
-    def __init__(self, lparen_token: Token | None, expr: Expression | None, rparen_token: Token | None):
+    def __init__(self, lparen_token: LeafNode | None, expr: Expression | None, rparen_token: LeafNode | None):
         super().__init__()
         assert lparen_token is None or ParenthesizedExpr.lparen_token_slot.accepts(lparen_token)
         self._lparen_token = lparen_token
         if lparen_token is not None: 
+            lparen_token.register_attachment(self, ParenthesizedExpr.lparen_token_slot)
             if lparen_token.has_problems: self._update_has_problems(True)
 
         assert expr is None or ParenthesizedExpr.expr_slot.accepts(expr)
         self._expr = expr
         if expr is not None: 
-            expr._register_attachment(self, ParenthesizedExpr.expr_slot)
+            expr.register_attachment(self, ParenthesizedExpr.expr_slot)
             if expr.has_problems: self._update_has_problems(True)
 
         assert rparen_token is None or ParenthesizedExpr.rparen_token_slot.accepts(rparen_token)
         self._rparen_token = rparen_token
         if rparen_token is not None: 
+            rparen_token.register_attachment(self, ParenthesizedExpr.rparen_token_slot)
             if rparen_token.has_problems: self._update_has_problems(True)
 
 
     @property
-    def lparen_token(self) -> Token | None:
+    def lparen_token(self) -> LeafNode | None:
         """
         The '(' token.
         """
         return self._lparen_token
 
     @lparen_token.setter
-    def lparen_token(self, value: Token | None):
+    def lparen_token(self, value: LeafNode | None):
         self._lparen_token = self.attach_child(self.lparen_token_slot, value)
 
     @property
@@ -367,14 +379,14 @@ class ParenthesizedExpr(Expression):
         self._expr = self.attach_child(self.expr_slot, value)
 
     @property
-    def rparen_token(self) -> Token | None:
+    def rparen_token(self) -> LeafNode | None:
         """
         The ')' token.
         """
         return self._rparen_token
 
     @rparen_token.setter
-    def rparen_token(self, value: Token | None):
+    def rparen_token(self, value: LeafNode | None):
         self._rparen_token = self.attach_child(self.rparen_token_slot, value)
 
     @property
@@ -384,11 +396,13 @@ class ParenthesizedExpr(Expression):
         if self._rparen_token is not None: yield self._rparen_token
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._lparen_token is not None: yield self._lparen_token
         if self._expr is not None: yield self._expr
+        if self._rparen_token is not None: yield self._rparen_token
 
 ParenthesizedExpr.element_slots = (ParenthesizedExpr.lparen_token_slot, ParenthesizedExpr.expr_slot, ParenthesizedExpr.rparen_token_slot, )
-ParenthesizedExpr.node_slots = (ParenthesizedExpr.expr_slot, )
+ParenthesizedExpr.inner_node_slots = (ParenthesizedExpr.lparen_token_slot, ParenthesizedExpr.expr_slot, ParenthesizedExpr.rparen_token_slot, )
 
 
 class UnaryExpr(Expression):
@@ -398,34 +412,35 @@ class UnaryExpr(Expression):
     """
     __slots__ = ('_op_token', '_expr', )
 
-    op_token_slot: SingleNodeSlot["UnaryExpr", Token] = SingleNodeSlot('_op_token', Token, check_func=lambda x: x.kind in {TokenKind.KW_NOT, TokenKind.SYM_MINUS})
+    op_token_slot: SingleNodeSlot["UnaryExpr", LeafNode] = SingleNodeSlot('_op_token', LeafNode, check_func=lambda x: x.kind in {TokenKind.KW_NOT, TokenKind.SYM_MINUS})
     "The operator preceding the expression: ."
     expr_slot: SingleNodeSlot["UnaryExpr", Expression] = SingleNodeSlot('_expr', Expression)
     "The expression to apply the operator to."
 
-    def __init__(self, op_token: Token | None, expr: Expression | None):
+    def __init__(self, op_token: LeafNode | None, expr: Expression | None):
         super().__init__()
         assert op_token is None or UnaryExpr.op_token_slot.accepts(op_token)
         self._op_token = op_token
         if op_token is not None: 
+            op_token.register_attachment(self, UnaryExpr.op_token_slot)
             if op_token.has_problems: self._update_has_problems(True)
 
         assert expr is None or UnaryExpr.expr_slot.accepts(expr)
         self._expr = expr
         if expr is not None: 
-            expr._register_attachment(self, UnaryExpr.expr_slot)
+            expr.register_attachment(self, UnaryExpr.expr_slot)
             if expr.has_problems: self._update_has_problems(True)
 
 
     @property
-    def op_token(self) -> Token | None:
+    def op_token(self) -> LeafNode | None:
         """
         The operator preceding the expression: .
         """
         return self._op_token
 
     @op_token.setter
-    def op_token(self, value: Token | None):
+    def op_token(self, value: LeafNode | None):
         self._op_token = self.attach_child(self.op_token_slot, value)
 
     @property
@@ -445,11 +460,12 @@ class UnaryExpr(Expression):
         if self._expr is not None: yield self._expr
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._op_token is not None: yield self._op_token
         if self._expr is not None: yield self._expr
 
 UnaryExpr.element_slots = (UnaryExpr.op_token_slot, UnaryExpr.expr_slot, )
-UnaryExpr.node_slots = (UnaryExpr.expr_slot, )
+UnaryExpr.inner_node_slots = (UnaryExpr.op_token_slot, UnaryExpr.expr_slot, )
 
 
 class FunctionExpr(Expression):
@@ -459,34 +475,35 @@ class FunctionExpr(Expression):
     """
     __slots__ = ('_identifier_token', '_arg_list', )
 
-    identifier_token_slot: SingleNodeSlot["FunctionExpr", Token] = SingleNodeSlot('_identifier_token', Token, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
+    identifier_token_slot: SingleNodeSlot["FunctionExpr", LeafNode] = SingleNodeSlot('_identifier_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
     "The identifier of the function."
     arg_list_slot: SingleNodeSlot["FunctionExpr", ArgumentList] = SingleNodeSlot('_arg_list', ArgumentList)
     "The arguments to the function."
 
-    def __init__(self, identifier_token: Token | None, arg_list: ArgumentList | None):
+    def __init__(self, identifier_token: LeafNode | None, arg_list: ArgumentList | None):
         super().__init__()
         assert identifier_token is None or FunctionExpr.identifier_token_slot.accepts(identifier_token)
         self._identifier_token = identifier_token
         if identifier_token is not None: 
+            identifier_token.register_attachment(self, FunctionExpr.identifier_token_slot)
             if identifier_token.has_problems: self._update_has_problems(True)
 
         assert arg_list is None or FunctionExpr.arg_list_slot.accepts(arg_list)
         self._arg_list = arg_list
         if arg_list is not None: 
-            arg_list._register_attachment(self, FunctionExpr.arg_list_slot)
+            arg_list.register_attachment(self, FunctionExpr.arg_list_slot)
             if arg_list.has_problems: self._update_has_problems(True)
 
 
     @property
-    def identifier_token(self) -> Token | None:
+    def identifier_token(self) -> LeafNode | None:
         """
         The identifier of the function.
         """
         return self._identifier_token
 
     @identifier_token.setter
-    def identifier_token(self, value: Token | None):
+    def identifier_token(self, value: LeafNode | None):
         self._identifier_token = self.attach_child(self.identifier_token_slot, value)
 
     @property
@@ -506,11 +523,12 @@ class FunctionExpr(Expression):
         if self._arg_list is not None: yield self._arg_list
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._identifier_token is not None: yield self._identifier_token
         if self._arg_list is not None: yield self._arg_list
 
 FunctionExpr.element_slots = (FunctionExpr.identifier_token_slot, FunctionExpr.arg_list_slot, )
-FunctionExpr.node_slots = (FunctionExpr.arg_list_slot, )
+FunctionExpr.inner_node_slots = (FunctionExpr.identifier_token_slot, FunctionExpr.arg_list_slot, )
 
 
 class VariableExpr(Expression):
@@ -519,25 +537,26 @@ class VariableExpr(Expression):
     """
     __slots__ = ('_name_token', )
 
-    name_token_slot: SingleNodeSlot["VariableExpr", Token] = SingleNodeSlot('_name_token', Token, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
+    name_token_slot: SingleNodeSlot["VariableExpr", LeafNode] = SingleNodeSlot('_name_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
     "The name of the variable."
 
-    def __init__(self, name_token: Token):
+    def __init__(self, name_token: LeafNode):
         super().__init__()
         assert name_token is not None and VariableExpr.name_token_slot.accepts(name_token)
         self._name_token = name_token
+        name_token.register_attachment(self, VariableExpr.name_token_slot)
         if name_token.has_problems: self._update_has_problems(True)
 
 
     @property
-    def name_token(self) -> Token:
+    def name_token(self) -> LeafNode:
         """
         The name of the variable.
         """
         return self._name_token
 
     @name_token.setter
-    def name_token(self, value: Token):
+    def name_token(self, value: LeafNode):
         self._name_token = self.attach_child(self.name_token_slot, value)
 
     @property
@@ -545,11 +564,11 @@ class VariableExpr(Expression):
         yield self._name_token
 
     @property
-    def child_nodes(self):
-        return []
+    def child_inner_nodes(self):
+        yield self._name_token
 
 VariableExpr.element_slots = (VariableExpr.name_token_slot, )
-VariableExpr.node_slots = ()
+VariableExpr.inner_node_slots = (VariableExpr.name_token_slot, )
 
 
 class ErrorExpr(Expression):
@@ -558,19 +577,20 @@ class ErrorExpr(Expression):
     """
     __slots__ = ('_tokens', )
 
-    tokens_slot: MultiNodeSlot["ErrorExpr", Token] = MultiNodeSlot('_tokens', Token)
+    tokens_slot: MultiNodeSlot["ErrorExpr", LeafNode] = MultiNodeSlot('_tokens', LeafNode)
     "All tokens that were ignored during parsing."
 
-    def __init__(self, tokens: Iterable[Token]):
+    def __init__(self, tokens: Iterable[LeafNode]):
         super().__init__()
         self._tokens = list(tokens)
         for s_init_el in self._tokens:
             assert s_init_el is not None and ErrorExpr.tokens_slot.accepts(s_init_el)
+            s_init_el.register_attachment(self, ErrorExpr.tokens_slot)
             if s_init_el.has_problems: self._update_has_problems(True)
 
 
     @property
-    def tokens(self) -> Iterable[Token]:
+    def tokens(self) -> Iterable[LeafNode]:
         """
         All tokens that were ignored during parsing.
         """
@@ -581,11 +601,11 @@ class ErrorExpr(Expression):
         yield from self._tokens
 
     @property
-    def child_nodes(self):
-        return []
+    def child_inner_nodes(self):
+        yield from self._tokens
 
 ErrorExpr.element_slots = (ErrorExpr.tokens_slot, )
-ErrorExpr.node_slots = ()
+ErrorExpr.inner_node_slots = (ErrorExpr.tokens_slot, )
 
 
 class BlockStmt(Statement):
@@ -594,41 +614,43 @@ class BlockStmt(Statement):
     """
     __slots__ = ('_lbrace_token', '_statements', '_rbrace_token', )
 
-    lbrace_token_slot: SingleNodeSlot["BlockStmt", Token] = SingleNodeSlot('_lbrace_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_LBRACE)
+    lbrace_token_slot: SingleNodeSlot["BlockStmt", LeafNode] = SingleNodeSlot('_lbrace_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_LBRACE)
     "The '{' token."
     statements_slot: MultiNodeSlot["BlockStmt", Statement] = MultiNodeSlot('_statements', Statement)
     "The statements contained within the block."
-    rbrace_token_slot: SingleNodeSlot["BlockStmt", Token] = SingleNodeSlot('_rbrace_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_RBRACE)
+    rbrace_token_slot: SingleNodeSlot["BlockStmt", LeafNode] = SingleNodeSlot('_rbrace_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_RBRACE)
     "The '}' token."
 
-    def __init__(self, lbrace_token: Token | None, statements: Iterable[Statement], rbrace_token: Token | None):
+    def __init__(self, lbrace_token: LeafNode | None, statements: Iterable[Statement], rbrace_token: LeafNode | None):
         super().__init__()
         assert lbrace_token is None or BlockStmt.lbrace_token_slot.accepts(lbrace_token)
         self._lbrace_token = lbrace_token
         if lbrace_token is not None: 
+            lbrace_token.register_attachment(self, BlockStmt.lbrace_token_slot)
             if lbrace_token.has_problems: self._update_has_problems(True)
 
         self._statements = list(statements)
         for s_init_el in self._statements:
             assert s_init_el is not None and BlockStmt.statements_slot.accepts(s_init_el)
-            s_init_el._register_attachment(self, BlockStmt.statements_slot)
+            s_init_el.register_attachment(self, BlockStmt.statements_slot)
             if s_init_el.has_problems: self._update_has_problems(True)
 
         assert rbrace_token is None or BlockStmt.rbrace_token_slot.accepts(rbrace_token)
         self._rbrace_token = rbrace_token
         if rbrace_token is not None: 
+            rbrace_token.register_attachment(self, BlockStmt.rbrace_token_slot)
             if rbrace_token.has_problems: self._update_has_problems(True)
 
 
     @property
-    def lbrace_token(self) -> Token | None:
+    def lbrace_token(self) -> LeafNode | None:
         """
         The '{' token.
         """
         return self._lbrace_token
 
     @lbrace_token.setter
-    def lbrace_token(self, value: Token | None):
+    def lbrace_token(self, value: LeafNode | None):
         self._lbrace_token = self.attach_child(self.lbrace_token_slot, value)
 
     @property
@@ -639,14 +661,14 @@ class BlockStmt(Statement):
         return self._statements
 
     @property
-    def rbrace_token(self) -> Token | None:
+    def rbrace_token(self) -> LeafNode | None:
         """
         The '}' token.
         """
         return self._rbrace_token
 
     @rbrace_token.setter
-    def rbrace_token(self, value: Token | None):
+    def rbrace_token(self, value: LeafNode | None):
         self._rbrace_token = self.attach_child(self.rbrace_token_slot, value)
 
     @property
@@ -656,11 +678,13 @@ class BlockStmt(Statement):
         if self._rbrace_token is not None: yield self._rbrace_token
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._lbrace_token is not None: yield self._lbrace_token
         yield from self._statements
+        if self._rbrace_token is not None: yield self._rbrace_token
 
 BlockStmt.element_slots = (BlockStmt.lbrace_token_slot, BlockStmt.statements_slot, BlockStmt.rbrace_token_slot, )
-BlockStmt.node_slots = (BlockStmt.statements_slot, )
+BlockStmt.inner_node_slots = (BlockStmt.lbrace_token_slot, BlockStmt.statements_slot, BlockStmt.rbrace_token_slot, )
 
 
 class VariableDeclarationStmt(Statement):
@@ -671,42 +695,45 @@ class VariableDeclarationStmt(Statement):
 
     type_slot: SingleNodeSlot["VariableDeclarationStmt", BuiltInType] = SingleNodeSlot('_type', BuiltInType)
     "The type of the variable."
-    name_token_slot: SingleNodeSlot["VariableDeclarationStmt", Token] = SingleNodeSlot('_name_token', Token)
+    name_token_slot: SingleNodeSlot["VariableDeclarationStmt", LeafNode] = SingleNodeSlot('_name_token', LeafNode)
     "The name of the variable."
-    assign_token_slot: SingleNodeSlot["VariableDeclarationStmt", Token] = SingleNodeSlot('_assign_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_ASSIGN)
+    assign_token_slot: SingleNodeSlot["VariableDeclarationStmt", LeafNode] = SingleNodeSlot('_assign_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_ASSIGN)
     "The '=' token."
     value_slot: SingleNodeSlot["VariableDeclarationStmt", Expression] = SingleNodeSlot('_value', Expression)
     "The value of the variable."
-    semi_colon_slot: SingleNodeSlot["VariableDeclarationStmt", Token] = SingleNodeSlot('_semi_colon', Token, check_func=lambda x: x.kind == TokenKind.SYM_SEMICOLON)
+    semi_colon_slot: SingleNodeSlot["VariableDeclarationStmt", LeafNode] = SingleNodeSlot('_semi_colon', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_SEMICOLON)
     "The ';' token."
 
-    def __init__(self, type: BuiltInType | None, name_token: Token | None, assign_token: Token | None, value: Expression | None, semi_colon: Token | None):
+    def __init__(self, type: BuiltInType | None, name_token: LeafNode | None, assign_token: LeafNode | None, value: Expression | None, semi_colon: LeafNode | None):
         super().__init__()
         assert type is None or VariableDeclarationStmt.type_slot.accepts(type)
         self._type = type
         if type is not None: 
-            type._register_attachment(self, VariableDeclarationStmt.type_slot)
+            type.register_attachment(self, VariableDeclarationStmt.type_slot)
             if type.has_problems: self._update_has_problems(True)
 
         assert name_token is None or VariableDeclarationStmt.name_token_slot.accepts(name_token)
         self._name_token = name_token
         if name_token is not None: 
+            name_token.register_attachment(self, VariableDeclarationStmt.name_token_slot)
             if name_token.has_problems: self._update_has_problems(True)
 
         assert assign_token is None or VariableDeclarationStmt.assign_token_slot.accepts(assign_token)
         self._assign_token = assign_token
         if assign_token is not None: 
+            assign_token.register_attachment(self, VariableDeclarationStmt.assign_token_slot)
             if assign_token.has_problems: self._update_has_problems(True)
 
         assert value is None or VariableDeclarationStmt.value_slot.accepts(value)
         self._value = value
         if value is not None: 
-            value._register_attachment(self, VariableDeclarationStmt.value_slot)
+            value.register_attachment(self, VariableDeclarationStmt.value_slot)
             if value.has_problems: self._update_has_problems(True)
 
         assert semi_colon is None or VariableDeclarationStmt.semi_colon_slot.accepts(semi_colon)
         self._semi_colon = semi_colon
         if semi_colon is not None: 
+            semi_colon.register_attachment(self, VariableDeclarationStmt.semi_colon_slot)
             if semi_colon.has_problems: self._update_has_problems(True)
 
 
@@ -722,25 +749,25 @@ class VariableDeclarationStmt(Statement):
         self._type = self.attach_child(self.type_slot, value)
 
     @property
-    def name_token(self) -> Token | None:
+    def name_token(self) -> LeafNode | None:
         """
         The name of the variable.
         """
         return self._name_token
 
     @name_token.setter
-    def name_token(self, value: Token | None):
+    def name_token(self, value: LeafNode | None):
         self._name_token = self.attach_child(self.name_token_slot, value)
 
     @property
-    def assign_token(self) -> Token | None:
+    def assign_token(self) -> LeafNode | None:
         """
         The '=' token.
         """
         return self._assign_token
 
     @assign_token.setter
-    def assign_token(self, value: Token | None):
+    def assign_token(self, value: LeafNode | None):
         self._assign_token = self.attach_child(self.assign_token_slot, value)
 
     @property
@@ -755,14 +782,14 @@ class VariableDeclarationStmt(Statement):
         self._value = self.attach_child(self.value_slot, value)
 
     @property
-    def semi_colon(self) -> Token | None:
+    def semi_colon(self) -> LeafNode | None:
         """
         The ';' token.
         """
         return self._semi_colon
 
     @semi_colon.setter
-    def semi_colon(self, value: Token | None):
+    def semi_colon(self, value: LeafNode | None):
         self._semi_colon = self.attach_child(self.semi_colon_slot, value)
 
     @property
@@ -774,12 +801,15 @@ class VariableDeclarationStmt(Statement):
         if self._semi_colon is not None: yield self._semi_colon
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
         if self._type is not None: yield self._type
+        if self._name_token is not None: yield self._name_token
+        if self._assign_token is not None: yield self._assign_token
         if self._value is not None: yield self._value
+        if self._semi_colon is not None: yield self._semi_colon
 
 VariableDeclarationStmt.element_slots = (VariableDeclarationStmt.type_slot, VariableDeclarationStmt.name_token_slot, VariableDeclarationStmt.assign_token_slot, VariableDeclarationStmt.value_slot, VariableDeclarationStmt.semi_colon_slot, )
-VariableDeclarationStmt.node_slots = (VariableDeclarationStmt.type_slot, VariableDeclarationStmt.value_slot, )
+VariableDeclarationStmt.inner_node_slots = (VariableDeclarationStmt.type_slot, VariableDeclarationStmt.name_token_slot, VariableDeclarationStmt.assign_token_slot, VariableDeclarationStmt.value_slot, VariableDeclarationStmt.semi_colon_slot, )
 
 
 class ElseStmt(Statement):
@@ -789,60 +819,62 @@ class ElseStmt(Statement):
     """
     __slots__ = ('_else_token', '_if_token', '_condition', '_block', )
 
-    else_token_slot: SingleNodeSlot["ElseStmt", Token] = SingleNodeSlot('_else_token', Token)
+    else_token_slot: SingleNodeSlot["ElseStmt", LeafNode] = SingleNodeSlot('_else_token', LeafNode)
     "The 'else' token."
-    if_token_slot: SingleNodeSlot["ElseStmt", Token] = SingleNodeSlot('_if_token', Token)
+    if_token_slot: SingleNodeSlot["ElseStmt", LeafNode] = SingleNodeSlot('_if_token', LeafNode)
     "The 'if' token."
     condition_slot: SingleNodeSlot["ElseStmt", Expression] = SingleNodeSlot('_condition', Expression)
     "The condition of the else if statement."
     block_slot: SingleNodeSlot["ElseStmt", BlockStmt] = SingleNodeSlot('_block', BlockStmt)
     "The block of the else if statement."
 
-    def __init__(self, else_token: Token | None, if_token: Token | None, condition: Expression | None, block: BlockStmt | None):
+    def __init__(self, else_token: LeafNode | None, if_token: LeafNode | None, condition: Expression | None, block: BlockStmt | None):
         super().__init__()
         assert else_token is None or ElseStmt.else_token_slot.accepts(else_token)
         self._else_token = else_token
         if else_token is not None: 
+            else_token.register_attachment(self, ElseStmt.else_token_slot)
             if else_token.has_problems: self._update_has_problems(True)
 
         assert if_token is None or ElseStmt.if_token_slot.accepts(if_token)
         self._if_token = if_token
         if if_token is not None: 
+            if_token.register_attachment(self, ElseStmt.if_token_slot)
             if if_token.has_problems: self._update_has_problems(True)
 
         assert condition is None or ElseStmt.condition_slot.accepts(condition)
         self._condition = condition
         if condition is not None: 
-            condition._register_attachment(self, ElseStmt.condition_slot)
+            condition.register_attachment(self, ElseStmt.condition_slot)
             if condition.has_problems: self._update_has_problems(True)
 
         assert block is None or ElseStmt.block_slot.accepts(block)
         self._block = block
         if block is not None: 
-            block._register_attachment(self, ElseStmt.block_slot)
+            block.register_attachment(self, ElseStmt.block_slot)
             if block.has_problems: self._update_has_problems(True)
 
 
     @property
-    def else_token(self) -> Token | None:
+    def else_token(self) -> LeafNode | None:
         """
         The 'else' token.
         """
         return self._else_token
 
     @else_token.setter
-    def else_token(self, value: Token | None):
+    def else_token(self, value: LeafNode | None):
         self._else_token = self.attach_child(self.else_token_slot, value)
 
     @property
-    def if_token(self) -> Token | None:
+    def if_token(self) -> LeafNode | None:
         """
         The 'if' token.
         """
         return self._if_token
 
     @if_token.setter
-    def if_token(self, value: Token | None):
+    def if_token(self, value: LeafNode | None):
         self._if_token = self.attach_child(self.if_token_slot, value)
 
     @property
@@ -875,12 +907,14 @@ class ElseStmt(Statement):
         if self._block is not None: yield self._block
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._else_token is not None: yield self._else_token
+        if self._if_token is not None: yield self._if_token
         if self._condition is not None: yield self._condition
         if self._block is not None: yield self._block
 
 ElseStmt.element_slots = (ElseStmt.else_token_slot, ElseStmt.if_token_slot, ElseStmt.condition_slot, ElseStmt.block_slot, )
-ElseStmt.node_slots = (ElseStmt.condition_slot, ElseStmt.block_slot, )
+ElseStmt.inner_node_slots = (ElseStmt.else_token_slot, ElseStmt.if_token_slot, ElseStmt.condition_slot, ElseStmt.block_slot, )
 
 
 class IfStmt(Statement):
@@ -889,7 +923,7 @@ class IfStmt(Statement):
     """
     __slots__ = ('_if_token', '_condition', '_then_block', '_else_statements', )
 
-    if_token_slot: SingleNodeSlot["IfStmt", Token] = SingleNodeSlot('_if_token', Token)
+    if_token_slot: SingleNodeSlot["IfStmt", LeafNode] = SingleNodeSlot('_if_token', LeafNode)
     "The 'if' token."
     condition_slot: SingleNodeSlot["IfStmt", Expression] = SingleNodeSlot('_condition', Expression)
     "The condition of the if statement."
@@ -898,41 +932,42 @@ class IfStmt(Statement):
     else_statements_slot: MultiNodeSlot["IfStmt", ElseStmt] = MultiNodeSlot('_else_statements', ElseStmt)
     "The else/else-if blocks of the if statement."
 
-    def __init__(self, if_token: Token | None, condition: Expression | None, then_block: BlockStmt | None, else_statements: Iterable[ElseStmt]):
+    def __init__(self, if_token: LeafNode | None, condition: Expression | None, then_block: BlockStmt | None, else_statements: Iterable[ElseStmt]):
         super().__init__()
         assert if_token is None or IfStmt.if_token_slot.accepts(if_token)
         self._if_token = if_token
         if if_token is not None: 
+            if_token.register_attachment(self, IfStmt.if_token_slot)
             if if_token.has_problems: self._update_has_problems(True)
 
         assert condition is None or IfStmt.condition_slot.accepts(condition)
         self._condition = condition
         if condition is not None: 
-            condition._register_attachment(self, IfStmt.condition_slot)
+            condition.register_attachment(self, IfStmt.condition_slot)
             if condition.has_problems: self._update_has_problems(True)
 
         assert then_block is None or IfStmt.then_block_slot.accepts(then_block)
         self._then_block = then_block
         if then_block is not None: 
-            then_block._register_attachment(self, IfStmt.then_block_slot)
+            then_block.register_attachment(self, IfStmt.then_block_slot)
             if then_block.has_problems: self._update_has_problems(True)
 
         self._else_statements = list(else_statements)
         for s_init_el in self._else_statements:
             assert s_init_el is not None and IfStmt.else_statements_slot.accepts(s_init_el)
-            s_init_el._register_attachment(self, IfStmt.else_statements_slot)
+            s_init_el.register_attachment(self, IfStmt.else_statements_slot)
             if s_init_el.has_problems: self._update_has_problems(True)
 
 
     @property
-    def if_token(self) -> Token | None:
+    def if_token(self) -> LeafNode | None:
         """
         The 'if' token.
         """
         return self._if_token
 
     @if_token.setter
-    def if_token(self, value: Token | None):
+    def if_token(self, value: LeafNode | None):
         self._if_token = self.attach_child(self.if_token_slot, value)
 
     @property
@@ -972,13 +1007,14 @@ class IfStmt(Statement):
         yield from self._else_statements
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._if_token is not None: yield self._if_token
         if self._condition is not None: yield self._condition
         if self._then_block is not None: yield self._then_block
         yield from self._else_statements
 
 IfStmt.element_slots = (IfStmt.if_token_slot, IfStmt.condition_slot, IfStmt.then_block_slot, IfStmt.else_statements_slot, )
-IfStmt.node_slots = (IfStmt.condition_slot, IfStmt.then_block_slot, IfStmt.else_statements_slot, )
+IfStmt.inner_node_slots = (IfStmt.if_token_slot, IfStmt.condition_slot, IfStmt.then_block_slot, IfStmt.else_statements_slot, )
 
 
 class WhileStmt(Statement):
@@ -987,42 +1023,43 @@ class WhileStmt(Statement):
     """
     __slots__ = ('_while_token', '_condition', '_block', )
 
-    while_token_slot: SingleNodeSlot["WhileStmt", Token] = SingleNodeSlot('_while_token', Token)
+    while_token_slot: SingleNodeSlot["WhileStmt", LeafNode] = SingleNodeSlot('_while_token', LeafNode)
     "The 'while' token."
     condition_slot: SingleNodeSlot["WhileStmt", Expression] = SingleNodeSlot('_condition', Expression)
     "The condition to check before running the block."
     block_slot: SingleNodeSlot["WhileStmt", BlockStmt] = SingleNodeSlot('_block', BlockStmt)
     "The block of statements to run while the condition is true."
 
-    def __init__(self, while_token: Token | None, condition: Expression | None, block: BlockStmt | None):
+    def __init__(self, while_token: LeafNode | None, condition: Expression | None, block: BlockStmt | None):
         super().__init__()
         assert while_token is None or WhileStmt.while_token_slot.accepts(while_token)
         self._while_token = while_token
         if while_token is not None: 
+            while_token.register_attachment(self, WhileStmt.while_token_slot)
             if while_token.has_problems: self._update_has_problems(True)
 
         assert condition is None or WhileStmt.condition_slot.accepts(condition)
         self._condition = condition
         if condition is not None: 
-            condition._register_attachment(self, WhileStmt.condition_slot)
+            condition.register_attachment(self, WhileStmt.condition_slot)
             if condition.has_problems: self._update_has_problems(True)
 
         assert block is None or WhileStmt.block_slot.accepts(block)
         self._block = block
         if block is not None: 
-            block._register_attachment(self, WhileStmt.block_slot)
+            block.register_attachment(self, WhileStmt.block_slot)
             if block.has_problems: self._update_has_problems(True)
 
 
     @property
-    def while_token(self) -> Token | None:
+    def while_token(self) -> LeafNode | None:
         """
         The 'while' token.
         """
         return self._while_token
 
     @while_token.setter
-    def while_token(self, value: Token | None):
+    def while_token(self, value: LeafNode | None):
         self._while_token = self.attach_child(self.while_token_slot, value)
 
     @property
@@ -1054,12 +1091,13 @@ class WhileStmt(Statement):
         if self._block is not None: yield self._block
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._while_token is not None: yield self._while_token
         if self._condition is not None: yield self._condition
         if self._block is not None: yield self._block
 
 WhileStmt.element_slots = (WhileStmt.while_token_slot, WhileStmt.condition_slot, WhileStmt.block_slot, )
-WhileStmt.node_slots = (WhileStmt.condition_slot, WhileStmt.block_slot, )
+WhileStmt.inner_node_slots = (WhileStmt.while_token_slot, WhileStmt.condition_slot, WhileStmt.block_slot, )
 
 
 class FunctionCallStmt(Statement):
@@ -1071,20 +1109,21 @@ class FunctionCallStmt(Statement):
 
     expr_slot: SingleNodeSlot["FunctionCallStmt", FunctionExpr] = SingleNodeSlot('_expr', FunctionExpr)
     "The function call expression."
-    semi_colon_slot: SingleNodeSlot["FunctionCallStmt", Token] = SingleNodeSlot('_semi_colon', Token, check_func=lambda x: x.kind == TokenKind.SYM_SEMICOLON)
+    semi_colon_slot: SingleNodeSlot["FunctionCallStmt", LeafNode] = SingleNodeSlot('_semi_colon', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_SEMICOLON)
     "The ';' token."
 
-    def __init__(self, expr: FunctionExpr | None, semi_colon: Token | None):
+    def __init__(self, expr: FunctionExpr | None, semi_colon: LeafNode | None):
         super().__init__()
         assert expr is None or FunctionCallStmt.expr_slot.accepts(expr)
         self._expr = expr
         if expr is not None: 
-            expr._register_attachment(self, FunctionCallStmt.expr_slot)
+            expr.register_attachment(self, FunctionCallStmt.expr_slot)
             if expr.has_problems: self._update_has_problems(True)
 
         assert semi_colon is None or FunctionCallStmt.semi_colon_slot.accepts(semi_colon)
         self._semi_colon = semi_colon
         if semi_colon is not None: 
+            semi_colon.register_attachment(self, FunctionCallStmt.semi_colon_slot)
             if semi_colon.has_problems: self._update_has_problems(True)
 
 
@@ -1100,14 +1139,14 @@ class FunctionCallStmt(Statement):
         self._expr = self.attach_child(self.expr_slot, value)
 
     @property
-    def semi_colon(self) -> Token | None:
+    def semi_colon(self) -> LeafNode | None:
         """
         The ';' token.
         """
         return self._semi_colon
 
     @semi_colon.setter
-    def semi_colon(self, value: Token | None):
+    def semi_colon(self, value: LeafNode | None):
         self._semi_colon = self.attach_child(self.semi_colon_slot, value)
 
     @property
@@ -1116,11 +1155,12 @@ class FunctionCallStmt(Statement):
         if self._semi_colon is not None: yield self._semi_colon
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
         if self._expr is not None: yield self._expr
+        if self._semi_colon is not None: yield self._semi_colon
 
 FunctionCallStmt.element_slots = (FunctionCallStmt.expr_slot, FunctionCallStmt.semi_colon_slot, )
-FunctionCallStmt.node_slots = (FunctionCallStmt.expr_slot, )
+FunctionCallStmt.inner_node_slots = (FunctionCallStmt.expr_slot, FunctionCallStmt.semi_colon_slot, )
 
 
 class AssignStmt(Statement):
@@ -1129,59 +1169,62 @@ class AssignStmt(Statement):
     """
     __slots__ = ('_name_token', '_assign_token', '_value', '_semi_colon', )
 
-    name_token_slot: SingleNodeSlot["AssignStmt", Token] = SingleNodeSlot('_name_token', Token, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
+    name_token_slot: SingleNodeSlot["AssignStmt", LeafNode] = SingleNodeSlot('_name_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
     "The name of the variable."
-    assign_token_slot: SingleNodeSlot["AssignStmt", Token] = SingleNodeSlot('_assign_token', Token, check_func=lambda x: x.kind == TokenKind.SYM_ASSIGN)
+    assign_token_slot: SingleNodeSlot["AssignStmt", LeafNode] = SingleNodeSlot('_assign_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_ASSIGN)
     "The '=' token."
     value_slot: SingleNodeSlot["AssignStmt", Expression] = SingleNodeSlot('_value', Expression)
     "The value to assign to the variable."
-    semi_colon_slot: SingleNodeSlot["AssignStmt", Token] = SingleNodeSlot('_semi_colon', Token, check_func=lambda x: x.kind == TokenKind.SYM_SEMICOLON)
+    semi_colon_slot: SingleNodeSlot["AssignStmt", LeafNode] = SingleNodeSlot('_semi_colon', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_SEMICOLON)
     "The ';' token."
 
-    def __init__(self, name_token: Token | None, assign_token: Token | None, value: Expression | None, semi_colon: Token | None):
+    def __init__(self, name_token: LeafNode | None, assign_token: LeafNode | None, value: Expression | None, semi_colon: LeafNode | None):
         super().__init__()
         assert name_token is None or AssignStmt.name_token_slot.accepts(name_token)
         self._name_token = name_token
         if name_token is not None: 
+            name_token.register_attachment(self, AssignStmt.name_token_slot)
             if name_token.has_problems: self._update_has_problems(True)
 
         assert assign_token is None or AssignStmt.assign_token_slot.accepts(assign_token)
         self._assign_token = assign_token
         if assign_token is not None: 
+            assign_token.register_attachment(self, AssignStmt.assign_token_slot)
             if assign_token.has_problems: self._update_has_problems(True)
 
         assert value is None or AssignStmt.value_slot.accepts(value)
         self._value = value
         if value is not None: 
-            value._register_attachment(self, AssignStmt.value_slot)
+            value.register_attachment(self, AssignStmt.value_slot)
             if value.has_problems: self._update_has_problems(True)
 
         assert semi_colon is None or AssignStmt.semi_colon_slot.accepts(semi_colon)
         self._semi_colon = semi_colon
         if semi_colon is not None: 
+            semi_colon.register_attachment(self, AssignStmt.semi_colon_slot)
             if semi_colon.has_problems: self._update_has_problems(True)
 
 
     @property
-    def name_token(self) -> Token | None:
+    def name_token(self) -> LeafNode | None:
         """
         The name of the variable.
         """
         return self._name_token
 
     @name_token.setter
-    def name_token(self, value: Token | None):
+    def name_token(self, value: LeafNode | None):
         self._name_token = self.attach_child(self.name_token_slot, value)
 
     @property
-    def assign_token(self) -> Token | None:
+    def assign_token(self) -> LeafNode | None:
         """
         The '=' token.
         """
         return self._assign_token
 
     @assign_token.setter
-    def assign_token(self, value: Token | None):
+    def assign_token(self, value: LeafNode | None):
         self._assign_token = self.attach_child(self.assign_token_slot, value)
 
     @property
@@ -1196,14 +1239,14 @@ class AssignStmt(Statement):
         self._value = self.attach_child(self.value_slot, value)
 
     @property
-    def semi_colon(self) -> Token | None:
+    def semi_colon(self) -> LeafNode | None:
         """
         The ';' token.
         """
         return self._semi_colon
 
     @semi_colon.setter
-    def semi_colon(self, value: Token | None):
+    def semi_colon(self, value: LeafNode | None):
         self._semi_colon = self.attach_child(self.semi_colon_slot, value)
 
     @property
@@ -1214,11 +1257,14 @@ class AssignStmt(Statement):
         if self._semi_colon is not None: yield self._semi_colon
 
     @property
-    def child_nodes(self):
+    def child_inner_nodes(self):
+        if self._name_token is not None: yield self._name_token
+        if self._assign_token is not None: yield self._assign_token
         if self._value is not None: yield self._value
+        if self._semi_colon is not None: yield self._semi_colon
 
 AssignStmt.element_slots = (AssignStmt.name_token_slot, AssignStmt.assign_token_slot, AssignStmt.value_slot, AssignStmt.semi_colon_slot, )
-AssignStmt.node_slots = (AssignStmt.value_slot, )
+AssignStmt.inner_node_slots = (AssignStmt.name_token_slot, AssignStmt.assign_token_slot, AssignStmt.value_slot, AssignStmt.semi_colon_slot, )
 
 
 class ErrorStmt(Statement):
@@ -1227,19 +1273,20 @@ class ErrorStmt(Statement):
     """
     __slots__ = ('_tokens', )
 
-    tokens_slot: MultiNodeSlot["ErrorStmt", Token] = MultiNodeSlot('_tokens', Token)
+    tokens_slot: MultiNodeSlot["ErrorStmt", LeafNode] = MultiNodeSlot('_tokens', LeafNode)
     "All tokens that were ignored during parsing."
 
-    def __init__(self, tokens: Iterable[Token]):
+    def __init__(self, tokens: Iterable[LeafNode]):
         super().__init__()
         self._tokens = list(tokens)
         for s_init_el in self._tokens:
             assert s_init_el is not None and ErrorStmt.tokens_slot.accepts(s_init_el)
+            s_init_el.register_attachment(self, ErrorStmt.tokens_slot)
             if s_init_el.has_problems: self._update_has_problems(True)
 
 
     @property
-    def tokens(self) -> Iterable[Token]:
+    def tokens(self) -> Iterable[LeafNode]:
         """
         All tokens that were ignored during parsing.
         """
@@ -1250,10 +1297,10 @@ class ErrorStmt(Statement):
         yield from self._tokens
 
     @property
-    def child_nodes(self):
-        return []
+    def child_inner_nodes(self):
+        yield from self._tokens
 
 ErrorStmt.element_slots = (ErrorStmt.tokens_slot, )
-ErrorStmt.node_slots = ()
+ErrorStmt.inner_node_slots = (ErrorStmt.tokens_slot, )
 
 

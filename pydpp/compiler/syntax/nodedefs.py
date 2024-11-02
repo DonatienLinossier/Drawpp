@@ -19,7 +19,7 @@ def definitions() -> list[type]:
         kind_token = single(Token, doc="The token representing the type.")
 
     @node_def
-    class Argument(Node):
+    class Argument(InnerNode):
         """
         An argument to a function call.
         """
@@ -28,7 +28,7 @@ def definitions() -> list[type]:
         comma_token = single(TK.SYM_COMMA, doc="The ',' token.")
 
     @node_def
-    class ArgumentList(Node):
+    class ArgumentList(InnerNode):
         """
         A list of arguments to a function call.
         """

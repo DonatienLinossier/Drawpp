@@ -101,7 +101,7 @@ def generate_code(definition_classes: list[type], doc_str_indentation=0) -> str:
     for c in definition_classes:
         class_name = c.__name__
         slots: list[SlotProp] = []
-        base_class = "Node"
+        base_class = "InnerNode"
         doc_str = c.__doc__.strip() if c.__doc__ else None
         extension_class_name = c.extension_class if hasattr(c, "extension_class") else None
 
@@ -116,21 +116,26 @@ def generate_code(definition_classes: list[type], doc_str_indentation=0) -> str:
                 raise ValueError(
                     f"Slot {name} in class {class_name} uses a check function ({check}) but no extension class is specified.")
 
-            el_type = slot_type.__name__
+            element_type = slot_type.__name__
+            if element_type == "Token":
+                element_type = "LeafNode"
+
             if multi:
-                prop_type = f"Iterable[{el_type}]"
+                prop_type = f"Iterable[{element_type}]"
             else:
                 if optional:
-                    prop_type = f"{el_type} | None"
+                    prop_type = f"{element_type} | None"
                 else:
-                    prop_type = el_type
+                    prop_type = element_type
+
+
 
             slots.append(SlotProp(
                 name=name,
                 multi=multi,
                 slot_attr_name=name + "_slot",
                 storage_attr_name="_" + name,
-                element_type=slot_type.__name__,
+                element_type=element_type,
                 property_type=prop_type,
                 doc_string=doc,
                 check=check,
@@ -223,9 +228,10 @@ def generate_code(definition_classes: list[type], doc_str_indentation=0) -> str:
                 out.writeln(f"self.{s.storage_attr_name} = list({s.name})")
                 out.writeln(f"for s_init_el in self.{s.storage_attr_name}:")
                 out.inc_indent()
+
                 out.writeln(f"assert s_init_el is not None and {class_name}.{s.slot_attr_name}.accepts(s_init_el)")
-                if s.element_type != "Token":
-                    out.writeln(f"s_init_el._register_attachment(self, {class_name}.{s.slot_attr_name})")
+
+                out.writeln(f"s_init_el.register_attachment(self, {class_name}.{s.slot_attr_name})")
                 out.writeln("if s_init_el.has_problems: self._update_has_problems(True)")
                 out.dec_indent()
                 out.newline()
@@ -249,8 +255,7 @@ def generate_code(definition_classes: list[type], doc_str_indentation=0) -> str:
                     out.writeln(f"if {s.name} is not None: ")
                     out.inc_indent()
 
-                if s.element_type != "Token":
-                    out.writeln(f"{s.name}._register_attachment(self, {class_name}.{s.slot_attr_name})")
+                out.writeln(f"{s.name}.register_attachment(self, {class_name}.{s.slot_attr_name})")
                 out.writeln(f"if {s.name}.has_problems: self._update_has_problems(True)")
 
                 if s.optional:
@@ -298,7 +303,7 @@ def generate_code(definition_classes: list[type], doc_str_indentation=0) -> str:
         out.newline()
 
         out.writeln("@property")
-        out.writeln("def child_nodes(self):")
+        out.writeln("def child_inner_nodes(self):")
         out.inc_indent()
         if node_only_slots:
             for s in node_only_slots:
@@ -316,14 +321,14 @@ def generate_code(definition_classes: list[type], doc_str_indentation=0) -> str:
         out.dec_indent()
         out.newline()
 
-        # Step 6: The element_slots and node_slots class attributes (do it outside the class definition)
+        # Step 6: The element_slots and inner_node_slots class attributes (do it outside the class definition)
         out.write_indent(f"{class_name}.element_slots = (")
         for s in slots:
             out.write(f"{class_name}.{s.slot_attr_name}, ")
         out.write(")")
         out.newline()
 
-        out.write_indent(f"{class_name}.node_slots = (")
+        out.write_indent(f"{class_name}.inner_node_slots = (")
         for s in node_only_slots:
             out.write(f"{class_name}.{s.slot_attr_name}, ")
         out.write(")")
