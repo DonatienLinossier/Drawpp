@@ -1,5 +1,3 @@
-import tkinter
-import tkinter.messagebox
 import customtkinter as ctk
 from tkinter import filedialog
 import os
@@ -17,9 +15,10 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title("Draw++")
-        self.geometry(f"{1100}x{580}")
+        self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}+0+0")
+        self.after(0, lambda: self.state('zoomed'))
 
-        # Grid layout (4x4)
+        # Grid layout
         self.grid_columnconfigure(1, weight=1)
         self.grid_columnconfigure((2, 3), weight=0)
         self.grid_rowconfigure(0, weight=1)
@@ -31,29 +30,27 @@ class App(ctk.CTk):
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Draw++", font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
-        self.sidebar_button_NewF = ctk.CTkButton(self.sidebar_frame, text="nouveau fichier", command=self.new_tab)
-        self.sidebar_button_NewF.grid(row=1, column=0, padx=20, pady=10)
+        self.new_file_but = ctk.CTkButton(self.sidebar_frame, text="nouveau fichier", command=self.new_tab)
+        self.new_file_but.grid(row=1, column=0, padx=20, pady=10)
+        self.bind("<Control-n>", lambda event: self.new_tab(event=event))
 
-        self.sidebar_button_imp = ctk.CTkButton(self.sidebar_frame, text= "importer",command=self.imp_event)
-        self.sidebar_button_imp.grid(row=2, column=0, padx=20, pady=10)
-
-        self.sidebar_button_sauv = ctk.CTkButton(self.sidebar_frame, text="sauvegarder", command=self.sauv_event)
-        self.sidebar_button_sauv.grid(row=3, column=0, padx=20, pady=10)
+        self.import_but = ctk.CTkButton(self.sidebar_frame, text= "importer",command=self.imp_event)
+        self.import_but.grid(row=2, column=0, padx=20, pady=10)
+        self.bind("<Control-o>", lambda event: self.imp_event(event))
+        
+        self.save_but = ctk.CTkButton(self.sidebar_frame, text="sauvegarder", command=self.sauv_event)
+        self.save_but.grid(row=3, column=0, padx=20, pady=10)
+        self.bind("<Control-s>", lambda event: self.sauv_event(event))
 
         self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Appearance Mode:", anchor="w")
         self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
-        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Light", "Dark", "System"],
-                                                                       command=self.change_appearance_mode_event)
-        self.set_default_color_theme_optionmenu=ctk.CTkOptionMenu(self.sidebar_frame, values=["blue", "dark-blue", "green"],
-                                                                       command=self.change_theme_mode_event)
-        self.appearance_mode_optionemenu.grid(row=6, column=0, padx=20, pady=(10, 10))
+        self.appearance_mode_menu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Light", "Dark", "System"],command=self.change_appearance_mode)
+        self.appearance_mode_menu.grid(row=6, column=0, padx=20, pady=(10, 10))
         self.scaling_label = ctk.CTkLabel(self.sidebar_frame, text="UI Scaling:", anchor="w")
         self.scaling_label.grid(row=7, column=0, padx=20, pady=(10, 0))
-        self.scaling_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["80%", "90%", "100%", "110%", "120%"],
-                                                               command=self.change_scaling_event)
+        self.scaling_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["80%", "90%", "100%", "110%", "120%"], command=self.change_scaling)
         self.scaling_optionemenu.grid(row=8, column=0, padx=20, pady=(10, 20))
 
-        # Create tabview
         self.tabview = ctk.CTkTabview(self, width=250)
         self.tabview.grid(row=0, column=1, padx=10, pady=(10, 0), sticky="nsew")
         self.tabview.grid_columnconfigure(0, weight=1)
@@ -61,26 +58,25 @@ class App(ctk.CTk):
 
         self.textboxes = {} # Dict for tab-textboxes
 
-        menu = ctk.CTkTextbox(self.tabview.tab("Menu")) # Creating textbox of Menu tab
+        menu = ctk.CTkTextbox(self.tabview.tab("Menu"))
         self.textboxes["Menu"] = menu
 
+        self.terminal = ctk.CTkTextbox(self)
+        self.terminal.grid(row=1, column=1, padx=10, pady=(10, 0), sticky="nsew")
 
         # set default values
-        self.appearance_mode_optionemenu.set("System")
+        self.appearance_mode_menu.set("System")
         self.scaling_optionemenu.set("100%")
         self.newfilecount = 1
 
-    def change_appearance_mode_event(self, new_appearance_mode: str):
+    def change_appearance_mode(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
 
-    def change_theme_mode_event(self, newtheme: str):
-        ctk.set_default_color_theme(newtheme)
-
-    def change_scaling_event(self, new_scaling: str):
+    def change_scaling(self, new_scaling: str):
         new_scaling_float = int(new_scaling.replace("%", "")) / 100
         ctk.set_widget_scaling(new_scaling_float)
 
-    def sauv_event(self):
+    def sauv_event(self, event=None):
         tab = self.tabview.get()  # Get current oppened tab
         if tab!="Menu":
             textbox = self.textboxes.get(tab)  # Get corresponding Textbox
@@ -97,7 +93,7 @@ class App(ctk.CTk):
                         self.textboxes.pop(tab)
                         self.tabview.set(filename)  
 
-    def imp_event(self):
+    def imp_event(self, event=None):
         file = filedialog.askopenfilename(title="Importer",
                                         defaultextension=".txt",
                                         filetypes=[("txt fichier",".txt")],
