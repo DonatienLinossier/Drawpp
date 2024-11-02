@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import Optional, final
+from typing import Optional
 from pydpp.compiler.position import TextSpan
 from pydpp.compiler.problem import ProblemSet, ProblemSeverity
 import re
@@ -112,22 +112,70 @@ class TokenKind(Enum):
     "Symbol for assignment: ="
     LITERAL_NUM = auto()
     """A number literal, an integer or decimal value: 4, 4.92, 0.2, 880
-    It uses the NumberLiteralToken class.
-    That class contains the integer_val and decimal_part attributes."""
+    Its value is represented by a tuple: (int, int | None)"""
     LITERAL_BOOL = auto()
     """A boolean literal: true or false
-    It uses the BoolLiteralToken class.
-    That class contains the value attribute."""
+    Its value is represented by a bool."""
     LITERAL_STRING = auto()
     """A string literal: "hello", "world", "hello world"
-    It uses the StringLiteralToken class.
-    That class contains the value attribute.
+    Its value is represented by a string.
     """
     IDENTIFIER = auto()
     """An identifier: a name that represents a variable, function, class, etc.
     It uses the IdentifierToken class.
     That class contains the name attribute."""
 
+
+class TokenProblem:
+    """
+    An issue about a token. Can specify a substring within the token text.
+    """
+
+    __slots__ = ("message", "severity", "span")
+
+    def __init__(self,
+                 message: str,
+                 severity: ProblemSeverity,
+                 span: TextSpan):
+        self.message = message
+        "The message of the problem."
+        self.severity = severity
+        "The severity of the problem."
+        self.span = span
+        "The span of the problem within the token's full text, including auxiliary text."
+
+    def __repr__(self):
+        return f"TokenProblem({self.message!r}, {self.severity!r}, {self.span!r})"
+
+
+class _PendingTokenProblem:
+    """
+    A pending problem for a token. Used in Tokenizer to encode problems with the right coordinates
+    (including or excluding auxiliary text).
+    """
+
+    __slots__ = ("message", "severity", "span", "text_space")
+
+    def __init__(self,
+                 message: str,
+                 severity: ProblemSeverity = ProblemSeverity.ERROR,
+                 span: TextSpan | None = None,
+                 text_space: int | None = None):
+        self.message = message
+        "The message of the problem."
+        self.severity = severity
+        "The severity of the problem."
+
+        self.span = span
+        "The span of the problem within the text_space."
+
+        self.text_space = text_space
+        """
+        The coordinate space indicating how the span should be calculated.
+        
+            - None  -> 'span' starts at the beginning of the token's text, excluding auxiliary text.
+            - int n -> 'span' starts at the beginning of the auxiliary text at index n.
+        """
 
 class Token:
     """
@@ -139,18 +187,21 @@ class Token:
     => [KW_IF, IDENTIFIER, SYM_LT, LITERAL_NUM, SYM_LBRACE, IDENTIFIER, SYM_SEMICOLON, SYM_RBRACE]
 
     Most tokens only consist of their "kind" (see TokenKind), which is a simple enum value.
-    Some tokens of some particular kinds may have additional information, which are stored as supplementary attributes.
-    Check the various subclasses of Token for more information (like NumberLiteralToken).
+    Some tokens of some particular kinds may have additional information, which is stored inside the 'value' attribute.
 
-    Tokens can also track where they come from in the file, with the pos attribute, which contains
-    the coordinates of the starting and ending character in the file.
+    Applicable value attributes include:
+        - TokenKind.LITERAL_NUM: a tuple of (int, int | None) representing the integer and decimal parts of the number.
+        - TokenKind.LITERAL_BOOL: a bool representing the boolean value.
+        - TokenKind.LITERAL_STRING: a string representing the string value
     """
 
-    __slots__ = ("kind", "pos", "text", "pre_auxiliary", "full_text")
+    __slots__ = ("kind", "text", "pre_auxiliary", "full_text", "value", "problems")
     """Register slots for Token objects to save lots of memory, since we'll have thousands of them.
     Subclasses should also register their own slots!"""
 
-    def __init__(self, kind: TokenKind, text: str, pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
+    def __init__(self, kind: TokenKind, text: str, pre_auxiliary: tuple[AuxiliaryText, ...] = (),
+                 problems: tuple[TokenProblem, ...] = (),
+                 value: str | bool | tuple[int, int | None] | None = None):
         self.kind = kind
         """The kind of the token. See the TokenKind enum for all possible values.
         Tokens of some particular kinds may have additional information, which are stored as supplementary attributes.
@@ -172,8 +223,21 @@ class Token:
         self.full_text = ft
         """The full text of the token, including auxiliary text."""
 
+        self.value: str | bool | tuple[int, int | None] | None = value
+        "The value of this token, if it represents a literal."
+
+        self.problems = problems
+        "All problems related to this token."
+
+    @property
+    def has_problems(self) -> bool:
+        return len(self.problems) != 0
+
     def __repr__(self):
-        return f"{self.kind.name}"
+        if self.value:
+            return f"{self.kind.name}({self.value!r})"
+        else:
+            return f"{self.kind.name}"
 
     def __eq__(self, other):
         """
@@ -188,107 +252,6 @@ class Token:
         Returns a new token with the given auxiliary text.
         """
         return Token(self.kind, self.text, pre_auxiliary)
-
-
-@final
-class NumberLiteralToken(Token):
-    """A number literal (LITERAL_NUMBER), which can have a decimal/integer part."""
-    __slots__ = ("int_part", "dec_part")
-
-    def __init__(self, int_part: int, dec_part: Optional[int], text: str,
-                 pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
-        super().__init__(TokenKind.LITERAL_NUM, text, pre_auxiliary)
-        self.int_part = int_part
-        "The integer part of the number. Example: in 5.25, it's 5."
-
-        self.dec_part = dec_part
-        "The decimal part of the number, which may be null if the number is an integer. Example: in 5.25, it's 25."
-
-    def __repr__(self):
-        if self.dec_part:
-            return f"{self.kind.name}({self.int_part!r}.{self.dec_part!r})"
-        else:
-            return f"{self.kind.name}({self.int_part!r})"
-
-    def __eq__(self, other):
-        return isinstance(other, NumberLiteralToken) \
-            and self.int_part == other.int_part \
-            and self.dec_part == other.dec_part
-
-    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "NumberLiteralToken":
-        """
-        Returns a new token with the given auxiliary text.
-        """
-        return NumberLiteralToken(self.int_part, self.dec_part, self.text, pre_auxiliary)
-
-
-@final
-class BoolLiteralToken(Token):
-    """A boolean literal (LITERAL_BOOL), which can be either true or false."""
-    __slots__ = ("value",)
-
-    def __init__(self, value: bool, pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
-        super().__init__(TokenKind.LITERAL_BOOL, "true" if value else "false", pre_auxiliary)
-        self.value = value
-        "The boolean value of the token: true or false."
-
-    def __repr__(self):
-        return f"{self.kind.name}({self.value!r})"
-
-    def __eq__(self, other):
-        return isinstance(other, BoolLiteralToken) and self.value == other.value
-
-    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "BoolLiteralToken":
-        """
-        Returns a new token with the given auxiliary text.
-        """
-        return BoolLiteralToken(self.value, pre_auxiliary)
-
-
-@final
-class StringLiteralToken(Token):
-    """A string literal (LITERAL_STRING), having a string value."""
-    __slots__ = ("value",)
-
-    def __init__(self, value: str, text: str, pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
-        super().__init__(TokenKind.LITERAL_STRING, text, pre_auxiliary)
-        self.value = value
-        "The string value contained within the string literal."
-
-    def __repr__(self):
-        return f"{self.kind.name}({self.value!r})"
-
-    def __eq__(self, other):
-        return isinstance(other, StringLiteralToken) and self.value == other.value
-
-    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "StringLiteralToken":
-        """
-        Returns a new token with the given auxiliary text.
-        """
-        return StringLiteralToken(self.value, self.text, pre_auxiliary)
-
-
-@final
-class IdentifierToken(Token):
-    """An identifier (IDENTIFIER), which is a name representing a variable or function."""
-    __slots__ = ("name",)
-
-    def __init__(self, name: str, pre_auxiliary: tuple[AuxiliaryText, ...] = ()):
-        super().__init__(TokenKind.IDENTIFIER, name, pre_auxiliary)
-        self.name = name
-        "The name of the identifier."
-
-    def __repr__(self):
-        return f"{self.kind.name}({self.name!r})"
-
-    def __eq__(self, other):
-        return isinstance(other, IdentifierToken) and self.name == other.name
-
-    def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "IdentifierToken":
-        """
-        Returns a new token with the given auxiliary text.
-        """
-        return IdentifierToken(self.name, pre_auxiliary)
 
 
 # Map of all known keywords and symbols to their token kind.
@@ -331,6 +294,7 @@ _sym_longest = max(len(k) for k in _sym_map.keys())
 # The length of the longest keyword
 _kw_longest = max(len(k) for k in _kw_map.keys())
 
+
 class _Tokenizer:
     """
     The tokenizer is responsible for converting a string of code into a sequence of tokens.
@@ -340,15 +304,14 @@ class _Tokenizer:
     The other files should just use the "tokenize" function :)
     """
 
-    def __init__(self, code: str, problems: ProblemSet):
+    __slots__ = ("code", "eof", "tokens", "cursor", "err_start", "pending_auxiliary", "pending_problems", "no_pending_prob")
+
+    def __init__(self, code: str):
         self.code = code
         "The code to tokenize."
 
         self.eof = len(code) == 0
         "Whether we've reached the end of the file."
-
-        self.problems = problems
-        "The problem set so we can report errors during tokenization."
 
         self.tokens: list[Token] = []
         """
@@ -376,6 +339,16 @@ class _Tokenizer:
         Auxiliary text that has been read, that will be put on the next pushed token.
         """
 
+        self.pending_problems: list[_PendingTokenProblem] = []
+        """
+        Problems waiting to be added to the next token.
+        """
+
+        self.no_pending_prob = True
+        """
+        Whether pending_problems has zero elements.
+        """
+
     def tokenize(self) -> list[Token]:
         """
         Tokenizes the code into a sequence of tokens.
@@ -401,7 +374,7 @@ class _Tokenizer:
         # If still have unrecognized error characters left, don't forget to report the error for those,
         # and add them to the auxiliary text of the last token.
         self.flush_unrecognized_error()
-        self.push_token(Token(TokenKind.EOF, "", self.flush_auxiliary()))
+        self.push_token(TokenKind.EOF, "")
         return self.tokens
 
     def recognize_kw_sym(self) -> bool:
@@ -428,7 +401,7 @@ class _Tokenizer:
             m = _kw_map.get(w)
             if w in _kw_map:
                 self.consume(l)
-                self.tokens.append(Token(m, w, self.flush_auxiliary()))
+                self.push_token(m, w)
                 return True
         else:
             last_ok = None
@@ -439,7 +412,7 @@ class _Tokenizer:
                     kind, leaf = m
                     if leaf:
                         self.consume(i)
-                        self.push_token(Token(kind, s, self.flush_auxiliary()))
+                        self.push_token(kind, s)
                         return True
                     else:
                         last_ok = kind, s
@@ -447,7 +420,7 @@ class _Tokenizer:
             if last_ok:
                 kind, string_val = last_ok
                 self.consume(len(string_val))
-                self.tokens.append(Token(kind, string_val, self.flush_auxiliary()))
+                self.push_token(kind, string_val)
                 return True
             else:
                 return False
@@ -484,16 +457,16 @@ class _Tokenizer:
                         # That's a problem! We have a number missing its decimal digits, like "5."
                         # Instead of ignoring it though, we'll still consider it a "valid" number,
                         # just with a null decimal.
-                        self.problems.append(problem="Partie décimale attendue après un point (« . »).",
-                                             severity=ProblemSeverity.ERROR,
-                                             pos=TextSpan(start_pos, self.cursor))
+                        self.queue_problem(message="Partie décimale attendue après un point (« . »).",
+                                           span=TextSpan(0, self.cursor - start_pos))
                     else:
                         # We recognized the decimal part, convert it to an integer.
                         decimal = int(decimal_str)
 
                 # Finally add the token to the list.
-                self.push_token(
-                    NumberLiteralToken(integer, decimal, self.code[start_pos:self.cursor], self.flush_auxiliary()))
+                aux = self.flush_auxiliary()
+                pb = self.flush_problems(aux)
+                self.push_token(TokenKind.LITERAL_NUM, self.code[start_pos:self.cursor], (integer, decimal))
                 return True
             else:
                 return False
@@ -503,10 +476,10 @@ class _Tokenizer:
 
             # If it's true, then create a true token, else if it's false, create a false token. Simple enough!
             if self.consume_exact("true"):
-                self.push_token(BoolLiteralToken(True, self.flush_auxiliary()))
+                self.push_token(TokenKind.LITERAL_BOOL, "true", True)
                 return True
             elif self.consume_exact("false"):
-                self.push_token(BoolLiteralToken(False, self.flush_auxiliary()))
+                self.push_token(TokenKind.LITERAL_BOOL, "false", False)
                 return True
             else:
                 return False
@@ -544,9 +517,8 @@ class _Tokenizer:
                             val += "\n"
                         else:  # escape and character != "t" and character != "\""
                             # Unknown escape sequence! Weird right?
-                            self.problems.append(problem=f"Caractère d'échappement inconnu : « \\{character} ».",
-                                                 severity=ProblemSeverity.ERROR,
-                                                 pos=TextSpan(start_pos, self.cursor))
+                            self.queue_problem(message=f"Caractère d'échappement inconnu : « \\{character} ».",
+                                               span=TextSpan(self.cursor - start_pos - 2, self.cursor - start_pos))
                             # Ignore character
                         escape = False
                     # Onto the next character.
@@ -555,12 +527,11 @@ class _Tokenizer:
                 if character == "":
                     # Then it's EOF! The string hasn't been closed properly. Report an error.
                     # TODO: Prevent this in some cases when detecting a newline after an escape character?
-                    self.problems.append(problem="Chaîne de caractères non terminée.",
-                                         severity=ProblemSeverity.ERROR,
-                                         pos=TextSpan(start_pos, self.cursor))
+                    self.queue_problem(message="Chaîne de caractères non terminée.",
+                                       span=TextSpan(self.cursor - start_pos - 1, self.cursor - start_pos))
 
                 # Add the string token to the list.
-                self.push_token(StringLiteralToken(val, self.code[start_pos:self.cursor], self.flush_auxiliary()))
+                self.push_token(TokenKind.LITERAL_STRING, self.code[start_pos:self.cursor], val)
                 return True
             else:
                 return False
@@ -600,17 +571,21 @@ class _Tokenizer:
         # Add a token if we have at least one character.
         n = i - self.cursor
         if n > 0:
-            self.push_token(IdentifierToken(self.consume(n), self.flush_auxiliary()))
+            self.push_token(TokenKind.IDENTIFIER, self.consume(n))
             return True
         else:
             return False
 
-    def push_token(self, tkn: Token):
+    def push_token(self, kind: TokenKind, text: str, value=None):
         """
         Pushes a token to the list of tokens.
         """
-
-        self.tokens.append(tkn)
+        if self.no_pending_prob:
+            self.tokens.append(Token(kind, text, self.flush_auxiliary(), value=value))
+        else:
+            aux = self.flush_auxiliary()
+            pb = self.flush_problems(aux)
+            self.tokens.append(Token(kind, text, aux, pb, value))
 
     def flush_auxiliary(self):
         """
@@ -619,6 +594,41 @@ class _Tokenizer:
         t = tuple(self.pending_auxiliary)
         self.pending_auxiliary.clear()
         return t
+
+    def flush_problems(self, auxiliary: tuple[AuxiliaryText, ...] = ()) -> tuple[TokenProblem, ...]:
+        """
+        Returns a tuple containing all pending problems, and clears the pending list.
+        """
+        problems = []
+        for p in self.pending_problems:
+            # Compute sums of all lengths before each auxiliary text
+            auxiliary_start = [0]
+            for a in auxiliary:
+                auxiliary_start.append(auxiliary_start[-1] + len(a.text))
+
+            # Calculate the span of the problem, by including auxiliary text.
+            start = p.span.start if p else 0
+            end = p.span.end if p else 0
+            if p.text_space is None:
+                span = TextSpan(auxiliary_start[len(auxiliary)] + start,
+                                auxiliary_start[len(auxiliary)] + end)
+            else:
+                span = TextSpan(auxiliary_start[p.text_space] + start,
+                                auxiliary_start[p.text_space] + end)
+            problems.append(TokenProblem(p.message, span, p.severity))
+
+        t = tuple(problems)
+        self.pending_problems.clear()
+        self.no_pending_prob = True
+        return t
+
+    def queue_problem(self, message: str, severity: ProblemSeverity = ProblemSeverity.ERROR,
+                      span: TextSpan | None = None, text_space: int | None = None):
+        """
+        Queues a problem to be added to the next token.
+        """
+        self.pending_problems.append(_PendingTokenProblem(message, severity, span, text_space))
+        self.no_pending_prob = False
 
     def consume(self, n: int, err=False) -> str:
         """
@@ -662,7 +672,7 @@ class _Tokenizer:
         else:
             return False
 
-    until_nl_regex = re.compile(r".*\n?")
+    until_nl_regex = re.compile(r"(.*)\n?")
 
     def consume_auxiliary(self):
         """
@@ -760,14 +770,13 @@ class _Tokenizer:
         """
         if self.err_start is not None:
             chars = self.code[self.err_start:self.cursor]
-            self.problems.append(problem=f"Séquence de caractères non reconnue : « {chars} ».",
-                                 severity=ProblemSeverity.ERROR,
-                                 pos=TextSpan(self.err_start, self.cursor))
+            self.queue_problem(message=f"Séquence de caractères non reconnue : « {chars} ».",
+                               text_space=len(self.pending_auxiliary))
             self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.INVALID, chars))
             self.err_start = None
 
 
-def tokenize(code: str, problems: ProblemSet) -> list[Token]:
+def tokenize(code: str, problems: ProblemSet=None) -> list[Token]:
     """
     Tokenizes the given code into a sequence of tokens.
     Requires a ProblemSet to report any errors happening during tokenization.
@@ -775,4 +784,4 @@ def tokenize(code: str, problems: ProblemSet) -> list[Token]:
     :param problems: The problem set which may contain errors afterward.
     :return: A list of tokens.
     """
-    return _Tokenizer(code, problems).tokenize()
+    return _Tokenizer(code).tokenize()

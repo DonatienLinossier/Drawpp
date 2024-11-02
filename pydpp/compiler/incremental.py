@@ -1,15 +1,12 @@
 # =============================================================================
 # incremental.py: Handful functions for incremental parsing logic
 # =============================================================================
-from collections.abc import Callable
-from lib2to3.btm_utils import tokens
 from typing import NamedTuple
 
 from pydpp.compiler import tokenize, ProblemSet, Problem
 from pydpp.compiler.position import TextSpan
 from pydpp.compiler.syntax import Program
 from pydpp.compiler.tokenizer import Token, TokenKind
-
 
 class IncrementalTokenization(NamedTuple):
     """
@@ -118,9 +115,9 @@ def tokenize_incremental(token_src: list[Token] | Program,
         rescan_end_text_idx = end_tkn_text_idx
         rescan_end_tkn_idx = end_tkn_idx
 
-    print("Text to reparse:", text_to_reparse.strip())
-    print("Start token idx:", rescan_start_tkn_idx)
-    print("End token idx:", rescan_end_tkn_idx)
+    # print("Text to reparse:", text_to_reparse.strip())
+    # print("Start token idx:", rescan_start_tkn_idx)
+    # print("End token idx:", rescan_end_tkn_idx)
 
     ps = ProblemSet()
     tkns = tokenize(text_to_reparse, ps)

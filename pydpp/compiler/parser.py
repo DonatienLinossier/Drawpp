@@ -1,6 +1,5 @@
 from typing import overload
 
-from pydpp.compiler.annotations import *
 from pydpp.compiler.syntax import *
 from pydpp.compiler.tokenizer import *
 
@@ -9,13 +8,6 @@ from pydpp.compiler.tokenizer import *
 # =============================================================================
 
 N = TypeVar("N", bound=Node)
-
-
-def attach_problems(node: N, *problems: NodeProblem) -> N:
-    if problems:
-        node_add_problems(node, *problems)
-
-    return node
 
 class _Parser:
     """
@@ -98,8 +90,7 @@ class _Parser:
             return stmt
         elif stmt := self.parse_else_statement():
             # todo: change this to move the logic down in if_statement that should check for else
-            node_add_problems(stmt, NodeProblem("Bloc « else » sans « if » correspondant."))
-            return stmt
+            return stmt.with_problems(NodeProblem("Bloc « else » sans « if » correspondant."))
         elif stmt := self.parse_block_statement():
             return stmt
         elif stmt := self.parse_assign_statement():
@@ -143,11 +134,11 @@ class _Parser:
                 if saw_final_else:
                     block_name = "else" if else_stmt.condition is None else "else if"
                     prob = NodeProblem(f"Bloc « {block_name} » situé après un « else » existant.")
-                    node_add_problems(else_stmt, prob)
+                    else_stmt.with_problems(prob)
                 else:
                     saw_final_else = else_stmt.condition is None
 
-            return attach_problems(IfStmt(if_kw, condition, block, elses), *if_problems)
+            return IfStmt(if_kw, condition, block, elses).with_problems(*if_problems)
 
     def parse_else_statement(self) -> Optional[ElseStmt]:
         """
@@ -176,7 +167,7 @@ class _Parser:
                                             slot=ElseStmt.block_slot))
 
             # Make the node and return it.
-            return attach_problems(ElseStmt(else_kw, if_kw, condition, block), *problems)
+            return ElseStmt(else_kw, if_kw, condition, block).with_problems(*problems)
 
         return None
 
@@ -220,7 +211,7 @@ class _Parser:
 
         flush_invalid_tokens()
 
-        return attach_problems(BlockStmt(lbrace, statements, rbrace), *problems)
+        return BlockStmt(lbrace, statements, rbrace).with_problems(*problems)
 
     def parse_function_call_statement(self):
         """
@@ -230,7 +221,7 @@ class _Parser:
         if fc := self.parse_function_expression():
             problems = []
             sm = self.expect_semicolon_2(problems, FunctionCallStmt.semi_colon_slot)
-            return attach_problems(FunctionCallStmt(fc, sm), *problems)
+            return FunctionCallStmt(fc, sm).with_problems(*problems)
         else:
             return None
 
@@ -256,7 +247,7 @@ class _Parser:
                                                     slot=VariableDeclarationStmt.assign_token_slot))
 
                 sm = self.expect_semicolon_2(problems, VariableDeclarationStmt.semi_colon_slot)
-                return attach_problems(VariableDeclarationStmt(var_type, ident, assign, value, sm), *problems)
+                return VariableDeclarationStmt(var_type, ident, assign, value, sm).with_problems(*problems)
             else:
                 # No identifier? Then it'll be None.
                 problems.append(NodeProblem(message="Identificateur manquant après le type de variable.",
@@ -264,7 +255,7 @@ class _Parser:
                                             slot=VariableDeclarationStmt.name_token_slot))
 
                 sm = self.expect_semicolon_2(problems, VariableDeclarationStmt.semi_colon_slot)
-                return attach_problems(VariableDeclarationStmt(var_type, None, None, None, sm), *problems)
+                return VariableDeclarationStmt(var_type, None, None, None, sm).with_problems(*problems)
 
     def parse_assign_statement(self):
         """
@@ -273,7 +264,7 @@ class _Parser:
 
         # First we need to make sure that we have an identifier and an assignment operator.
         if (ident := self.peek()) and (assign := self.peek(skip=1)):
-            if isinstance(ident, IdentifierToken) and assign.kind == TokenKind.SYM_ASSIGN:
+            if ident.kind == TokenKind.IDENTIFIER and assign.kind == TokenKind.SYM_ASSIGN:
                 # Consume both identifier and assignment tokens.
                 self.consume()
                 self.consume()
@@ -286,7 +277,7 @@ class _Parser:
                                                 slot=AssignStmt.value_slot))
 
                 sm = self.expect_semicolon_2(problems, AssignStmt.semi_colon_slot)
-                return attach_problems(AssignStmt(ident, assign, val, sm), *problems)
+                return AssignStmt(ident, assign, val, sm).with_problems(*problems)
 
         return None
 
@@ -311,7 +302,7 @@ class _Parser:
                                             severity=ProblemSeverity.ERROR,
                                             slot=WhileStmt.block_slot))
 
-            return attach_problems(WhileStmt(while_kw, condition, block), *problems)
+            return WhileStmt(while_kw, condition, block).with_problems(*problems)
         else:
             return None
 
@@ -455,7 +446,7 @@ class _Parser:
                 rhs = non_binary_expr()
                 if rhs is None:
                     # Unsure what to do here. Exceptionally using an empty ErrorExpr.
-                    rhs = attach_problems(ErrorExpr([]), NodeProblem(
+                    rhs = ErrorExpr([]).with_problems(NodeProblem(
                         f"Opérande de droite manquante après l'opérateur « {operator} » "))
 
                 # If the next operator is one of HIGHER precedence, then "pause" this function's execution,
@@ -514,7 +505,7 @@ class _Parser:
                                       slot=UnaryExpr.op_token_slot)
 
             # Create the according expression node.
-            return attach_problems(UnaryExpr(op, expression), problem)
+            return UnaryExpr(op, expression).with_problems(problem)
 
         def parenthesized():
             """Recognizes parenthesized expressions, like (expr)."""
@@ -541,7 +532,7 @@ class _Parser:
                         severity=ProblemSeverity.ERROR,
                         slot=ParenthesizedExpr.rparen_token_slot))
 
-                return attach_problems(ParenthesizedExpr(lparen, expr, rparen), *problems)
+                return ParenthesizedExpr(lparen, expr, rparen).with_problems(*problems)
             else:
                 return None
 
@@ -616,13 +607,13 @@ class _Parser:
         """
         Makes an error expression from a list of tokens.
         """
-        return attach_problems(ErrorExpr(tokens), NodeProblem("Expression invalide."))
+        return ErrorExpr(tokens).with_problems(NodeProblem("Expression invalide."))
 
     def make_error_stmt(self, tokens: list[Token]) -> ErrorStmt:
         """
         Makes an error statement from a list of tokens.
         """
-        return attach_problems(ErrorStmt(tokens), NodeProblem("Instruction invalide."))
+        return ErrorStmt(tokens).with_problems(NodeProblem("Instruction invalide."))
 
     def peek(self, skip=0):
         """
