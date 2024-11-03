@@ -13,7 +13,7 @@ endif()
 include_directories(${CMAKE_SOURCE_DIR}/libs/sdlEncapsulation/include)
 
 # Specify the main source file for the executable
-set(MAIN_SRC ${OUTPUT_DIR}/test.c)
+set(MAIN_SRC ${OUTPUT_DIR}/tmp.c)
 
 # Create the main executable
 add_executable(${PROJECT_NAME} ${MAIN_SRC})
