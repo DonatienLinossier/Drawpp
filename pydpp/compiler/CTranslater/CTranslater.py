@@ -35,13 +35,6 @@ footer = """
                     
     return returnStatement;
 }"""
-import os
-import sys
-
-sys.path.append(os.getcwd()+"\CTranslater_p")
-
-print(sys.path)
-
 from ._Function import Function
 from .Variable import VarCall
 

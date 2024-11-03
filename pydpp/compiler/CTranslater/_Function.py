@@ -1,7 +1,24 @@
 from .Variable import VarCall
+
+"""
+The purpose of this class is to store and handle user-defined functions.
+The Function class is callable, acting like a real function.
+
+Each Function instance maintains its own private local scope, meaning child functions do not share variables
+with their parent functions, and vice versa.
+
+To achieve this private scope, we override the variable-related methods of the Function class
+to redirect them to the function's internal variable dictionary (FunctVarDict).
+
+Functions can accept arguments, and parameters can be declared at the time of function creation.
+
+When a function is called, all instructions or nested functions within it are executed sequentially.
+
+Note: This class is also used for the main function of the CTranslater.
+"""
+
 class Function:
     #Todo: get returned, and store it ? value from funct
-    #Todo: Recursivity trouble. a function can call a func, but what about an instr calling another instr ??
     def __init__(self, name, listParameters):
         self.__name__ = name
         self.instr = []
@@ -19,6 +36,9 @@ class Function:
         }
 
     def __call__(self, *args):
+
+        #validate arguments
+        #TODO: Check the type of the arguments
         if len(args) != self.nb_param:
             print(f"Function {self.__name__} takes {self.nb_param} argument(s). Only {len(args)} were given.")
             return
