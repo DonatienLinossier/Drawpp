@@ -1,0 +1,1 @@
+set(sdlEncapsulation TRUE)
