@@ -38,8 +38,8 @@ footer = """
 from ._Function import Function
 from .Variable import VarCall
 
-
 '''All functions and variables (varDict) related to the main function have been deleted as the main function is now a simple function'''
+
 
 class CTranslater:
     def __init__(self, filename):
@@ -49,46 +49,52 @@ class CTranslater:
         self.file = open(self.filename, "w")
         self.header()
 
-
-
-
         #self.main is the entry point of the created program
         #TODO: Add the possibility to run with arguments
         #TODO: add the possibility to have optionals arguments
         self.main = Function("Main", [])
-
 
         '''
         #Self.varDict contains the variables of the main function.
         self.varDict = {}
         '''
         #self.instr store all the core functions of the compilater and the functions created by the user.
-        self.instr = {"createVar": self.createVar,
-                      "getVar": self.getVar,
-                      "addToVar": self.addToVar,
-                      "drawCircle": self.drawCircle,
-                      "drawCircleFill": self.drawCircleFill,
-                      "drawRect": self.drawRect,
-                      "drawRectFill": self.drawRectFill,
-                      "setColor": self.setColor,
-                      "deb": self.deb,
-                      "sleep": self.sleep,
-                      "returnStatement": self.returnStatement
-                      }
+        self.instr = {
+            "storeReturnedValueFromFoncInVar": self.storeReturnedValueFromFoncInVar,
+            "createVar": self.createVar,
+            "getVar": self.getVar,
+            "addToVar": self.addToVar,
+            "drawCircle": self.drawCircle,
+            "drawCircleFill": self.drawCircleFill,
+            "drawRect": self.drawRect,
+            "drawRectFill": self.drawRectFill,
+            "setColor": self.setColor,
+            "deb": self.deb,
+            "sleep": self.sleep,
+            "functReturnStatement": self.functReturnStatement
+        }
 
-    def createVar(self, name, value):
-        self.varDict[name] = value
+    def functReturnStatement(self):
+        pass
+
+    def storeReturnedValueFromFoncInVar(self, varName:str) -> None:
+        pass
+
+    def createVar(self, name:str, value) -> None:
+        pass #TODO: verif using pass is a good idea
+        #self.varDict[name] = value
 
     #Todo: get var for what ?? To delete.
     def getVar(self, name):
-        return self.varDict[name]
+        pass #TODO: verif using pass is a good idea
+        #return self.varDict[name]
 
-    def addToVar(self, name, value):
-        self.varDict[name] += value
-
-
+    def addToVar(self, name, value) -> None:
+        pass #TODO: verif using pass is a good idea
+        #self.varDict[name] += value
 
     '''Contains all the added functions'''
+
     def drawCircle(self, x, y, radius):
         #TODO: add type verif for parameters x,y,radius (and range ? yes for radius)
         self.file.write("drawCircle(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ");\n")
@@ -112,7 +118,6 @@ class CTranslater:
         self.file.write(
             "SDL_SetRenderDrawColor(renderer, " + str(r) + ", " + str(g) + ", " + str(b) + ", " + str(a) + ");\n")
 
-
     def header(self):
         self.file.write(header)
 
@@ -125,24 +130,25 @@ class CTranslater:
             return
         self.file.write("SDL_Delay( " + str(milliseconds) + ");\n")
 
-    def returnStatement(self, value):
-        #Todo: value must be an int
-        self.file.write("returnStatement = " + str(value) + ";\n")
 
     def add_instruction(self, instructionName, *args):
         self.main.add_instruction(self.instr[instructionName], *args)
 
     def run(self):
-        self.main()
+        #TODO: verif statusCode. Verif that it works and test that the returned value is a int
+        returnedValue = self.main()
+        if(returnedValue!=None) :
+            self.file.write("returnStatement = " + str(returnedValue) + ";\n")
 
-    def createFunc(self, functionName, args):
+    def createFunc(self, functionName: str, args):
         if functionName in self.instr:
             print("Function already exists")
             return
         newFunction = Function(functionName, args)
         self.instr[functionName] = newFunction
 
-    def addInstructionToFunction(self, functionName, instr, *args):
+    def addInstructionToFunction(self, functionName:str, instr, *args):
+        #Todo: check that function functionName is user Defined function, and not a native instr
         if (not functionName in self.instr):
             print("Function does not exist.")
             return

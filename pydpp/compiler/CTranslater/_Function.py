@@ -20,23 +20,26 @@ Note: This class is also used for the main function of the CTranslater.
 class Function:
     #Todo: get returned, and store it ? value from funct
     def __init__(self, name, listParameters):
+
         self.__name__ = name
-        self.instr = []
-        self.nb_param = len(listParameters)
-        self.protoParameters = listParameters
+        self.instr = [] #Store the instructions of the function.
+        self.nb_param = len(listParameters) #nb of parameters that the function takes
+        self.protoParameters = listParameters #The definition of the parameters
+        self.lastReturnedValueFromFunction = None
 
-
-        # Each function maintains its own variable dictionary
+        # Each function maintains its own variable dictionary, with the name of the variable used as the key
         self.FunctVarDict = {}
+
+        #Some functions must be override when entering a function.
+        # For exemple, variable manipulation within a function should only modidy the variable in the function
         self.overrideInstr = {
+            "storeReturnedValueFromFoncInVar": self.storeReturnedValueFromFoncInVar, #Long.. mais explicite !
             "getVar": self.functGetVar,
             "addToVar": self.functAddToVar,
             "createVar": self.functCreateVar,
-            "returnStatement": self.functReturnStatement
         }
 
     def __call__(self, *args):
-
         #validate arguments
         #TODO: Check the type of the arguments
         if len(args) != self.nb_param:
@@ -47,11 +50,13 @@ class Function:
         for i in range(len(args)):
             self.FunctVarDict[self.protoParameters[i]] = args[i]  # Converts list to tuple
 
+
         for instr in self.instr:
             # Extract function and arguments
             func = instr[0]
             arguments = instr[1]
             argumentsFinal = []
+            #Store the returnedValue
 
             for arg in arguments:
                 # Handle variable references
@@ -66,26 +71,31 @@ class Function:
                 else:
                     argumentsFinal.append(arg)
 
+            if(func.__name__=="functReturnStatement") :
+                return self.getReturnValue(argumentsFinal[0])
+
             # Call the function with final arguments
-            func(*argumentsFinal)
+            self.lastReturnedValueFromFunction = func(*argumentsFinal)
             #print("In function: " + str(self.FunctVarDict))
 
-    def add_instruction(self, func, *args):
+    def getReturnValue(self, varName:str):
+        returnedValue = self.functGetVar(varName)
+        #TODO: Verif on type
+        return returnedValue
+
+    def add_instruction(self, func, *args): #Not needeed here ??
         if func.__name__ in self.overrideInstr:
             self.instr.append((self.overrideInstr[func.__name__], args))
         else:
             self.instr.append((func, args))
 
-    def functCreateVar(self, name, value):
+    def storeReturnedValueFromFoncInVar(self, varName:str) -> None:
+        self.functCreateVar(varName, self.lastReturnedValueFromFunction)
+    def functCreateVar(self, name:str, value) -> None:
         self.FunctVarDict[name] = value
 
-    #TODO: What is the point ??
-    def functGetVar(self, name):
+    def functGetVar(self, name:str):
         return self.FunctVarDict.get(name, None)  # Return None if variable does not exist
-
-    def functReturnStatement(self, value):
-        self.instr.clear()
-        return value
 
     def functAddToVar(self, name, value):
         if name in self.FunctVarDict:
