@@ -1,12 +1,15 @@
 # =============================================================================
 # incremental.py: Handful functions for incremental parsing logic
 # =============================================================================
+import typing
 from typing import NamedTuple
 
 from pydpp.compiler import tokenize, ProblemSet, Problem
+from pydpp.compiler.parser import _Parser
 from pydpp.compiler.position import TextSpan
-from pydpp.compiler.syntax import Program
+from pydpp.compiler.syntax import Program, Node, LeafNode, Statement, InnerNode, BlockStmt
 from pydpp.compiler.tokenizer import Token, TokenKind
+
 
 class IncrementalTokenization(NamedTuple):
     """
@@ -16,22 +19,38 @@ class IncrementalTokenization(NamedTuple):
     replacement_indices: tuple[int, int]
     "Inclusive interval of token indices that were replaced in the list."
     tokens: list[Token]
-    problems: list[Problem]
 
     def __repr__(self):
         nicely_formatted = '[\n        ' + ",\n        ".join([str(t) for t in self.tokens]) + '\n    ]'
-        return f"IncrementalTokenization(\n    replacement_span={self.replacement_span},\n    replacement_indices={self.replacement_indices},\n    tokens={nicely_formatted},\n    problems={self.problems}\n)"
+        return f"IncrementalTokenization(\n    replacement_span={self.replacement_span},\n    replacement_indices={self.replacement_indices},\n    tokens={nicely_formatted}\n)"
 
-def tokenize_incremental(token_src: list[Token] | Program,
-                         delete_interval: TextSpan,
-                         replacement: str) -> IncrementalTokenization | None:
-    if not isinstance(token_src, list):
-        raise NotImplementedError("not yet!")
+class IncrementalTokenization2(NamedTuple):
+    """
+    The result of an incremental tokenization operation (2nd edition).
+    """
+    node_to_replace: Node
+    tokens: list[Token]
 
+    def __repr__(self):
+        nicely_formatted = '[\n        ' + ",\n        ".join([str(t) for t in self.tokens]) + '\n    ]'
+        return f"IncrementalTokenization2(\n    node_to_replace={self.node_to_replace!r},\n    tokens={nicely_formatted}\n)"
+
+def _collect_tokens(n: Node, l: list[Token]):
+    if isinstance(n, LeafNode):
+        l.append(n.token)
+    else:
+        for c in n.children:
+            _collect_tokens(c, l)
+
+    return l
+
+def tokenize_incremental_list(token_src: list[Token],
+                              delete_interval: TextSpan,
+                              replacement: str) -> IncrementalTokenization | None:
     # Handling "greedy" tokens (strings and comments) will induce a lot of complexity,
     # so we'll give up on them for now.
     if '"' in replacement or '//' in replacement:
-        return None # panic?
+        return None  # panic?
 
     text_idx = 0
     start_tkn = None
@@ -98,8 +117,8 @@ def tokenize_incremental(token_src: list[Token] | Program,
         # ok if: start_tkn_max_char >= ws + 1 and end_tkn_min_char < len(start_tkn.full_text)
         if start_tkn_max_char < ws + 1 or end_tkn_min_char >= len(start_tkn.full_text):
             return None
-    elif ((start_tkn.kind == TokenKind.LITERAL_STRING and start_tkn_max_char < len(start_tkn.full_text)+1) or
-            (end_tkn.kind == TokenKind.LITERAL_STRING and end_tkn_min_char > 0)):
+    elif ((start_tkn.kind == TokenKind.LITERAL_STRING and start_tkn_max_char < len(start_tkn.full_text) + 1) or
+          (end_tkn.kind == TokenKind.LITERAL_STRING and end_tkn_min_char > 0)):
         return None
 
     text_to_reparse += start_tkn.full_text[:start_tkn_max_char]
@@ -119,21 +138,137 @@ def tokenize_incremental(token_src: list[Token] | Program,
     # print("Start token idx:", rescan_start_tkn_idx)
     # print("End token idx:", rescan_end_tkn_idx)
 
-    ps = ProblemSet()
-    tkns = tokenize(text_to_reparse, ps)
+    tkns = tokenize(text_to_reparse)
     if end_tkn_idx != len(token_src) - 1:
         # The last token is the EOF token produced by the tokenizer, we need to get rid of it.
         tkns.pop()
 
     # print("Tokens to rescan:", tokens_to_rescan)
     # print("Text to reparse:", text_to_reparse)
-
-    for p in ps.problems:
-        p.pos = TextSpan(p.pos.start + rescan_start_text_idx, p.pos.end + rescan_start_text_idx)
-
     return IncrementalTokenization(
         replacement_span=TextSpan(rescan_start_text_idx, rescan_end_text_idx),
         replacement_indices=(rescan_start_tkn_idx, rescan_end_tkn_idx),
-        tokens=tkns,
-        problems=ps.problems
+        tokens=tkns
     )
+
+
+def tokenize_incremental_tree(token_src: Program,
+                              delete_interval: TextSpan,
+                              replacement: str) -> IncrementalTokenization2 | None:
+    # Handling "greedy" tokens (strings and comments) will induce a lot of complexity,
+    # so we'll give up on them for now.
+    if '"' in replacement or '//' in replacement:
+        return None  # panic?
+
+    # if last := token_src.statements[-1]:
+    #     _ = last.full_span_start
+
+    def binary_search(inner_nodes: list[InnerNode]):
+        prev_i = -1
+        i = len(inner_nodes) // 2
+        start = 0
+        end = len(inner_nodes) - 1
+        while prev_i != i:
+            if c := find_containing(inner_nodes[i]):
+                return c
+            elif inner_nodes[i].full_span_start > delete_interval.start:
+                # We're too far ahead, go back
+                end = i
+            else:  # nodes[i].full_span_start < delete_interval.start
+                # We're too far behind, go forward
+                start = i
+
+            prev_i = i
+            i = (start + end) // 2
+        return None
+
+    def find_containing(n: Node):
+        if delete_interval in n.full_span:
+            cin = n.child_inner_nodes
+            if isinstance(cin, list) and len(cin) >= 16:
+                if cont := binary_search(cin):
+                    return cont
+            else:
+                for c in cin:
+                    if cont := find_containing(c):
+                        return cont
+
+            return n
+        else:
+            return None
+
+    def first_token(n: Node):
+        if isinstance(n, LeafNode):
+            return n
+        else:
+            return first_token(next(iter(n.children)))
+
+    def last_token(n: Node):
+        if isinstance(n, LeafNode):
+            return n
+        else:
+            return last_token(next(iter(n.children_reverse)))
+
+    container = find_containing(token_src)
+    if container is None or container is token_src:
+        return None
+
+    while (container.parent is not None and
+           (first_token(container).full_span.intersection(delete_interval) is not None
+            or last_token(container).full_span.intersection(delete_interval) is not None)):
+        container = container.parent
+
+    tokens = _collect_tokens(container, [])
+    new_interval = TextSpan(delete_interval.start - container.full_span_start, delete_interval.end - container.full_span_start)
+    inc = tokenize_incremental_list(tokens, new_interval, replacement)
+    tokens[inc.replacement_indices[0]: inc.replacement_indices[1] + 1] = inc.tokens
+    return IncrementalTokenization2(container, tokens)
+
+def parse_incremental(tree: Program, tokenization: IncrementalTokenization2) -> bool:
+    stmt = tokenization.node_to_replace
+
+    while (not isinstance(stmt, Statement)
+           and stmt.parent is not None
+           and not stmt.parent_slot.multi):
+        stmt = stmt.parent
+
+    if stmt is tree:
+        return False
+
+    stmt = typing.cast(Statement, stmt)
+
+    stmt_par = stmt.parent
+    stmt_slot = stmt.parent_slot
+    stmt_list = typing.cast(list[Statement], stmt.parent.get(stmt.parent_slot))
+    idx = stmt_list.index(stmt)
+
+    min_idx = idx
+
+    while min_idx > 0 and stmt_list[min_idx - 1].has_problems:
+        min_idx -= 1
+
+    tokens = []
+    for i in range(min_idx, idx):
+        tokens.extend(_collect_tokens(stmt_list[i], []))
+
+    tokens.extend(tokenization.tokens)
+    tokens.append(Token(TokenKind.EOF, ""))
+
+    p = _Parser(tokens, ProblemSet())
+
+    new_statements = []
+    while s := p.parse_statement():
+        new_statements.append(s)
+
+    if not p.eof:
+        return False
+
+    old_statements = stmt_list[min_idx:idx+1]
+    for s in old_statements:
+        s.detach_self()
+
+    for s in new_statements:
+        stmt_par.attach_child(stmt_slot, s, idx)
+
+    return True
+

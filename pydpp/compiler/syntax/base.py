@@ -58,7 +58,7 @@ class NodeSlot(Generic[P, N]):
         return isinstance(el, self.el_type) and (self.check_func is None or self.check_func(el))
 
     def __repr__(self):
-        return f"{type(self).__name__}({self.attr!r})"
+        return f"{type(self).__name__}({self.name}, {self.el_type.__name__})"
 
 
 class SingleNodeSlot(NodeSlot[P, N]):
@@ -125,10 +125,11 @@ class Node:
     - An inner node (InnerNode), with children
     - A leaf node (LeafNode), with no children
     """
-    __slots__ = ("parent", "parent_slot")
+    __slots__ = ("parent", "parent_slot", "_cached_fss")
     parent: Optional["InnerNode"]
     parent_slot: Optional[NodeSlot["InnerNode", "Node"]]
     has_problems: bool
+    _cached_fss: int | None
 
     # =========================
     # CHILDREN ATTACHMENT/DETACHMENT
@@ -178,20 +179,34 @@ class Node:
         """
         Returns the index of the first character of this node, including auxiliary text.
         """
-        # The goal here is to find all left siblings of this node, and add all their length.
-        pre_len = 0
-        par = self.parent
-        # The node which contains this node, which we need to "stop" at.
-        excluded = self
-        while par is not None:
-            for c in par.children:
-                if c is excluded:  # "is" so we don't get an error with token equality.
-                    break
-                pre_len += len(c.full_text)
-            excluded = par
-            par = par.parent
 
-        return pre_len
+        if self._cached_fss is None:
+            # We need to initialize the cached value of the FSS (Full Span Start).
+            # To do so, we need to calculate the FSS of
+            # - all left siblings of this node
+            # - the parent chain of this node (until we reach the root node)
+            #
+            # We calculate first the parent's FSS, so we get the start position for our nodes.
+            # Using that information, we can easily calculate the FSS of all our siblings on the left,
+            # since that value is just equal to FSS(parent) + Σ full_text_length(left_sibling).
+
+            par = self.parent
+
+            if par is None:
+                # We're root, our FSS is zero.
+                self._cached_fss = 0
+                return 0
+
+            offset = 0
+            parent_fss = par.full_span_start
+            for c in par.children:
+                c._cached_fss = parent_fss + offset
+                if c is self:
+                    # My cached FSS is set. Let's stop there.
+                    break
+                offset += len(c.full_text)
+
+        return self._cached_fss
 
     @property
     def span_start(self) -> int:
@@ -249,6 +264,10 @@ class Node:
 
     @property
     def children(self) -> Iterable["Node"]:
+        raise NotImplementedError()
+
+    @property
+    def children_reverse(self) -> Iterable["Node"]:
         raise NotImplementedError()
 
     @property
@@ -373,7 +392,7 @@ class InnerNode(Node):
 
     __slots__ = ("semantic_info", "_cached_text", "problems", "has_problems")
 
-    element_slots: tuple[NodeSlot[Self, "InnerNode"], ...] = ()
+    element_slots: tuple[NodeSlot[Self, "Node"], ...] = ()
     inner_node_slots: tuple[NodeSlot[Self, "InnerNode"], ...] = ()
 
     def __init__(self):
@@ -388,6 +407,7 @@ class InnerNode(Node):
         """
 
         self._cached_text: str | None = None
+        self._cached_fss: int | None = None
 
         self.parent: InnerNode | None = None
         "The parent node of this node. None if this node is the root node or not attached yet."
@@ -403,6 +423,8 @@ class InnerNode(Node):
         Defined by: len(self.problems) > 0 OR any(n for n in self.children if n.has_problems)
         """
 
+
+
     # =========================
     # CHILDREN QUERYING
     # =========================
@@ -416,6 +438,19 @@ class InnerNode(Node):
             v = getattr(self, s.attr)
             if s.multi:
                 yield from v
+            else:
+                if v is not None:
+                    yield v
+
+    @property
+    def children_reverse(self) -> Iterable["Node"]:
+        """
+        Returns all children elements of this node, in reverse order.
+        """
+        for s in reversed(self.element_slots):
+            v = getattr(self, s.attr)
+            if s.multi:
+                yield from reversed(v)
             else:
                 if v is not None:
                     yield v
@@ -446,7 +481,7 @@ class InnerNode(Node):
         if self._cached_text is None:
             # Calculate recursively the full text of all children.
             # Tokens also have a full_text attribute, which is contains all text, including auxiliary text.
-            self._cached_text = "".join(x.full_text for x in self.children if x is not None)
+            self._cached_text = "".join(x.full_text for x in self.children)
 
         return self._cached_text
 
@@ -465,6 +500,9 @@ class InnerNode(Node):
                 else:
                     return first_tok(x)
 
+            # Nothing :(
+            return None
+
         tok = first_tok(self)
         return tok.pre_auxiliary if tok is not None else ()
 
@@ -476,7 +514,11 @@ class InnerNode(Node):
     # CHILDREN ATTACHMENT/DETACHMENT
     # =========================
 
-    def _children_updated(self, slot: NodeSlot[Self, N], elements: Iterable[N], removed: bool):
+    def _children_updated(self,
+                          slot: NodeSlot[Self, N],
+                          elements: tuple[N] | list[N],
+                          removed: bool,
+                          removed_idx: int | None = None):
         """
         Called when a child or more have been attached or detached after initialization.
         """
@@ -486,6 +528,48 @@ class InnerNode(Node):
             while n is not None and (n._cached_text is not None):
                 n._cached_text = None
                 n = n.parent
+
+        # Invalidate the cached file span start value. Try to:
+        # - Find all right siblings of the node AND our parent chain (that includes ourselves)
+        # - Invalidate all children of the siblings
+        if self._cached_fss is not None:
+            def invalidate_node(node: "Node"):
+                node._cached_fss = None
+                for child in node.children:
+                    if child._cached_fss is not None:
+                        invalidate_node(child)
+
+            def child_at_idx(idx: int | None):
+                if idx is None:
+                    return next(iter(self.children), None)
+
+                for i, node in enumerate(self.children):
+                    if i == idx:
+                        return node
+                return None
+
+            # Of course invalidate ourselves first!
+            self._cached_fss = None
+
+            par = self
+            scan_start = elements[0] if not removed else child_at_idx(removed_idx)
+
+            while par is not None:
+                consider = False
+                for c in par.children:
+                    if consider:
+                        if c._cached_fss is not None:
+                            invalidate_node(c)
+                        else:
+                            # Stop scanning other children on the right, this one has no FSS,
+                            # so must be all siblings on the right.
+                            break
+                    elif c == scan_start:
+                        c._cached_fss = None
+                        consider = True
+
+                scan_start = par
+                par = par.parent
 
         for x in elements:
             if x.has_problems:
@@ -497,7 +581,7 @@ class InnerNode(Node):
 
         assert el.parent is None, "Cannot attach a node that's already attached somewhere else."
         assert hasattr(self, a), f"Node {type(self).__name__} has no slot {a}"
-        assert slot.accepts(el), f"Slot {slot} cannot accept the node {el!r}"
+        assert el is not None and slot.accepts(el), f"Slot {slot} cannot accept the node {el!r}"
 
         if not slot.multi:
             if prev := getattr(self, a):
@@ -522,6 +606,7 @@ class InnerNode(Node):
 
         assert hasattr(self, a), f"Node {type(self).__name__} has no slot {a}"
         assert slot.multi or idx is None, "Cannot a specific index node on a single slot."
+        assert slot.optional, "Cannot detach a node from an non-optional slot."
 
         if slot.multi:
             el_list: list[N] = getattr(self, a)
@@ -540,7 +625,7 @@ class InnerNode(Node):
         for el in els:
             el.register_detachment()
 
-        self._children_updated(slot, els, True)
+        self._children_updated(slot, els, True, idx)
 
         return els
 
@@ -580,7 +665,7 @@ class InnerNode(Node):
     # =========================
 
     def _init_single_slot(self, el: N, slot: SingleNodeSlot[Self, N]) -> N | None:
-        assert el is None or slot.accepts(el), f"Slot {slot} cannot accept the node {el!r}"
+        assert (slot.optional and el is None) or slot.accepts(el), f"Slot {slot} cannot accept the node {el!r}"
 
         if el:
             setattr(self, slot.attr, el)
@@ -695,6 +780,7 @@ class LeafNode(Node):
         self.token = token
         self.parent = None
         self.parent_slot = None
+        self._cached_fss: int | None = None
 
     @property
     def full_text(self) -> str:
@@ -720,6 +806,9 @@ class LeafNode(Node):
     def children(self) -> Iterable["InnerNode"]:
         return []
 
+    def children_reverse(self) -> Iterable["Node"]:
+        return []
+
     @property
     def child_nodes(self) -> Iterable["InnerNode"]:
         return []
@@ -734,6 +823,9 @@ class LeafNode(Node):
 
     def __str__(self):
         return f"LeafNode({self.token})"
+
+    def __repr__(self):
+        return f"LeafNode({self.token!r})"
 
 
 def leaf(t: Token | None):

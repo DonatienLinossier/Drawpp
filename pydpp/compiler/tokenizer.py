@@ -177,6 +177,7 @@ class _PendingTokenProblem:
             - int n -> 'span' starts at the beginning of the auxiliary text at index n.
         """
 
+
 class Token:
     """
     A token is "fragment" of code, contained inside a sequence of tokens that make up the entire program.
@@ -234,8 +235,10 @@ class Token:
         return len(self.problems) != 0
 
     def __repr__(self):
-        if self.value:
+        if self.value is not None:
             return f"{self.kind.name}({self.value!r})"
+        elif self.kind == TokenKind.IDENTIFIER:
+            return f"{self.kind.name}({self.text!r})"
         else:
             return f"{self.kind.name}"
 
@@ -304,7 +307,8 @@ class _Tokenizer:
     The other files should just use the "tokenize" function :)
     """
 
-    __slots__ = ("code", "eof", "tokens", "cursor", "err_start", "pending_auxiliary", "pending_problems", "no_pending_prob")
+    __slots__ = (
+    "code", "eof", "tokens", "cursor", "err_start", "pending_auxiliary", "pending_problems", "no_pending_prob")
 
     def __init__(self, code: str):
         self.code = code
@@ -387,6 +391,7 @@ class _Tokenizer:
         # First skip any unwanted whitespace
         self.consume_auxiliary()
 
+        # Read a sequence of alphanumeric characters. Stop when we hit anything else (symbol/space)
         i = self.cursor
         l = 0
         while i < len(self.code) and self.code[i].isalnum():
@@ -395,15 +400,17 @@ class _Tokenizer:
             if l > _kw_longest:
                 return False
 
+        # Did we read at least one alphanumeric character?
         if i != self.cursor:
             w = self.code[self.cursor:i]
-            # See if it matches a keyword/symbol
+            # See if it matches a keyword
             m = _kw_map.get(w)
             if w in _kw_map:
                 self.consume(l)
                 self.push_token(m, w)
                 return True
         else:
+            # Not alphanumeric, perhaps it's a symbol?
             last_ok = None
             for i in range(1, _sym_longest):
                 s = self.peek(i)
@@ -464,8 +471,6 @@ class _Tokenizer:
                         decimal = int(decimal_str)
 
                 # Finally add the token to the list.
-                aux = self.flush_auxiliary()
-                pb = self.flush_problems(aux)
                 self.push_token(TokenKind.LITERAL_NUM, self.code[start_pos:self.cursor], (integer, decimal))
                 return True
             else:
@@ -615,7 +620,7 @@ class _Tokenizer:
             else:
                 span = TextSpan(auxiliary_start[p.text_space] + start,
                                 auxiliary_start[p.text_space] + end)
-            problems.append(TokenProblem(p.message, span, p.severity))
+            problems.append(TokenProblem(p.message, p.severity, span))
 
         t = tuple(problems)
         self.pending_problems.clear()
@@ -776,7 +781,7 @@ class _Tokenizer:
             self.err_start = None
 
 
-def tokenize(code: str, problems: ProblemSet=None) -> list[Token]:
+def tokenize(code: str, problems: ProblemSet = None) -> list[Token]:
     """
     Tokenizes the given code into a sequence of tokens.
     Requires a ProblemSet to report any errors happening during tokenization.

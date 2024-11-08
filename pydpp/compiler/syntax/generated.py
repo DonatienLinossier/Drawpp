@@ -36,18 +36,25 @@ class BuiltInType(Statement):
 
     @kind_token.setter
     def kind_token(self, value: LeafNode | None):
-        self._kind_token = self.attach_child(self.kind_token_slot, value)
+        if value is not None: 
+            self._kind_token = self.attach_child(self.kind_token_slot, value)
+        else:
+            self.detach_child(self.kind_token_slot)
 
     @property
     def children(self):
         if self._kind_token is not None: yield self._kind_token
 
     @property
-    def child_inner_nodes(self):
+    def children_reversed(self):
         if self._kind_token is not None: yield self._kind_token
 
+    @property
+    def child_inner_nodes(self):
+        return []
+
 BuiltInType.element_slots = (BuiltInType.kind_token_slot, )
-BuiltInType.inner_node_slots = (BuiltInType.kind_token_slot, )
+BuiltInType.inner_node_slots = ()
 
 
 class Argument(InnerNode):
@@ -85,7 +92,10 @@ class Argument(InnerNode):
 
     @expr.setter
     def expr(self, value: Expression | None):
-        self._expr = self.attach_child(self.expr_slot, value)
+        if value is not None: 
+            self._expr = self.attach_child(self.expr_slot, value)
+        else:
+            self.detach_child(self.expr_slot)
 
     @property
     def comma_token(self) -> LeafNode | None:
@@ -96,7 +106,10 @@ class Argument(InnerNode):
 
     @comma_token.setter
     def comma_token(self, value: LeafNode | None):
-        self._comma_token = self.attach_child(self.comma_token_slot, value)
+        if value is not None: 
+            self._comma_token = self.attach_child(self.comma_token_slot, value)
+        else:
+            self.detach_child(self.comma_token_slot)
 
     @property
     def children(self):
@@ -104,12 +117,16 @@ class Argument(InnerNode):
         if self._comma_token is not None: yield self._comma_token
 
     @property
+    def children_reversed(self):
+        if self._comma_token is not None: yield self._comma_token
+        if self._expr is not None: yield self._expr
+
+    @property
     def child_inner_nodes(self):
         if self._expr is not None: yield self._expr
-        if self._comma_token is not None: yield self._comma_token
 
 Argument.element_slots = (Argument.expr_slot, Argument.comma_token_slot, )
-Argument.inner_node_slots = (Argument.expr_slot, Argument.comma_token_slot, )
+Argument.inner_node_slots = (Argument.expr_slot, )
 
 
 class ArgumentList(InnerNode):
@@ -155,7 +172,10 @@ class ArgumentList(InnerNode):
 
     @lparen_token.setter
     def lparen_token(self, value: LeafNode | None):
-        self._lparen_token = self.attach_child(self.lparen_token_slot, value)
+        if value is not None: 
+            self._lparen_token = self.attach_child(self.lparen_token_slot, value)
+        else:
+            self.detach_child(self.lparen_token_slot)
 
     @property
     def arguments(self) -> Iterable[Argument]:
@@ -173,7 +193,10 @@ class ArgumentList(InnerNode):
 
     @rparen_token.setter
     def rparen_token(self, value: LeafNode | None):
-        self._rparen_token = self.attach_child(self.rparen_token_slot, value)
+        if value is not None: 
+            self._rparen_token = self.attach_child(self.rparen_token_slot, value)
+        else:
+            self.detach_child(self.rparen_token_slot)
 
     @property
     def children(self):
@@ -182,13 +205,17 @@ class ArgumentList(InnerNode):
         if self._rparen_token is not None: yield self._rparen_token
 
     @property
-    def child_inner_nodes(self):
-        if self._lparen_token is not None: yield self._lparen_token
-        yield from self._arguments
+    def children_reversed(self):
         if self._rparen_token is not None: yield self._rparen_token
+        yield from reversed(self._arguments)
+        if self._lparen_token is not None: yield self._lparen_token
+
+    @property
+    def child_inner_nodes(self):
+        return self._arguments
 
 ArgumentList.element_slots = (ArgumentList.lparen_token_slot, ArgumentList.arguments_slot, ArgumentList.rparen_token_slot, )
-ArgumentList.inner_node_slots = (ArgumentList.lparen_token_slot, ArgumentList.arguments_slot, ArgumentList.rparen_token_slot, )
+ArgumentList.inner_node_slots = (ArgumentList.arguments_slot, )
 
 
 class LiteralExpr(Expression):
@@ -200,7 +227,7 @@ class LiteralExpr(Expression):
     """
     __slots__ = ('_token', )
 
-    token_slot: SingleNodeSlot["LiteralExpr", LeafNode] = SingleNodeSlot('_token', LeafNode, check_func=lambda x: x.kind in {TokenKind.LITERAL_NUM, TokenKind.LITERAL_STRING, TokenKind.LITERAL_BOOL})
+    token_slot: SingleNodeSlot["LiteralExpr", LeafNode] = SingleNodeSlot('_token', LeafNode, check_func=lambda x: x.kind in {TokenKind.LITERAL_NUM, TokenKind.LITERAL_STRING, TokenKind.LITERAL_BOOL}, optional=False)
     "The token representing the literal."
 
     def __init__(self, token: LeafNode):
@@ -227,11 +254,15 @@ class LiteralExpr(Expression):
         yield self._token
 
     @property
-    def child_inner_nodes(self):
+    def children_reversed(self):
         yield self._token
 
+    @property
+    def child_inner_nodes(self):
+        return []
+
 LiteralExpr.element_slots = (LiteralExpr.token_slot, )
-LiteralExpr.inner_node_slots = (LiteralExpr.token_slot, )
+LiteralExpr.inner_node_slots = ()
 
 
 class BinaryOperationExpr(Expression):
@@ -282,7 +313,10 @@ class BinaryOperationExpr(Expression):
 
     @left.setter
     def left(self, value: Expression | None):
-        self._left = self.attach_child(self.left_slot, value)
+        if value is not None: 
+            self._left = self.attach_child(self.left_slot, value)
+        else:
+            self.detach_child(self.left_slot)
 
     @property
     def operator_token(self) -> LeafNode | None:
@@ -293,7 +327,10 @@ class BinaryOperationExpr(Expression):
 
     @operator_token.setter
     def operator_token(self, value: LeafNode | None):
-        self._operator_token = self.attach_child(self.operator_token_slot, value)
+        if value is not None: 
+            self._operator_token = self.attach_child(self.operator_token_slot, value)
+        else:
+            self.detach_child(self.operator_token_slot)
 
     @property
     def right(self) -> Expression | None:
@@ -304,7 +341,10 @@ class BinaryOperationExpr(Expression):
 
     @right.setter
     def right(self, value: Expression | None):
-        self._right = self.attach_child(self.right_slot, value)
+        if value is not None: 
+            self._right = self.attach_child(self.right_slot, value)
+        else:
+            self.detach_child(self.right_slot)
 
     @property
     def children(self):
@@ -313,13 +353,18 @@ class BinaryOperationExpr(Expression):
         if self._right is not None: yield self._right
 
     @property
+    def children_reversed(self):
+        if self._right is not None: yield self._right
+        if self._operator_token is not None: yield self._operator_token
+        if self._left is not None: yield self._left
+
+    @property
     def child_inner_nodes(self):
         if self._left is not None: yield self._left
-        if self._operator_token is not None: yield self._operator_token
         if self._right is not None: yield self._right
 
 BinaryOperationExpr.element_slots = (BinaryOperationExpr.left_slot, BinaryOperationExpr.operator_token_slot, BinaryOperationExpr.right_slot, )
-BinaryOperationExpr.inner_node_slots = (BinaryOperationExpr.left_slot, BinaryOperationExpr.operator_token_slot, BinaryOperationExpr.right_slot, )
+BinaryOperationExpr.inner_node_slots = (BinaryOperationExpr.left_slot, BinaryOperationExpr.right_slot, )
 
 
 class ParenthesizedExpr(Expression):
@@ -365,7 +410,10 @@ class ParenthesizedExpr(Expression):
 
     @lparen_token.setter
     def lparen_token(self, value: LeafNode | None):
-        self._lparen_token = self.attach_child(self.lparen_token_slot, value)
+        if value is not None: 
+            self._lparen_token = self.attach_child(self.lparen_token_slot, value)
+        else:
+            self.detach_child(self.lparen_token_slot)
 
     @property
     def expr(self) -> Expression | None:
@@ -376,7 +424,10 @@ class ParenthesizedExpr(Expression):
 
     @expr.setter
     def expr(self, value: Expression | None):
-        self._expr = self.attach_child(self.expr_slot, value)
+        if value is not None: 
+            self._expr = self.attach_child(self.expr_slot, value)
+        else:
+            self.detach_child(self.expr_slot)
 
     @property
     def rparen_token(self) -> LeafNode | None:
@@ -387,7 +438,10 @@ class ParenthesizedExpr(Expression):
 
     @rparen_token.setter
     def rparen_token(self, value: LeafNode | None):
-        self._rparen_token = self.attach_child(self.rparen_token_slot, value)
+        if value is not None: 
+            self._rparen_token = self.attach_child(self.rparen_token_slot, value)
+        else:
+            self.detach_child(self.rparen_token_slot)
 
     @property
     def children(self):
@@ -396,13 +450,17 @@ class ParenthesizedExpr(Expression):
         if self._rparen_token is not None: yield self._rparen_token
 
     @property
-    def child_inner_nodes(self):
-        if self._lparen_token is not None: yield self._lparen_token
-        if self._expr is not None: yield self._expr
+    def children_reversed(self):
         if self._rparen_token is not None: yield self._rparen_token
+        if self._expr is not None: yield self._expr
+        if self._lparen_token is not None: yield self._lparen_token
+
+    @property
+    def child_inner_nodes(self):
+        if self._expr is not None: yield self._expr
 
 ParenthesizedExpr.element_slots = (ParenthesizedExpr.lparen_token_slot, ParenthesizedExpr.expr_slot, ParenthesizedExpr.rparen_token_slot, )
-ParenthesizedExpr.inner_node_slots = (ParenthesizedExpr.lparen_token_slot, ParenthesizedExpr.expr_slot, ParenthesizedExpr.rparen_token_slot, )
+ParenthesizedExpr.inner_node_slots = (ParenthesizedExpr.expr_slot, )
 
 
 class UnaryExpr(Expression):
@@ -441,7 +499,10 @@ class UnaryExpr(Expression):
 
     @op_token.setter
     def op_token(self, value: LeafNode | None):
-        self._op_token = self.attach_child(self.op_token_slot, value)
+        if value is not None: 
+            self._op_token = self.attach_child(self.op_token_slot, value)
+        else:
+            self.detach_child(self.op_token_slot)
 
     @property
     def expr(self) -> Expression | None:
@@ -452,7 +513,10 @@ class UnaryExpr(Expression):
 
     @expr.setter
     def expr(self, value: Expression | None):
-        self._expr = self.attach_child(self.expr_slot, value)
+        if value is not None: 
+            self._expr = self.attach_child(self.expr_slot, value)
+        else:
+            self.detach_child(self.expr_slot)
 
     @property
     def children(self):
@@ -460,12 +524,16 @@ class UnaryExpr(Expression):
         if self._expr is not None: yield self._expr
 
     @property
-    def child_inner_nodes(self):
+    def children_reversed(self):
+        if self._expr is not None: yield self._expr
         if self._op_token is not None: yield self._op_token
+
+    @property
+    def child_inner_nodes(self):
         if self._expr is not None: yield self._expr
 
 UnaryExpr.element_slots = (UnaryExpr.op_token_slot, UnaryExpr.expr_slot, )
-UnaryExpr.inner_node_slots = (UnaryExpr.op_token_slot, UnaryExpr.expr_slot, )
+UnaryExpr.inner_node_slots = (UnaryExpr.expr_slot, )
 
 
 class FunctionExpr(Expression):
@@ -504,7 +572,10 @@ class FunctionExpr(Expression):
 
     @identifier_token.setter
     def identifier_token(self, value: LeafNode | None):
-        self._identifier_token = self.attach_child(self.identifier_token_slot, value)
+        if value is not None: 
+            self._identifier_token = self.attach_child(self.identifier_token_slot, value)
+        else:
+            self.detach_child(self.identifier_token_slot)
 
     @property
     def arg_list(self) -> ArgumentList | None:
@@ -515,7 +586,10 @@ class FunctionExpr(Expression):
 
     @arg_list.setter
     def arg_list(self, value: ArgumentList | None):
-        self._arg_list = self.attach_child(self.arg_list_slot, value)
+        if value is not None: 
+            self._arg_list = self.attach_child(self.arg_list_slot, value)
+        else:
+            self.detach_child(self.arg_list_slot)
 
     @property
     def children(self):
@@ -523,12 +597,16 @@ class FunctionExpr(Expression):
         if self._arg_list is not None: yield self._arg_list
 
     @property
-    def child_inner_nodes(self):
+    def children_reversed(self):
+        if self._arg_list is not None: yield self._arg_list
         if self._identifier_token is not None: yield self._identifier_token
+
+    @property
+    def child_inner_nodes(self):
         if self._arg_list is not None: yield self._arg_list
 
 FunctionExpr.element_slots = (FunctionExpr.identifier_token_slot, FunctionExpr.arg_list_slot, )
-FunctionExpr.inner_node_slots = (FunctionExpr.identifier_token_slot, FunctionExpr.arg_list_slot, )
+FunctionExpr.inner_node_slots = (FunctionExpr.arg_list_slot, )
 
 
 class VariableExpr(Expression):
@@ -537,7 +615,7 @@ class VariableExpr(Expression):
     """
     __slots__ = ('_name_token', )
 
-    name_token_slot: SingleNodeSlot["VariableExpr", LeafNode] = SingleNodeSlot('_name_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
+    name_token_slot: SingleNodeSlot["VariableExpr", LeafNode] = SingleNodeSlot('_name_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER, optional=False)
     "The name of the variable."
 
     def __init__(self, name_token: LeafNode):
@@ -564,11 +642,15 @@ class VariableExpr(Expression):
         yield self._name_token
 
     @property
-    def child_inner_nodes(self):
+    def children_reversed(self):
         yield self._name_token
 
+    @property
+    def child_inner_nodes(self):
+        return []
+
 VariableExpr.element_slots = (VariableExpr.name_token_slot, )
-VariableExpr.inner_node_slots = (VariableExpr.name_token_slot, )
+VariableExpr.inner_node_slots = ()
 
 
 class ErrorExpr(Expression):
@@ -601,11 +683,15 @@ class ErrorExpr(Expression):
         yield from self._tokens
 
     @property
+    def children_reversed(self):
+        yield from reversed(self._tokens)
+
+    @property
     def child_inner_nodes(self):
-        yield from self._tokens
+        return []
 
 ErrorExpr.element_slots = (ErrorExpr.tokens_slot, )
-ErrorExpr.inner_node_slots = (ErrorExpr.tokens_slot, )
+ErrorExpr.inner_node_slots = ()
 
 
 class BlockStmt(Statement):
@@ -651,7 +737,10 @@ class BlockStmt(Statement):
 
     @lbrace_token.setter
     def lbrace_token(self, value: LeafNode | None):
-        self._lbrace_token = self.attach_child(self.lbrace_token_slot, value)
+        if value is not None: 
+            self._lbrace_token = self.attach_child(self.lbrace_token_slot, value)
+        else:
+            self.detach_child(self.lbrace_token_slot)
 
     @property
     def statements(self) -> Iterable[Statement]:
@@ -669,7 +758,10 @@ class BlockStmt(Statement):
 
     @rbrace_token.setter
     def rbrace_token(self, value: LeafNode | None):
-        self._rbrace_token = self.attach_child(self.rbrace_token_slot, value)
+        if value is not None: 
+            self._rbrace_token = self.attach_child(self.rbrace_token_slot, value)
+        else:
+            self.detach_child(self.rbrace_token_slot)
 
     @property
     def children(self):
@@ -678,13 +770,17 @@ class BlockStmt(Statement):
         if self._rbrace_token is not None: yield self._rbrace_token
 
     @property
-    def child_inner_nodes(self):
-        if self._lbrace_token is not None: yield self._lbrace_token
-        yield from self._statements
+    def children_reversed(self):
         if self._rbrace_token is not None: yield self._rbrace_token
+        yield from reversed(self._statements)
+        if self._lbrace_token is not None: yield self._lbrace_token
+
+    @property
+    def child_inner_nodes(self):
+        return self._statements
 
 BlockStmt.element_slots = (BlockStmt.lbrace_token_slot, BlockStmt.statements_slot, BlockStmt.rbrace_token_slot, )
-BlockStmt.inner_node_slots = (BlockStmt.lbrace_token_slot, BlockStmt.statements_slot, BlockStmt.rbrace_token_slot, )
+BlockStmt.inner_node_slots = (BlockStmt.statements_slot, )
 
 
 class VariableDeclarationStmt(Statement):
@@ -746,7 +842,10 @@ class VariableDeclarationStmt(Statement):
 
     @type.setter
     def type(self, value: BuiltInType | None):
-        self._type = self.attach_child(self.type_slot, value)
+        if value is not None: 
+            self._type = self.attach_child(self.type_slot, value)
+        else:
+            self.detach_child(self.type_slot)
 
     @property
     def name_token(self) -> LeafNode | None:
@@ -757,7 +856,10 @@ class VariableDeclarationStmt(Statement):
 
     @name_token.setter
     def name_token(self, value: LeafNode | None):
-        self._name_token = self.attach_child(self.name_token_slot, value)
+        if value is not None: 
+            self._name_token = self.attach_child(self.name_token_slot, value)
+        else:
+            self.detach_child(self.name_token_slot)
 
     @property
     def assign_token(self) -> LeafNode | None:
@@ -768,7 +870,10 @@ class VariableDeclarationStmt(Statement):
 
     @assign_token.setter
     def assign_token(self, value: LeafNode | None):
-        self._assign_token = self.attach_child(self.assign_token_slot, value)
+        if value is not None: 
+            self._assign_token = self.attach_child(self.assign_token_slot, value)
+        else:
+            self.detach_child(self.assign_token_slot)
 
     @property
     def value(self) -> Expression | None:
@@ -779,7 +884,10 @@ class VariableDeclarationStmt(Statement):
 
     @value.setter
     def value(self, value: Expression | None):
-        self._value = self.attach_child(self.value_slot, value)
+        if value is not None: 
+            self._value = self.attach_child(self.value_slot, value)
+        else:
+            self.detach_child(self.value_slot)
 
     @property
     def semi_colon(self) -> LeafNode | None:
@@ -790,7 +898,10 @@ class VariableDeclarationStmt(Statement):
 
     @semi_colon.setter
     def semi_colon(self, value: LeafNode | None):
-        self._semi_colon = self.attach_child(self.semi_colon_slot, value)
+        if value is not None: 
+            self._semi_colon = self.attach_child(self.semi_colon_slot, value)
+        else:
+            self.detach_child(self.semi_colon_slot)
 
     @property
     def children(self):
@@ -801,15 +912,20 @@ class VariableDeclarationStmt(Statement):
         if self._semi_colon is not None: yield self._semi_colon
 
     @property
+    def children_reversed(self):
+        if self._semi_colon is not None: yield self._semi_colon
+        if self._value is not None: yield self._value
+        if self._assign_token is not None: yield self._assign_token
+        if self._name_token is not None: yield self._name_token
+        if self._type is not None: yield self._type
+
+    @property
     def child_inner_nodes(self):
         if self._type is not None: yield self._type
-        if self._name_token is not None: yield self._name_token
-        if self._assign_token is not None: yield self._assign_token
         if self._value is not None: yield self._value
-        if self._semi_colon is not None: yield self._semi_colon
 
 VariableDeclarationStmt.element_slots = (VariableDeclarationStmt.type_slot, VariableDeclarationStmt.name_token_slot, VariableDeclarationStmt.assign_token_slot, VariableDeclarationStmt.value_slot, VariableDeclarationStmt.semi_colon_slot, )
-VariableDeclarationStmt.inner_node_slots = (VariableDeclarationStmt.type_slot, VariableDeclarationStmt.name_token_slot, VariableDeclarationStmt.assign_token_slot, VariableDeclarationStmt.value_slot, VariableDeclarationStmt.semi_colon_slot, )
+VariableDeclarationStmt.inner_node_slots = (VariableDeclarationStmt.type_slot, VariableDeclarationStmt.value_slot, )
 
 
 class ElseStmt(Statement):
@@ -864,7 +980,10 @@ class ElseStmt(Statement):
 
     @else_token.setter
     def else_token(self, value: LeafNode | None):
-        self._else_token = self.attach_child(self.else_token_slot, value)
+        if value is not None: 
+            self._else_token = self.attach_child(self.else_token_slot, value)
+        else:
+            self.detach_child(self.else_token_slot)
 
     @property
     def if_token(self) -> LeafNode | None:
@@ -875,7 +994,10 @@ class ElseStmt(Statement):
 
     @if_token.setter
     def if_token(self, value: LeafNode | None):
-        self._if_token = self.attach_child(self.if_token_slot, value)
+        if value is not None: 
+            self._if_token = self.attach_child(self.if_token_slot, value)
+        else:
+            self.detach_child(self.if_token_slot)
 
     @property
     def condition(self) -> Expression | None:
@@ -886,7 +1008,10 @@ class ElseStmt(Statement):
 
     @condition.setter
     def condition(self, value: Expression | None):
-        self._condition = self.attach_child(self.condition_slot, value)
+        if value is not None: 
+            self._condition = self.attach_child(self.condition_slot, value)
+        else:
+            self.detach_child(self.condition_slot)
 
     @property
     def block(self) -> BlockStmt | None:
@@ -897,7 +1022,10 @@ class ElseStmt(Statement):
 
     @block.setter
     def block(self, value: BlockStmt | None):
-        self._block = self.attach_child(self.block_slot, value)
+        if value is not None: 
+            self._block = self.attach_child(self.block_slot, value)
+        else:
+            self.detach_child(self.block_slot)
 
     @property
     def children(self):
@@ -907,14 +1035,19 @@ class ElseStmt(Statement):
         if self._block is not None: yield self._block
 
     @property
-    def child_inner_nodes(self):
-        if self._else_token is not None: yield self._else_token
+    def children_reversed(self):
+        if self._block is not None: yield self._block
+        if self._condition is not None: yield self._condition
         if self._if_token is not None: yield self._if_token
+        if self._else_token is not None: yield self._else_token
+
+    @property
+    def child_inner_nodes(self):
         if self._condition is not None: yield self._condition
         if self._block is not None: yield self._block
 
 ElseStmt.element_slots = (ElseStmt.else_token_slot, ElseStmt.if_token_slot, ElseStmt.condition_slot, ElseStmt.block_slot, )
-ElseStmt.inner_node_slots = (ElseStmt.else_token_slot, ElseStmt.if_token_slot, ElseStmt.condition_slot, ElseStmt.block_slot, )
+ElseStmt.inner_node_slots = (ElseStmt.condition_slot, ElseStmt.block_slot, )
 
 
 class IfStmt(Statement):
@@ -968,7 +1101,10 @@ class IfStmt(Statement):
 
     @if_token.setter
     def if_token(self, value: LeafNode | None):
-        self._if_token = self.attach_child(self.if_token_slot, value)
+        if value is not None: 
+            self._if_token = self.attach_child(self.if_token_slot, value)
+        else:
+            self.detach_child(self.if_token_slot)
 
     @property
     def condition(self) -> Expression | None:
@@ -979,7 +1115,10 @@ class IfStmt(Statement):
 
     @condition.setter
     def condition(self, value: Expression | None):
-        self._condition = self.attach_child(self.condition_slot, value)
+        if value is not None: 
+            self._condition = self.attach_child(self.condition_slot, value)
+        else:
+            self.detach_child(self.condition_slot)
 
     @property
     def then_block(self) -> BlockStmt | None:
@@ -990,7 +1129,10 @@ class IfStmt(Statement):
 
     @then_block.setter
     def then_block(self, value: BlockStmt | None):
-        self._then_block = self.attach_child(self.then_block_slot, value)
+        if value is not None: 
+            self._then_block = self.attach_child(self.then_block_slot, value)
+        else:
+            self.detach_child(self.then_block_slot)
 
     @property
     def else_statements(self) -> Iterable[ElseStmt]:
@@ -1007,14 +1149,20 @@ class IfStmt(Statement):
         yield from self._else_statements
 
     @property
-    def child_inner_nodes(self):
+    def children_reversed(self):
+        yield from reversed(self._else_statements)
+        if self._then_block is not None: yield self._then_block
+        if self._condition is not None: yield self._condition
         if self._if_token is not None: yield self._if_token
+
+    @property
+    def child_inner_nodes(self):
         if self._condition is not None: yield self._condition
         if self._then_block is not None: yield self._then_block
         yield from self._else_statements
 
 IfStmt.element_slots = (IfStmt.if_token_slot, IfStmt.condition_slot, IfStmt.then_block_slot, IfStmt.else_statements_slot, )
-IfStmt.inner_node_slots = (IfStmt.if_token_slot, IfStmt.condition_slot, IfStmt.then_block_slot, IfStmt.else_statements_slot, )
+IfStmt.inner_node_slots = (IfStmt.condition_slot, IfStmt.then_block_slot, IfStmt.else_statements_slot, )
 
 
 class WhileStmt(Statement):
@@ -1060,7 +1208,10 @@ class WhileStmt(Statement):
 
     @while_token.setter
     def while_token(self, value: LeafNode | None):
-        self._while_token = self.attach_child(self.while_token_slot, value)
+        if value is not None: 
+            self._while_token = self.attach_child(self.while_token_slot, value)
+        else:
+            self.detach_child(self.while_token_slot)
 
     @property
     def condition(self) -> Expression | None:
@@ -1071,7 +1222,10 @@ class WhileStmt(Statement):
 
     @condition.setter
     def condition(self, value: Expression | None):
-        self._condition = self.attach_child(self.condition_slot, value)
+        if value is not None: 
+            self._condition = self.attach_child(self.condition_slot, value)
+        else:
+            self.detach_child(self.condition_slot)
 
     @property
     def block(self) -> BlockStmt | None:
@@ -1082,7 +1236,10 @@ class WhileStmt(Statement):
 
     @block.setter
     def block(self, value: BlockStmt | None):
-        self._block = self.attach_child(self.block_slot, value)
+        if value is not None: 
+            self._block = self.attach_child(self.block_slot, value)
+        else:
+            self.detach_child(self.block_slot)
 
     @property
     def children(self):
@@ -1091,13 +1248,18 @@ class WhileStmt(Statement):
         if self._block is not None: yield self._block
 
     @property
-    def child_inner_nodes(self):
+    def children_reversed(self):
+        if self._block is not None: yield self._block
+        if self._condition is not None: yield self._condition
         if self._while_token is not None: yield self._while_token
+
+    @property
+    def child_inner_nodes(self):
         if self._condition is not None: yield self._condition
         if self._block is not None: yield self._block
 
 WhileStmt.element_slots = (WhileStmt.while_token_slot, WhileStmt.condition_slot, WhileStmt.block_slot, )
-WhileStmt.inner_node_slots = (WhileStmt.while_token_slot, WhileStmt.condition_slot, WhileStmt.block_slot, )
+WhileStmt.inner_node_slots = (WhileStmt.condition_slot, WhileStmt.block_slot, )
 
 
 class FunctionCallStmt(Statement):
@@ -1136,7 +1298,10 @@ class FunctionCallStmt(Statement):
 
     @expr.setter
     def expr(self, value: FunctionExpr | None):
-        self._expr = self.attach_child(self.expr_slot, value)
+        if value is not None: 
+            self._expr = self.attach_child(self.expr_slot, value)
+        else:
+            self.detach_child(self.expr_slot)
 
     @property
     def semi_colon(self) -> LeafNode | None:
@@ -1147,7 +1312,10 @@ class FunctionCallStmt(Statement):
 
     @semi_colon.setter
     def semi_colon(self, value: LeafNode | None):
-        self._semi_colon = self.attach_child(self.semi_colon_slot, value)
+        if value is not None: 
+            self._semi_colon = self.attach_child(self.semi_colon_slot, value)
+        else:
+            self.detach_child(self.semi_colon_slot)
 
     @property
     def children(self):
@@ -1155,12 +1323,16 @@ class FunctionCallStmt(Statement):
         if self._semi_colon is not None: yield self._semi_colon
 
     @property
+    def children_reversed(self):
+        if self._semi_colon is not None: yield self._semi_colon
+        if self._expr is not None: yield self._expr
+
+    @property
     def child_inner_nodes(self):
         if self._expr is not None: yield self._expr
-        if self._semi_colon is not None: yield self._semi_colon
 
 FunctionCallStmt.element_slots = (FunctionCallStmt.expr_slot, FunctionCallStmt.semi_colon_slot, )
-FunctionCallStmt.inner_node_slots = (FunctionCallStmt.expr_slot, FunctionCallStmt.semi_colon_slot, )
+FunctionCallStmt.inner_node_slots = (FunctionCallStmt.expr_slot, )
 
 
 class AssignStmt(Statement):
@@ -1214,7 +1386,10 @@ class AssignStmt(Statement):
 
     @name_token.setter
     def name_token(self, value: LeafNode | None):
-        self._name_token = self.attach_child(self.name_token_slot, value)
+        if value is not None: 
+            self._name_token = self.attach_child(self.name_token_slot, value)
+        else:
+            self.detach_child(self.name_token_slot)
 
     @property
     def assign_token(self) -> LeafNode | None:
@@ -1225,7 +1400,10 @@ class AssignStmt(Statement):
 
     @assign_token.setter
     def assign_token(self, value: LeafNode | None):
-        self._assign_token = self.attach_child(self.assign_token_slot, value)
+        if value is not None: 
+            self._assign_token = self.attach_child(self.assign_token_slot, value)
+        else:
+            self.detach_child(self.assign_token_slot)
 
     @property
     def value(self) -> Expression | None:
@@ -1236,7 +1414,10 @@ class AssignStmt(Statement):
 
     @value.setter
     def value(self, value: Expression | None):
-        self._value = self.attach_child(self.value_slot, value)
+        if value is not None: 
+            self._value = self.attach_child(self.value_slot, value)
+        else:
+            self.detach_child(self.value_slot)
 
     @property
     def semi_colon(self) -> LeafNode | None:
@@ -1247,7 +1428,10 @@ class AssignStmt(Statement):
 
     @semi_colon.setter
     def semi_colon(self, value: LeafNode | None):
-        self._semi_colon = self.attach_child(self.semi_colon_slot, value)
+        if value is not None: 
+            self._semi_colon = self.attach_child(self.semi_colon_slot, value)
+        else:
+            self.detach_child(self.semi_colon_slot)
 
     @property
     def children(self):
@@ -1257,14 +1441,18 @@ class AssignStmt(Statement):
         if self._semi_colon is not None: yield self._semi_colon
 
     @property
-    def child_inner_nodes(self):
-        if self._name_token is not None: yield self._name_token
-        if self._assign_token is not None: yield self._assign_token
-        if self._value is not None: yield self._value
+    def children_reversed(self):
         if self._semi_colon is not None: yield self._semi_colon
+        if self._value is not None: yield self._value
+        if self._assign_token is not None: yield self._assign_token
+        if self._name_token is not None: yield self._name_token
+
+    @property
+    def child_inner_nodes(self):
+        if self._value is not None: yield self._value
 
 AssignStmt.element_slots = (AssignStmt.name_token_slot, AssignStmt.assign_token_slot, AssignStmt.value_slot, AssignStmt.semi_colon_slot, )
-AssignStmt.inner_node_slots = (AssignStmt.name_token_slot, AssignStmt.assign_token_slot, AssignStmt.value_slot, AssignStmt.semi_colon_slot, )
+AssignStmt.inner_node_slots = (AssignStmt.value_slot, )
 
 
 class ErrorStmt(Statement):
@@ -1297,10 +1485,14 @@ class ErrorStmt(Statement):
         yield from self._tokens
 
     @property
+    def children_reversed(self):
+        yield from reversed(self._tokens)
+
+    @property
     def child_inner_nodes(self):
-        yield from self._tokens
+        return []
 
 ErrorStmt.element_slots = (ErrorStmt.tokens_slot, )
-ErrorStmt.inner_node_slots = (ErrorStmt.tokens_slot, )
+ErrorStmt.inner_node_slots = ()
 
 
