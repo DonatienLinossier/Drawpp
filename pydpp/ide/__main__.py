@@ -38,6 +38,10 @@ class App(ctk.CTk):
         self.import_but.grid(row=2, column=0, padx=20, pady=10)
         self.bind("<Control-o>", lambda event: self.imp_event(event))
         
+        self.sup_but = ctk.CTkButton(self.sidebar_frame, text= "supprimer",command=self.sup_tab)
+        self.sup_but.grid(row=4, column=0, padx=20, pady=10)
+        self.bind("<Control-o>", lambda event: self.sup_tab(event))
+
         self.save_but = ctk.CTkButton(self.sidebar_frame, text="sauvegarder", command=self.sauv_event)
         self.save_but.grid(row=3, column=0, padx=20, pady=10)
         self.bind("<Control-s>", lambda event: self.sauv_event(event))
@@ -75,6 +79,24 @@ class App(ctk.CTk):
     def change_scaling(self, new_scaling: str):
         new_scaling_float = int(new_scaling.replace("%", "")) / 100
         ctk.set_widget_scaling(new_scaling_float)
+
+    def search(self, tab, cont ):
+        if self.textboxes[tab]:
+            textbox = self.textboxes.get(tab)  # Get corresponding Textbox
+            text = textbox.get("1.0", "end-1c")
+            if(text == cont):         
+                return False #False si le fichier exacte existe déjà et True s'il existe pas
+            else:
+                return True
+        else:
+            return True
+
+    def sup_tab(self):
+        tab = self.tabview.get()  # Get current oppened tab
+        if tab!="Menu":
+           self.tabview.delete(tab)
+        else:
+            print("impossible")
 
     def sauv_event(self, event=None):
         tab = self.tabview.get()  # Get current oppened tab
