@@ -1,0 +1,34 @@
+cmake_minimum_required(VERSION 3.10)
+
+# Set project name
+project(drawppCompiler C)
+
+# Specify the path to the SDL2 installation
+if(WIN32)
+    set(CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/libs/SDL2-2.30.8/x86_64-w64-mingw32")
+endif ()
+
+# Find SDL2
+find_package(SDL2 REQUIRED)
+
+# Include directories
+include_directories(${SDL2_INCLUDE_DIRS})
+include_directories(${CMAKE_SOURCE_DIR}/include)
+
+SET(SRC_DIR src)
+SET(OUTPUT_DIR output)
+
+SET(SRC1 ${SRC_DIR}/main.c ${SRC_DIR}/cursor.c ${SRC_DIR}/sdlEncapsulation.c)
+SET(SRC2 ${OUTPUT_DIR}/test.c ${SRC_DIR}/cursor.c ${SRC_DIR}/sdlEncapsulation.c)
+
+
+# Add executable
+add_executable(${PROJECT_NAME} ${SRC1})
+add_executable(pymain ${SRC2})
+
+
+# Link SDL2 libraries
+target_link_libraries(pymain ${SDL2_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARIES})
+
+#TODO: Copy sdl2.dll
