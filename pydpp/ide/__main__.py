@@ -91,8 +91,9 @@ class App(ctk.CTk):
         else:
             return True
 
-    def sup_tab(self):
-        tab = self.tabview.get()  # Get current oppened tab
+    def sup_tab(self, tab):
+        if tab== false:
+            tab = self.tabview.get()  # Get current oppened tab
         if tab!="Menu":
            self.tabview.delete(tab)
         else:
