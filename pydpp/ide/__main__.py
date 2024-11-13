@@ -91,13 +91,21 @@ class App(ctk.CTk):
         else:
             return True
 
-    def sup_tab(self, tab):
-        if tab== false:
-            tab = self.tabview.get()  # Get current oppened tab
+    def sup_tab(self):
+        tab = self.tabview.get()  # Get current oppened tab
         if tab!="Menu":
            self.tabview.delete(tab)
         else:
             print("impossible")
+
+    def sup_reptab(self, tab):
+        if tab:
+            if tab!="Menu":
+                self.tabview.delete(tab)
+            else:
+                print("impossible, nom de l'onglet: 'Menu'")
+        else:
+            print("impossible pas d'onglet")
 
     def sauv_event(self, event=None):
         tab = self.tabview.get()  # Get current oppened tab
@@ -111,6 +119,8 @@ class App(ctk.CTk):
                     with open(file, "w") as f:
                         f.write(text)
                     if filename != tab:
+                        if self.textboxes[filename]:
+                            self.sup_reptab(filename)
                         self.tabview.rename(tab, filename)
                         self.textboxes[filename] = self.textboxes[tab]
                         self.textboxes.pop(tab)
