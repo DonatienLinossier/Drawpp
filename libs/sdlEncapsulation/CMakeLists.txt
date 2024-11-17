@@ -8,7 +8,7 @@ set(sdlEncapsulation_include_dir "include")
 
 # Specify the path to the SDL2 installation (adjust path if necessary)
 if(WIN32)
-    set(CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/../SDL2-2.30.8/x86_64-w64-mingw32")
+    set(CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/libs/SDL2-2.30.8/x86_64-w64-mingw32")
 endif()
 
 # Find SDL2 package

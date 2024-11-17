@@ -193,7 +193,6 @@ class CTranslater:
     # Logic & operation functions
     #########################
 
-    #TODO: TO REWORK !!! RETURN SCOPE(with null value) before the returned value
     def _greaterThan(self, a, b) -> bool:
         return a > b
 
