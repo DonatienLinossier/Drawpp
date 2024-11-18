@@ -40,7 +40,7 @@ class App(ctk.CTk):
         
         self.sup_but = ctk.CTkButton(self.sidebar_frame, text= "supprimer",command=self.sup_tab)
         self.sup_but.grid(row=4, column=0, padx=20, pady=10)
-        self.bind("<Control-o>", lambda event: self.sup_tab(event))
+        self.bind("<Control-w>", lambda event: self.sup_tab(event))
 
         self.save_but = ctk.CTkButton(self.sidebar_frame, text="sauvegarder", command=self.sauv_event)
         self.save_but.grid(row=3, column=0, padx=20, pady=10)
@@ -80,21 +80,37 @@ class App(ctk.CTk):
         new_scaling_float = int(new_scaling.replace("%", "")) / 100
         ctk.set_widget_scaling(new_scaling_float)
 
-    def search(self, tab, cont ):
+    def text_search(self, cont):
+        '''
+        Text research function
+        '''
+        tab = self.tabview.get()
+        text = self.textboxes[tab].get("1.0", "end-1c")
+        if(cont in text):
+            # return coordonnates. Multiple sets for each occurence  
+            return True
+        else:
+            return False
+
+    def search(self, tab, cont):
         if self.textboxes[tab]:
             textbox = self.textboxes.get(tab)  # Get corresponding Textbox
             text = textbox.get("1.0", "end-1c")
             if(text == cont):         
-                return False #False si le fichier exacte existe déjà et True s'il existe pas
+                return False # False if file exists and True if it doesn't
             else:
                 return True
         else:
             return True
 
-    def sup_tab(self):
-        tab = self.tabview.get()  # Get current oppened tab
+    def sup_tab(self, event=None):
+        tab = self.tabview.get()  # Get current tab
         if tab!="Menu":
-           self.tabview.delete(tab)
+            offset = self.tabview.index(tab)
+            self.tabview.delete(tab)
+            self.textboxes.pop(tab)
+            self.newfilecount -= 1
+            self.tabview.set(list(self.textboxes)[-1]) # Move focus to last tab. Work this offset to move to next tab instead
         else:
             print("impossible")
 
