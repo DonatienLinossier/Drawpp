@@ -274,13 +274,14 @@ class Node:
     def child_inner_nodes(self) -> Iterable["InnerNode"]:
         raise NotImplementedError()
 
-    def child_node_at(self, idx: int):
+    def child_at(self, idx: int, inner_nodes=False):
         """
         Returns the child node at the given index.
         :param idx: the index of the child node
+        :param inner_nodes: whether to return only inner nodes
         :return: the child node
         """
-        for i, n in enumerate(self.child_inner_nodes):
+        for i, n in enumerate(self.children if not inner_nodes else self.child_inner_nodes):
             if i == idx:
                 return n
         return None
@@ -799,14 +800,25 @@ class LeafNode(Node):
         return self.token.kind
 
     @property
-    def value(self):
+    def value(self) -> str | bool | int | float | None:
+        """
+        The value of the token. May be of three different types currently:
+        - string: it's a string literal: "hello"
+        - bool: it's a bool literal: true/false
+        - int | float: it's a number. guess the type! it's either an int or float!
+        """
         return self.token.value
 
     @property
     def children(self) -> Iterable["InnerNode"]:
         return []
 
+    @property
     def children_reverse(self) -> Iterable["Node"]:
+        return []
+
+    @property
+    def child_inner_nodes(self) -> Iterable["InnerNode"]:
         return []
 
     @property

@@ -48,6 +48,8 @@ def definitions() -> list[type]:
             - a number literal (5, 3.14)
             - a string literal ("hello, world!")
             - a boolean literal (true, false)
+
+        The value of the literal is contained within the token: token.value
         """
 
         token = single(Token,
@@ -68,18 +70,18 @@ def definitions() -> list[type]:
 
         left = single(Expression, doc="The left side of the operation.")
         operator_token = single(Token,
-                                check=[TK.KW_OR,
-                                       TK.KW_AND,
-                                       TK.SYM_EQ,
-                                       TK.SYM_NEQ,
-                                       TK.SYM_LT,
-                                       TK.SYM_LEQ,
-                                       TK.SYM_GT,
-                                       TK.SYM_GEQ,
-                                       TK.SYM_PLUS,
-                                       TK.SYM_MINUS,
-                                       TK.SYM_STAR,
-                                       TK.SYM_SLASH],
+                                check=[TK.KW_OR, # OR: "or"
+                                       TK.KW_AND, # AND: "and"
+                                       TK.SYM_EQ, # EQ: "=="
+                                       TK.SYM_NEQ, # NEQ: "!="
+                                       TK.SYM_LT, # LT: "<"
+                                       TK.SYM_LEQ, # LEQ: "<="
+                                       TK.SYM_GT, # GT: ">"
+                                       TK.SYM_GEQ, # GEQ: ">="
+                                       TK.SYM_PLUS, # PLUS: "+"
+                                       TK.SYM_MINUS, # MINUS: "-"
+                                       TK.SYM_STAR, # STAR: "*"
+                                       TK.SYM_SLASH], # SLASH: "/"
                                 doc="The operator token.")
         right = single(Expression, doc="The right side of the operation.")
 

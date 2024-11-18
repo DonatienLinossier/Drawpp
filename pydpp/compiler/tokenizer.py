@@ -191,7 +191,7 @@ class Token:
     Some tokens of some particular kinds may have additional information, which is stored inside the 'value' attribute.
 
     Applicable value attributes include:
-        - TokenKind.LITERAL_NUM: a tuple of (int, int | None) representing the integer and decimal parts of the number.
+        - TokenKind.LITERAL_NUM: a int or float value, if the number is integer or decimal respectively.
         - TokenKind.LITERAL_BOOL: a bool representing the boolean value.
         - TokenKind.LITERAL_STRING: a string representing the string value
     """
@@ -202,7 +202,7 @@ class Token:
 
     def __init__(self, kind: TokenKind, text: str, pre_auxiliary: tuple[AuxiliaryText, ...] = (),
                  problems: tuple[TokenProblem, ...] = (),
-                 value: str | bool | tuple[int, int | None] | None = None):
+                 value: str | bool | int | float | None = None):
         self.kind = kind
         """The kind of the token. See the TokenKind enum for all possible values.
         Tokens of some particular kinds may have additional information, which are stored as supplementary attributes.
@@ -224,7 +224,7 @@ class Token:
         self.full_text = ft
         """The full text of the token, including auxiliary text."""
 
-        self.value: str | bool | tuple[int, int | None] | None = value
+        self.value: str | bool | int | float | None = value
         "The value of this token, if it represents a literal."
 
         self.problems = problems
@@ -452,13 +452,11 @@ class _Tokenizer:
                 start_pos = self.cursor
 
                 # First, let's read the "integer" part.
-                # We know that this integer conversion will succeed as the first character is a digit.
-                integer = int(self.consume_regex(self.digits_regex))
-                decimal = None  # Initialise the decimal part to none, making it an integer
+                integer_str = self.consume_regex(self.digits_regex)
+                decimal_str = None
 
-                # Do we have a decimal separator next (the dot)?
+                # Tru to read the decimal part, if there is one.
                 if self.consume_exact("."):
-                    # We do! Let's read the digits after the dot, now that we've consumed it.
                     decimal_str = self.consume_regex(self.digits_regex)  # May be empty
                     if not decimal_str:  # Is it empty?
                         # That's a problem! We have a number missing its decimal digits, like "5."
@@ -466,12 +464,12 @@ class _Tokenizer:
                         # just with a null decimal.
                         self.queue_problem(message="Partie décimale attendue après un point (« . »).",
                                            span=TextSpan(0, self.cursor - start_pos))
-                    else:
-                        # We recognized the decimal part, convert it to an integer.
-                        decimal = int(decimal_str)
+                        decimal_str = "0"
 
+                # Make a number value: if it's an integer: int; if it's a decimal: float.
+                val = int(integer_str) if decimal_str is None else float(f"{integer_str}.{decimal_str}")
                 # Finally add the token to the list.
-                self.push_token(TokenKind.LITERAL_NUM, self.code[start_pos:self.cursor], (integer, decimal))
+                self.push_token(TokenKind.LITERAL_NUM, self.code[start_pos:self.cursor], val)
                 return True
             else:
                 return False
