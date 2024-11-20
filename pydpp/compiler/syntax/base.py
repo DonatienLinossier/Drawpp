@@ -286,6 +286,48 @@ class Node:
                 return n
         return None
 
+    def descendants(self, filter: typing.Callable[[N], bool] | type[N] = None) -> Iterable[N]:
+        """
+        Returns all descendants of this node: the childrens AND all their childrens, recursively.
+        Use the filter parameter to specify which nodes should be returned, which can be either:
+            -> a function: applied on each descendant
+            -> a type: only descendants of that type will be returned
+
+        Examples: node.descendants() -> all descendants
+                  node.descendants(Expression) -> all descendants of type Expression
+                  node.descendants(lambda x: x.has_problems) -> all descendants with problems
+
+        :param filter: a filter function/type to apply to each node
+        :return: all descendants
+        """
+
+        if isinstance(filter, type):
+            filter = lambda n: isinstance(n, filter)
+
+        for c in self.children:
+            if filter is None or filter(c):
+                yield c
+            yield from c.descendants(filter)
+
+    def ancestor(self, filter: typing.Callable[[N], bool] | type[N]) -> N | None:
+        """
+        Returns the first ancestor of this node that matches the filter.
+        Goes up parent to parent until one is found.
+
+        :param filter: a filter function/type to apply to each node
+        :return: the ancestor node
+        """
+        if isinstance(filter, type):
+            filter = lambda n: isinstance(n, filter)
+
+        n = self
+        while n is not None:
+            if filter(n):
+                return n
+            n = n.parent
+
+        return None
+
     # =========================
     # PROBLEM PROPERTIES
     # =========================
@@ -638,9 +680,11 @@ class InnerNode(Node):
     # =========================
 
     def with_problems(self, *problems: InnerNodeProblem):
+        l = len(self.problems)
+
         self.problems = problems
 
-        if len(self.problems) != len(problems):
+        if l != len(problems):
             self._update_has_problems()
 
         return self
