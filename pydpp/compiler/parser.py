@@ -547,11 +547,12 @@ class _Parser:
         def literal():
             """Recognizes literal expressions, like 5, "hello", true."""
             # Try all kinds of literals we know. Order has no importance.
-            tkn = self.peek()
-            match tkn.kind:
-                case TokenKind.LITERAL_NUM | TokenKind.LITERAL_STRING | TokenKind.LITERAL_BOOL:
-                    self.consume()
-                    return LiteralExpr(leaf(tkn))
+            if tkn := self.peek():
+                match tkn.kind:
+                    case TokenKind.LITERAL_NUM | TokenKind.LITERAL_STRING | TokenKind.LITERAL_BOOL:
+                        self.consume()
+                        return LiteralExpr(leaf(tkn))
+            return None
 
         # Start reading the expression.
         l = non_binary_expr()
