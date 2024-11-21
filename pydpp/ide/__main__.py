@@ -1,10 +1,9 @@
 import customtkinter as ctk
 from tkinter import filedialog
 import os
-from pydpp.compiler import ProblemSet, ProblemSeverity
+from pydpp.compiler import ProblemSet, ProblemSeverity, collect_errors
 from pydpp.compiler.parser import parse
 from pydpp.compiler.tokenizer import tokenize, TokenKind
-
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme(os.path.join(os.path.dirname(__file__), 'Metadata/style.json'))
@@ -34,11 +33,11 @@ class App(ctk.CTk):
         self.new_file_but.grid(row=1, column=0, padx=20, pady=10)
         self.bind("<Control-n>", lambda event: self.new_tab(event=event))
 
-        self.import_but = ctk.CTkButton(self.sidebar_frame, text= "importer",command=self.imp_event)
+        self.import_but = ctk.CTkButton(self.sidebar_frame, text="importer", command=self.imp_event)
         self.import_but.grid(row=2, column=0, padx=20, pady=10)
         self.bind("<Control-o>", lambda event: self.imp_event(event))
-        
-        self.sup_but = ctk.CTkButton(self.sidebar_frame, text= "supprimer",command=self.sup_tab)
+
+        self.sup_but = ctk.CTkButton(self.sidebar_frame, text="supprimer", command=self.sup_tab)
         self.sup_but.grid(row=4, column=0, padx=20, pady=10)
         self.bind("<Control-w>", lambda event: self.sup_tab(event))
 
@@ -48,11 +47,13 @@ class App(ctk.CTk):
 
         self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Appearance Mode:", anchor="w")
         self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
-        self.appearance_mode_menu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Light", "Dark", "System"],command=self.change_appearance_mode)
+        self.appearance_mode_menu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Light", "Dark", "System"],
+                                                      command=self.change_appearance_mode)
         self.appearance_mode_menu.grid(row=6, column=0, padx=20, pady=(10, 10))
         self.scaling_label = ctk.CTkLabel(self.sidebar_frame, text="UI Scaling:", anchor="w")
         self.scaling_label.grid(row=7, column=0, padx=20, pady=(10, 0))
-        self.scaling_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["80%", "90%", "100%", "110%", "120%"], command=self.change_scaling)
+        self.scaling_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["80%", "90%", "100%", "110%", "120%"],
+                                                     command=self.change_scaling)
         self.scaling_optionemenu.grid(row=8, column=0, padx=20, pady=(10, 20))
 
         self.tabview = ctk.CTkTabview(self, width=250)
@@ -60,7 +61,7 @@ class App(ctk.CTk):
         self.tabview.grid_columnconfigure(0, weight=1)
         self.tabview.add("Menu").grid_columnconfigure(0, weight=1)
 
-        self.textboxes = {} # Dict for tab-textboxes
+        self.textboxes = {}  # Dict for tab-textboxes
 
         menu = ctk.CTkTextbox(self.tabview.tab("Menu"))
         self.textboxes["Menu"] = menu
@@ -86,8 +87,8 @@ class App(ctk.CTk):
         '''
         tab = self.tabview.get()
         text = self.textboxes[tab].get("1.0", "end-1c")
-        if(cont in text):
-            # return coordonnates. Multiple sets for each occurence  
+        if (cont in text):
+            # return coordonnates. Multiple sets for each occurence
             return True
         else:
             return False
@@ -96,8 +97,8 @@ class App(ctk.CTk):
         if self.textboxes[tab]:
             textbox = self.textboxes.get(tab)  # Get corresponding Textbox
             text = textbox.get("1.0", "end-1c")
-            if(text == cont):         
-                return False # False if file exists and True if it doesn't
+            if (text == cont):
+                return False  # False if file exists and True if it doesn't
             else:
                 return True
         else:
@@ -105,18 +106,19 @@ class App(ctk.CTk):
 
     def sup_tab(self, event=None):
         tab = self.tabview.get()  # Get current tab
-        if tab!="Menu":
+        if tab != "Menu":
             offset = self.tabview.index(tab)
             self.tabview.delete(tab)
             self.textboxes.pop(tab)
             self.newfilecount -= 1
-            self.tabview.set(list(self.textboxes)[-1]) # Move focus to last tab. Work this offset to move to next tab instead
+            self.tabview.set(
+                list(self.textboxes)[-1])  # Move focus to last tab. Work this offset to move to next tab instead
         else:
             print("impossible")
 
     def sup_reptab(self, tab):
         if tab:
-            if tab!="Menu":
+            if tab != "Menu":
                 self.tabview.delete(tab)
             else:
                 print("impossible, nom de l'onglet: 'Menu'")
@@ -125,11 +127,11 @@ class App(ctk.CTk):
 
     def sauv_event(self, event=None):
         tab = self.tabview.get()  # Get current oppened tab
-        if tab!="Menu":
+        if tab != "Menu":
             textbox = self.textboxes.get(tab)  # Get corresponding Textbox
             if textbox:
                 text = textbox.get("1.0", "end-1c")  # Get Textbox content
-                file=filedialog.asksaveasfilename(filetypes=[("txt fichier",".txt")], initialfile=tab)
+                file = filedialog.asksaveasfilename(filetypes=[("txt fichier", ".txt")], initialfile=tab)
                 filename = os.path.basename(file)
                 if file:
                     with open(file, "w") as f:
@@ -140,42 +142,43 @@ class App(ctk.CTk):
                         self.tabview.rename(tab, filename)
                         self.textboxes[filename] = self.textboxes[tab]
                         self.textboxes.pop(tab)
-                        self.tabview.set(filename)  
+                        self.tabview.set(filename)
 
     def imp_event(self, event=None):
         file = filedialog.askopenfilename(title="Importer",
-                                        defaultextension=".txt",
-                                        filetypes=[("txt fichier",".txt")],
-                                        initialdir= r"PROJET", # Mettre un r pour faire la diférence entre \ en tant que signe spécial et \ pour un caractère lambda
-                                        )   
-        if file:    
-            file_name=os.path.basename(file)
+                                          defaultextension=".txt",
+                                          filetypes=[("txt fichier", ".txt")],
+                                          initialdir=r"PROJET",
+                                          # Mettre un r pour faire la diférence entre \ en tant que signe spécial et \ pour un caractère lambda
+                                          )
+        if file:
+            file_name = os.path.basename(file)
             if file_name in self.textboxes:
-                pass # File is already oppened
+                pass  # File is already oppened
             else:
                 self.new_tab(file_name)
-                fichier=open(file, "r")
-                lecture=fichier.readlines()
+                fichier = open(file, "r")
+                lecture = fichier.readlines()
                 for line in lecture:
                     self.textboxes[file_name].insert("end", line)
-    
-    def new_tab(self, name : str = None, event=None):
+
+    def new_tab(self, name: str = None, event=None):
         if not name:
             name = f"New file {self.newfilecount}"
-            self.newfilecount+=1
+            self.newfilecount += 1
         if name:
             self.tabview.add(name)
             self.tabview.tab(name).grid_columnconfigure(0, weight=1)
             self.tabview.tab(name).grid_rowconfigure(0, weight=1)
-            showtext = ctk.CTkTextbox(self.tabview.tab(name))  
+            showtext = ctk.CTkTextbox(self.tabview.tab(name))
             showtext.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
             self.init_highlighting(showtext)
             showtext.bind("<<Modified>>", lambda e: self.update_highlighting(showtext))
-            
+
             self.textboxes[name] = showtext
             self.tabview.set(name)
-    
+
     def init_highlighting(self, txt: ctk.CTkTextbox):
         # Configure all syntax highlighting tags
         txt.tag_config("kw", foreground="#268bd2")
@@ -188,17 +191,18 @@ class App(ctk.CTk):
             # Then use that coordinate to find where the error is and show a tooltip... somehow
 
         def err_exit(er):
-            print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
+            v = txt.index("current")
+            print(f"ERROR EXIT: cursor stepped away ({v} now)")
 
         # Bind some functions to run when the cursor enters or leaves an error in the text.
         # We can use that to show tooltips!
         txt.tag_bind("err", "<Enter>", err_enter)
         txt.tag_bind("err", "<Leave>", err_exit)
-    
+
     def update_highlighting(self, txt: ctk.CTkTextbox):
         # Converts FileCoordinates into tkinter coordinates
-        def fc_to_idx(fc):
-            return f"{fc.line}.{fc.column-1}"
+        def tidx_to_tkidx(idx):
+            return f"1.0+{idx}c"
 
         # Clear all existing highlighting
         txt.tag_remove("kw", "1.0", "end")
@@ -210,28 +214,58 @@ class App(ctk.CTk):
         t = txt.get("1.0", "end")
 
         # Run the tokenizer (for primary syntax highlighting) and the parser (for error recognition)
-        ps = ProblemSet() # Errors will be there
-        tkn_list = tokenize(t, ps)
-        tree = parse(tkn_list, ps) # not used yet, costly!
+        tkn_list = bench("tokenize:", lambda: tokenize(t))
+        tree = bench("parse:", lambda: parse(tkn_list))  # not used yet, costly!
 
         # Highlight every portion of the text that matches with a token
+        s = bench_start("highlighting")
+        start = 0
+        keywords = {x for x in TokenKind if x.name.startswith("KW") or x == TokenKind.LITERAL_BOOL}
         for t in tkn_list:
-            if t.kind.name.startswith("KW") or t.kind == TokenKind.LITERAL_BOOL:
+            l = len(t.full_text)
+            if t.kind in keywords:
                 # Keyword
-                txt.tag_add("kw", fc_to_idx(t.pos.start), fc_to_idx(t.pos.end))
+                txt.tag_add("kw", tidx_to_tkidx(start), tidx_to_tkidx(start + l))
             elif t.kind == TokenKind.LITERAL_STRING:
                 # String
-                txt.tag_add("str", fc_to_idx(t.pos.start), fc_to_idx(t.pos.end))
+                txt.tag_add("str", tidx_to_tkidx(start), tidx_to_tkidx(start + l))
             elif t.kind == TokenKind.LITERAL_NUM:
                 # Number
-                txt.tag_add("num", fc_to_idx(t.pos.start), fc_to_idx(t.pos.end))
+                txt.tag_add("num", tidx_to_tkidx(start), tidx_to_tkidx(start + l))
+            start += l
+        bench_end(s)
 
         # Highlight every error (not warnings for now)
-        for e in ps.grouped[ProblemSeverity.ERROR]:
-            txt.tag_add("err", fc_to_idx(e.pos.start), fc_to_idx(e.pos.end))
+        def f():
+            ps = ProblemSet()
+            collect_errors(tree, ps)
+            for e in ps.grouped[ProblemSeverity.ERROR]:
+                txt.tag_add("err", tidx_to_tkidx(e.pos.start), tidx_to_tkidx(e.pos.end))
+
+        bench("error finding", f)
 
         # Set modified to False so the event triggers again (it's dumb but that's how it works)
         txt.edit_modified(False)
+
+import time
+def bench(name, func):
+    start_time = time.perf_counter_ns()
+    res = func()
+    end_time = time.perf_counter_ns()
+
+    elapsed_time_ms = (end_time - start_time) / 1_000_000
+    print(f"{name}: {elapsed_time_ms} ms")
+    return res
+
+def bench_start(name):
+    start_time = time.perf_counter_ns()
+    print(f"{name}... ", end="")
+    return start_time
+
+def bench_end(start_time):
+    end_time = time.perf_counter_ns()
+    elapsed_time_ms = (end_time - start_time) / 1_000_000
+    print(f"{elapsed_time_ms} ms")
 
 if __name__ == "__main__":
     app = App()

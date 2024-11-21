@@ -1,0 +1,12 @@
+The Ctranslater_test folder contains exemples of the class usage.
+It helps others dev understand how to use the class.
+It can also be used to verify that the class works as expected.
+
+Each test contains :
+    - testDrawpp.py : The CTranslater usage. The file to execute
+    - test.trad.py : A approximated translation of the drawpp file testDrawpp.py in python
+    - test.console.txt : The expected console output
+    - test.out.c : The expected .c file output. (generated in the /drawppTmp folder)
+
+Last update :
+    - test_01 : 17/11/24

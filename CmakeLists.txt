@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 3.10)
+
+project(drawppCompiler C)
+
+# Set the output directory for the compiled files
+set(OUTPUT_DIR .drawppTmp)
+
+# Add the submodule for sdlEncapsulation only if it hasn't been compiled yet
+if(NOT TARGET sdlEncapsulation)
+    add_subdirectory(libs/sdlEncapsulation)
+endif()
+
+include_directories(${CMAKE_SOURCE_DIR}/libs/sdlEncapsulation/include)
+
+# Specify the main source file for the executable
+set(MAIN_SRC ${OUTPUT_DIR}/tmp.c)
+
+# Create the main executable
+add_executable(${PROJECT_NAME} ${MAIN_SRC})
+
+# Link the shared library from the submodule
+target_link_libraries(${PROJECT_NAME} sdlEncapsulation)
+
+# Copy sdl2.dll to the output directory if required
+if(WIN32)
+    set(SDL2_DLL "${CMAKE_SOURCE_DIR}/libs/SDL2-2.30.8/x86_64-w64-mingw32/bin/sdl2.dll")
+    if(EXISTS "${SDL2_DLL}")
+        file(COPY "${SDL2_DLL}" DESTINATION "${CMAKE_BINARY_DIR}")
+    else()
+        message(FATAL_ERROR "SDL2 DLL not found at ${SDL2_DLL}")
+    endif()
+endif()
+
+
+set(SDLENCAPS_DLL "${CMAKE_SOURCE_DIR}/libs/sdlEncapsulation/bin/libsdlEncapsulation.dll")
+if(EXISTS "${SDLENCAPS_DLL}")
+    file(COPY "${SDLENCAPS_DLL}" DESTINATION "${CMAKE_BINARY_DIR}")
+else()
+    message(FATAL_ERROR "SDL2 DLL not found at ${SDLENCAPS_DLL}")
+endif()
