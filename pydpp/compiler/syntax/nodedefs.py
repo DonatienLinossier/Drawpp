@@ -154,7 +154,7 @@ def definitions() -> list[type]:
         """
 
         type = single(BuiltInType, doc="The type of the variable.")
-        name_token = single(Token, doc="The name of the variable.")
+        name_token = single(TK.IDENTIFIER, doc="The name of the variable.")
         assign_token = single(TK.SYM_ASSIGN, doc="The '=' token.")
         value = single(Expression, doc="The value of the variable.")
         semi_colon = single(TK.SYM_SEMICOLON, doc="The ';' token.")

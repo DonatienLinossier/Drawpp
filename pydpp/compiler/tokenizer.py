@@ -1,7 +1,7 @@
 from enum import Enum, auto
 from typing import Optional
 from pydpp.compiler.position import TextSpan
-from pydpp.compiler.problem import ProblemSet, ProblemSeverity
+from pydpp.compiler.problem import ProblemSeverity
 import re
 
 
@@ -308,7 +308,15 @@ class _Tokenizer:
     """
 
     __slots__ = (
-    "code", "eof", "tokens", "cursor", "err_start", "pending_auxiliary", "pending_problems", "no_pending_prob")
+        "code",
+        "eof",
+        "tokens",
+        "cursor",
+        "err_start",
+        "pending_auxiliary",
+        "pending_problems",
+        "no_pending_prob"
+    )
 
     def __init__(self, code: str):
         self.code = code
@@ -588,6 +596,7 @@ class _Tokenizer:
         else:
             aux = self.flush_auxiliary()
             pb = self.flush_problems(aux)
+            self.problematic_tokens_idx.append(len(self.tokens))
             self.tokens.append(Token(kind, text, aux, pb, value))
 
     def flush_auxiliary(self):
@@ -779,12 +788,10 @@ class _Tokenizer:
             self.err_start = None
 
 
-def tokenize(code: str, problems: ProblemSet = None) -> list[Token]:
+def tokenize(code: str) -> list[Token]:
     """
     Tokenizes the given code into a sequence of tokens.
     Requires a ProblemSet to report any errors happening during tokenization.
     :param code: The code to tokenize.
-    :param problems: The problem set which may contain errors afterward.
-    :return: A list of tokens.
     """
     return _Tokenizer(code).tokenize()

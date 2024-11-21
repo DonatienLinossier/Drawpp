@@ -286,7 +286,7 @@ class Node:
                 return n
         return None
 
-    def descendants(self, filter: typing.Callable[[N], bool] | type[N] = None) -> Iterable[N]:
+    def descendants(self, filter: typing.Callable[["Node"], bool] | type[N] = None, stop=False) -> Iterable[N]:
         """
         Returns all descendants of this node: the childrens AND all their childrens, recursively.
         Use the filter parameter to specify which nodes should be returned, which can be either:
@@ -298,31 +298,40 @@ class Node:
                   node.descendants(lambda x: x.has_problems) -> all descendants with problems
 
         :param filter: a filter function/type to apply to each node
+        :param stop: whether to stop scanning children nodes when a node matches the filter
         :return: all descendants
         """
 
         if isinstance(filter, type):
-            filter = lambda n: isinstance(n, filter)
+            func = lambda n: isinstance(n, filter)
+        else:
+            func = filter
 
         for c in self.children:
-            if filter is None or filter(c):
+            if func is None or func(c):
                 yield c
+                if stop:
+                    continue
             yield from c.descendants(filter)
 
-    def ancestor(self, filter: typing.Callable[[N], bool] | type[N]) -> N | None:
+    def ancestor(self, filter: typing.Callable[[N], bool] | type[N], include_self=False) -> N | None:
         """
         Returns the first ancestor of this node that matches the filter.
         Goes up parent to parent until one is found.
 
         :param filter: a filter function/type to apply to each node
+        :param include_self: whether to include the current node in the search
         :return: the ancestor node
         """
-        if isinstance(filter, type):
-            filter = lambda n: isinstance(n, filter)
 
-        n = self
+        if isinstance(filter, type):
+            func = lambda n: isinstance(n, filter)
+        else:
+            func = filter
+
+        n = self if include_self else self.parent
         while n is not None:
-            if filter(n):
+            if func(n):
                 return n
             n = n.parent
 
@@ -339,6 +348,96 @@ class Node:
     @property
     def has_problems(self) -> bool:
         raise NotImplementedError()
+
+    # =========================
+    # COOL PRINTING FUNCS
+    # =========================
+
+    def pretty_str(self, indent: int = 0):
+        """
+        Prints the node as a tree in a nice and indented way. Used in str(node).
+        Nodes can have their own printing logic by creating a pretty_print(indent) function.
+        :return: a string with the Node and its children
+        """
+
+        if isinstance(self, LeafNode):
+            return repr(self)
+
+        assert isinstance(self, InnerNode)
+        props = [x.attr for x in type(self).element_slots]
+
+        # If we have no slots, print out the name and go away
+        if len(props) == 0:
+            return type(self).__name__ + "()"
+
+        result = ""
+
+        def append_indent(s: str):
+            nonlocal result
+            result += "    " * indent + s
+
+        def append(s: str):
+            nonlocal result
+            result += s
+
+        # Begin writing down the node's name and properties.
+        append(type(self).__name__ + "(\n")
+        # Increment the indentation for properties that will follow.
+        indent += 1
+
+        # Go through all the properties and print them.
+        for p in props:
+            # Print the property name first
+            append_indent(f"{p.lstrip('_')} = ")
+            # Get the value of the property
+            value = getattr(self, p)
+
+            if isinstance(value, InnerNode):
+                # It's a node ==> call pretty_print recursively
+                append(value.pretty_str(indent))
+            elif isinstance(value, list):
+                # It's a list ==> increase the indent level and print all elements on each line.
+                if len(value) > 0:
+                    append("[\n")
+                    indent += 1
+
+                    # Now it's a bit of a dirty/copy-paste we could clean that out with proper recursion,
+                    # but I'm lazy
+                    for idx2, v in enumerate(value):
+                        # Put out the indent first
+                        append_indent("")
+
+                        # Print the value out
+                        append(v.pretty_str(indent))
+
+                        # Add a comma if necessary
+                        if idx2 != len(value) - 1:
+                            append(",")
+                        append("\n")
+
+                    indent -= 1
+                    append_indent("]")
+                else:
+                    append("[]")
+            else:
+                # It's something else or a LeafNode ==> print it using repr()
+                append(repr(value))
+
+            # Add a newline after each property
+            append("\n")
+
+        # Decrease the indent to write the closing parenthesis
+        indent -= 1
+        append_indent(")")
+
+        return result
+
+    def print_fancy(self, include_tokens=True):
+        """
+        Prints the node and its children in a fancy tree-like representation.
+        Requires an ANSI-compatible terminal for C O L O R S!
+        """
+        _print_fancy_tree(self, include_tokens, 0, "", True)
 
 
 class InnerNode(Node):
@@ -736,85 +835,7 @@ class InnerNode(Node):
         return l
 
     def __str__(self):
-        return self.pretty_print()
-
-    def pretty_print(self, indent: int = 0):
-        """
-        Prints the node as a tree in a nice and indented way. Used in str(node).
-        Nodes can have their own printing logic by creating a pretty_print(indent) function.
-        :return: a string with the Node and its children
-        """
-
-        props = [x.attr for x in type(self).element_slots]
-
-        # If we have no slots, print out the name and go away
-        if len(props) == 0:
-            return type(self).__name__ + "()"
-
-        result = ""
-
-        def append_indent(s: str):
-            nonlocal result
-            result += "    " * indent + s
-
-        def append(s: str):
-            nonlocal result
-            result += s
-
-        # Begin writing down the node's name and properties.
-        append(type(self).__name__ + "(\n")
-        # Increment the indentation for properties that will follow.
-        indent += 1
-
-        # Go through all the properties and print them.
-        for p in props:
-            # Print the property name first
-            append_indent(f"{p.lstrip('_')} = ")
-            # Get the value of the property
-            value = getattr(self, p)
-
-            if isinstance(value, InnerNode):
-                # It's a node ==> call pretty_print recursively
-                append(value.pretty_print(indent))
-            elif isinstance(value, list):
-                # It's a list ==> increase the indent level and print all elements on each line.
-                if len(value) > 0:
-                    append("[\n")
-                    indent += 1
-
-                    # Now it's a bit of a dirty/copy-paste we could clean that out with proper recursion,
-                    # but I'm lazy
-                    for idx2, v in enumerate(value):
-                        # Put out the indent first
-                        append_indent("")
-
-                        # Print the value out
-                        if isinstance(v, InnerNode):
-                            append(v.pretty_print(indent))
-                        else:
-                            append(repr(v))
-
-                        # Add a comma if necessary
-                        if idx2 != len(value) - 1:
-                            append(",")
-                        append("\n")
-
-                    indent -= 1
-                    append_indent("]")
-                else:
-                    append("[]")
-            else:
-                # It's something else or a LeafNode ==> print it using repr()
-                append(repr(value))
-
-            # Add a newline after each property
-            append("\n")
-
-        # Decrease the indent to write the closing parenthesis
-        indent -= 1
-        append_indent(")")
-
-        return result
+        return self.pretty_str()
 
 
 class LeafNode(Node):
@@ -956,3 +977,55 @@ class Program(InnerNode):
 
 Program.element_slots = (Program.statements_slot, Program.eof_slot)
 Program.inner_node_slots = (Program.statements_slot, )
+
+def _print_fancy_tree(n: Node, include_tokens=True, idt=0, idt_str="", is_last: bool = False):
+    import re
+
+    ascii_light_gray = "\033[37m"
+    ascii_reset = "\033[0m"
+    ascii_span_color = "\033[38;5;98m"
+    ascii_inner_node_color = "\033[38;5;32m"
+    ascii_leaf_node_color = "\033[38;5;35m"
+    ascii_problem_color = "\033[38;5;166m"
+
+    if idt == 0:
+        branch = ""
+    elif is_last:
+        branch = "└── "
+    else:
+        branch = "├── "
+
+    indentation = idt_str + branch
+
+    color = ascii_inner_node_color if isinstance(n, InnerNode) else ascii_leaf_node_color
+    header = color + (n.kind.name if isinstance(n, LeafNode) else type(n).__name__)
+    if n.parent is not None:
+        header += ascii_light_gray + f" ({n.parent_slot.name})"
+
+    header += ascii_span_color + " " + str(n.span)
+    header += ascii_reset
+
+    line = indentation + header
+    line_without_color = re.sub(r"\033\[[^m]*m", "", line)
+
+    line += " " * (70 - len(line_without_color))
+    line += n.text[:80].replace("\n", "\\n").replace("\t", "\\t")
+
+    print(line)
+
+    if idt == 0:
+        child_indentation = idt_str
+    elif not is_last:
+        child_indentation = idt_str + "│   "
+    else:
+        child_indentation = idt_str + "    "
+
+    if n.has_problems:
+        print(child_indentation + ascii_problem_color + "Has problems: True" + ascii_reset)
+
+    if n.problems:
+        print(child_indentation + ascii_problem_color  + "Problems:", "".join(repr(x) for x in n.problems) + ascii_reset)
+
+    children = list(n.children if include_tokens else n.child_inner_nodes)
+    for i, c in enumerate(children):
+        _print_fancy_tree(c, include_tokens, idt + 1, child_indentation, i == len(children) - 1)

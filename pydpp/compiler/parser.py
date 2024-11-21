@@ -20,7 +20,7 @@ class _Parser:
 
     __slots__ = ("tokens", "tok_positions", "cursor", "eof", "eof_token", "eof_idx")
 
-    def __init__(self, tokens: list[Token], problems: ProblemSet):
+    def __init__(self, tokens: list[Token]):
         if len(tokens) == 0 or tokens[-1].kind != TokenKind.EOF:
             raise ValueError("The last element of the token list should be an EOF token.")
 
@@ -696,8 +696,8 @@ class _Parser:
         return self.peek()
 
 
-def parse(tokens: list[Token], problems: ProblemSet) -> Program:
+def parse(tokens: list[Token]) -> Program:
     """
     Parses the given list of tokens and returns the root Program node.
     """
-    return _Parser(tokens, problems).parse()
+    return _Parser(tokens).parse()

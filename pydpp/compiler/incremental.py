@@ -254,7 +254,7 @@ def parse_incremental(tree: Program, tokenization: IncrementalTokenization2) -> 
     tokens.extend(tokenization.tokens)
     tokens.append(Token(TokenKind.EOF, ""))
 
-    p = _Parser(tokens, ProblemSet())
+    p = _Parser(tokens)
 
     new_statements = []
     while s := p.parse_statement():

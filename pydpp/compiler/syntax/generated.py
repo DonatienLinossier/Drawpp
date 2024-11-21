@@ -224,6 +224,8 @@ class LiteralExpr(Expression):
         - a number literal (5, 3.14)
         - a string literal ("hello, world!")
         - a boolean literal (true, false)
+    
+    The value of the literal is contained within the token: token.value
     """
     __slots__ = ('_token', )
 
@@ -578,6 +580,13 @@ class FunctionExpr(Expression):
             self.detach_child(self.identifier_token_slot)
 
     @property
+    def identifier_token_str(self) -> str:
+        """
+        The identifier of the function.
+        """
+        return self._identifier_token.text
+
+    @property
     def arg_list(self) -> ArgumentList | None:
         """
         The arguments to the function.
@@ -636,6 +645,13 @@ class VariableExpr(Expression):
     @name_token.setter
     def name_token(self, value: LeafNode):
         self._name_token = self.attach_child(self.name_token_slot, value)
+
+    @property
+    def name_token_str(self) -> str:
+        """
+        The name of the variable.
+        """
+        return self._name_token.text
 
     @property
     def children(self):
@@ -791,7 +807,7 @@ class VariableDeclarationStmt(Statement):
 
     type_slot: SingleNodeSlot["VariableDeclarationStmt", BuiltInType] = SingleNodeSlot('_type', BuiltInType)
     "The type of the variable."
-    name_token_slot: SingleNodeSlot["VariableDeclarationStmt", LeafNode] = SingleNodeSlot('_name_token', LeafNode)
+    name_token_slot: SingleNodeSlot["VariableDeclarationStmt", LeafNode] = SingleNodeSlot('_name_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
     "The name of the variable."
     assign_token_slot: SingleNodeSlot["VariableDeclarationStmt", LeafNode] = SingleNodeSlot('_assign_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_ASSIGN)
     "The '=' token."
@@ -860,6 +876,13 @@ class VariableDeclarationStmt(Statement):
             self._name_token = self.attach_child(self.name_token_slot, value)
         else:
             self.detach_child(self.name_token_slot)
+
+    @property
+    def name_token_str(self) -> str:
+        """
+        The name of the variable.
+        """
+        return self._name_token.text
 
     @property
     def assign_token(self) -> LeafNode | None:
@@ -1390,6 +1413,13 @@ class AssignStmt(Statement):
             self._name_token = self.attach_child(self.name_token_slot, value)
         else:
             self.detach_child(self.name_token_slot)
+
+    @property
+    def name_token_str(self) -> str:
+        """
+        The name of the variable.
+        """
+        return self._name_token.text
 
     @property
     def assign_token(self) -> LeafNode | None:

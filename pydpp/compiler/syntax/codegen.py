@@ -318,6 +318,19 @@ def generate_code(definition_classes: list[type], doc_str_indentation=0) -> str:
 
                 out.dec_indent()
 
+            # Create a token_str property for identifiers so we can easily get its value.
+            if s.check == TokenKind.IDENTIFIER and not s.multi:
+                out.newline()
+                out.write_indent("@property")
+                out.newline()
+                out.write_indent(f"def {s.name}_str(self) -> str:")
+                out.newline()
+                out.inc_indent()
+                print_slot_doc_string(s, True)
+                out.writeln(f"return self.{s.storage_attr_name}.text")
+                out.dec_indent()
+
+
         # Step 5: The children functions
         out.newline()
         out.writeln("@property")
