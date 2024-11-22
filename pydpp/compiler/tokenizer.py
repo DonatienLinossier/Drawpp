@@ -172,7 +172,7 @@ class _PendingTokenProblem:
         self.text_space = text_space
         """
         The coordinate space indicating how the span should be calculated.
-        
+
             - None  -> 'span' starts at the beginning of the token's text, excluding auxiliary text.
             - int n -> 'span' starts at the beginning of the auxiliary text at index n.
         """
@@ -241,14 +241,6 @@ class Token:
             return f"{self.kind.name}({self.text!r})"
         else:
             return f"{self.kind.name}"
-
-    def __eq__(self, other):
-        """
-        Two tokens are equal if they have the same kind (and same kind-specific attributes, if any).
-        Subclasses must override this method to compare their own attributes.
-        Position is ignored as it's just metadata.
-        """
-        return self.kind == other.kind
 
     def with_pre_auxiliary(self, pre_auxiliary: tuple[AuxiliaryText, ...]) -> "Token":
         """
@@ -596,7 +588,6 @@ class _Tokenizer:
         else:
             aux = self.flush_auxiliary()
             pb = self.flush_problems(aux)
-            self.problematic_tokens_idx.append(len(self.tokens))
             self.tokens.append(Token(kind, text, aux, pb, value))
 
     def flush_auxiliary(self):
@@ -619,8 +610,8 @@ class _Tokenizer:
                 auxiliary_start.append(auxiliary_start[-1] + len(a.text))
 
             # Calculate the span of the problem, by including auxiliary text.
-            start = p.span.start if p else 0
-            end = p.span.end if p else 0
+            start = p.span.start if p.span else 0
+            end = p.span.end if p.span else 0
             if p.text_space is None:
                 span = TextSpan(auxiliary_start[len(auxiliary)] + start,
                                 auxiliary_start[len(auxiliary)] + end)
@@ -783,7 +774,7 @@ class _Tokenizer:
         if self.err_start is not None:
             chars = self.code[self.err_start:self.cursor]
             self.queue_problem(message=f"Séquence de caractères non reconnue : « {chars} ».",
-                               text_space=len(self.pending_auxiliary))
+                               text_space=len(self.pending_auxiliary), )
             self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.INVALID, chars))
             self.err_start = None
 
