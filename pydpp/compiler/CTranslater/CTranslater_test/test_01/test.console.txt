@@ -1,0 +1,7 @@
+cmpt
+0
+After loop :
+cmpt
+5
+Bool
+False

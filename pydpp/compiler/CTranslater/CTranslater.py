@@ -1,172 +1,276 @@
-#Donatien
-header = """ 
-#include <SDL2/SDL.h>
-#include <stdio.h>
-
-#include "cursor.h"
-#include "sdlEncapsulation.h"
-
-
-                    
-int main(int argc, char* args[]) {
-                    
-    SDL_Window *window = NULL;
-    SDL_Renderer *renderer = NULL;
-                    
-    if (initSDL(&window, &renderer) != 0) 
-    {
-    return -1;
-    }
-    
-    int returnStatement = 0;
-    
-    //Start of the generated code
-    """
-
-footer = """ 
-    //End of the generated code
-
-    SDL_RenderPresent(renderer);
-    SDL_Delay(3000);
-    
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-                    
-    return returnStatement;
-}"""
-import os
-import sys
-
-sys.path.append(os.getcwd()+"\\CTranslater_p")
-
-from ._Function import Function
-from .Variable import VarCall
+from ._const import *
+from ._Function import _Function
+from ._subBlock import _subBlock
+from ._WhileLoop import _WhileLoop
+from ._ConditionalInstr import _ConditionalInstr
 
 
 class CTranslater:
+
+    #################################
+    # Internal functions
+    #################################
     def __init__(self, filename):
         self.filename = filename
-        self.file = open(self.filename, "w")
-        self.header()
+        try:
+            self.file = open(self.filename, "w")
+        except IOError as err:
+            raise IOError(f"Error opening file '{self.filename}': {err}")
 
-        #TODO: Add the possibility to run with arguments
-        #TODO: add the possibility to have optionals arguments
-        self.main = Function("Main", [])
+        self._header()
+        self.conditionalFuncCpt = 0
+        self.main = _subBlock()
+        self._tmpInstr = {}
+        self._tmpCmpt = 0
+        self.instr = {
+            "and": self._and,
+            "or": self._or,
+            "greaterThan": self._greaterThan,
+            "greaterThanOrEquals": self._greaterThanOrEquals,
+            "lowerThan": self._lowerThan,
+            "lowerThanOrEquals": self._lowerThanOrEquals,
+            "equals": self._equals,
+            "isNot": self._isNot,
+            "storeReturnedValueFromFuncInVar": self._storeReturnedValueFromFuncInVar,
+            "createVar": self._createVar, #also works for assignation
+            "assignateValueToVar": self._createVar,
+            "addToVar": self._addToVar,
+            "drawCircle": self._drawCircle,
+            "drawCircleFill": self._drawCircleFill,
+            "drawRect": self._drawRect,
+            "drawRectFill": self._drawRectFill,
+            "setColor": self._setColor,
+            "deb": self._deb,
+            "sleep": self._sleep,
+            "functReturnStatement": self._functReturnStatement
+        }
+        self.constructionStack = ["main"]
 
-        self.varDict = {}
-        self.instr = {"createVar": self.createVar,
-                      "getVar": self.getVar,
-                      "addToVar": self.addToVar,
-                      "drawCircle": self.drawCircle,
-                      "drawCircleFill": self.drawCircleFill,
-                      "drawRect": self.drawRect,
-                      "drawRectFill": self.drawRectFill,
-                      "setColor": self.setColor,
-                      "deb": self.deb,
-                      "sleep": self.sleep,
-                      "returnStatement": self.returnStatement
-                      }
-
-    def createVar(self, name, value):
-        self.varDict[name] = value
-
-    #Todo: get var for what ?? To delete.
-    def getVar(self, name):
-        return self.varDict[name]
-
-    def addToVar(self, name, value):
-        self.varDict[name] += value
-
-
-    def drawCircle(self, x, y, radius):
-        self.file.write("drawCircle(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ");\n")
-
-    def drawCircleFill(self, x, y, radius):
-        self.file.write("drawCircleFill(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ");\n")
-
-    def drawRect(self, x, y, width, height):
-        self.file.write(
-            "drawRect(renderer, " + str(x) + ", " + str(y) + ", " + str(width) + ", " + str(height) + ");\n")
-
-    def drawRectFill(self, x, y, width, height):
-        self.file.write(
-            "drawRectFill(renderer, " + str(x) + ", " + str(y) + ", " + str(width) + ", " + str(height) + ");\n")
-
-    def setColor(self, r, g, b, a):
-        self.file.write(
-            "SDL_SetRenderDrawColor(renderer, " + str(r) + ", " + str(g) + ", " + str(b) + ", " + str(a) + ");\n")
-
-    def header(self):
+    def _header(self):
         self.file.write(header)
-
-    def deb(self, test):
-        print(test)
-
-    def sleep(self, milliseconds):
-        if not isinstance(milliseconds, int):
-            print("milliseconds must be int type")
-            return
-        self.file.write("SDL_Delay( " + str(milliseconds) + ");\n")
-
-    def returnStatement(self, value):
-        #Todo: value must be an int
-        self.file.write("returnStatement = " + str(value) + ";\n")
-
-    def add_instruction(self, instructionName, *args):
-        #print(f"Instruction Name: {instructionName}")
-        #print(f"Instruction: {self.instr[instructionName]}")
-        #print(f"Arguments: {args}")
-        self.main.add_instruction(self.instr[instructionName], *args)
-        #print(*args)
-
-    def run(self):
-        self.main()
-
-    #TODO: not sure
-    def createFunc(self, functionName, args):
-        if functionName in self.instr:
-            print("Function already exist")
-            return
-        newFunction = Function(functionName, args)
-        self.instr[functionName] = newFunction
-
-    #TODO: not sure
-    def addInstructionToFunction(self, functionName, instr, *args):
-        if (not functionName in self.instr):
-            print("Function do not exist.")
-            return
-
-        if (not instr in self.instr):
-            print("Instruction does not exist")
-            return
-
-        self.instr[functionName].add_instruction(self.instr[instr], *args)
 
     def __del__(self):
         self.file.write(footer)
         self.file.close()
 
+    def _getActualStackFrame(self):
+        if len(self.constructionStack) == 0:
+            #happens if the user ended the main func(so the prog)
+            print("Error")
+            #TODO: Handle error
 
-"""if __name__ == '__main__':
-    test = CTranslater("../output/test.c")
+        frame = self.constructionStack[-1]
+        match frame:
+
+            case "main":
+                return self.main
+
+            case frame if frame.startswith("#"):
+                if frame in self._tmpInstr:
+                    return self._tmpInstr[frame]
+                else:
+                    print("Error")
+                    #todo: HAndle error
+
+            case _:
+                if frame in self.instr:
+                    return self.instr[frame]
+                else:
+                    print("Unknown stack")
+                #TODO: Handle error
+
+    ####################################
+    # Interface functions
+    ####################################
+
+    def add_instruction(self, instructionName, *args) -> None:
+        #TODO: check args
+        if instructionName not in self.instr:
+            print("Unknown instruction ", instructionName)
+            #todo: handle error
+
+        frame = self._getActualStackFrame()
+        frame.add_instruction(self.instr[instructionName], *args)
+
+    def createFunc(self, functionName: str, args) -> None:
+
+        #TODO: Handle Error
+        if self._getActualStackFrame() != self.main:
+            print("cannot create a function inside a function, loop or conditional instruction.")
+            return
+
+        if functionName.startswith("#"):
+            print("Function cannot start with #")
+            return
+
+        if functionName in self.instr:
+            print("Function already exists")
+            return
+
+        newFunction = _Function(functionName, args)
+        self.instr[functionName] = newFunction
+
+        self.constructionStack.append(functionName)
+
+    def createWhileLoop(self) -> None:
+
+        newWhileLoop = _WhileLoop(self._tmpCmpt)
+        self._tmpCmpt += 1
+
+        frame = self._getActualStackFrame()
+        frame.add_instruction(newWhileLoop)
+
+        #TODO: verif
+        if frame.__class__.__name__ == "_subBlock":
+            self._tmpInstr[newWhileLoop.__name__] = frame.instr[-1][0]
+        elif frame.__class__.__name__ == "_WhileLoop":
+            self._tmpInstr[newWhileLoop.__name__] = frame.getActualSubBlock().instr[-1][0]
+        else:
+            self._tmpInstr[newWhileLoop.__name__] = frame.subBlock.instr[-1][0]
+
+        self.constructionStack.append(newWhileLoop.__name__)
+
+    def createConditionalInstr(self) -> None:
+        newConditionalInstr = _ConditionalInstr(self._tmpCmpt)
+        self._tmpCmpt += 1
+
+        frame = self._getActualStackFrame()
+        frame.add_instruction(newConditionalInstr)
+
+        #TODO: verif
+        if frame.__class__.__name__ == "_subBlock":
+            self._tmpInstr[newConditionalInstr.__name__] = frame.instr[-1][0]
+        elif frame.__class__.__name__ == "_WhileLoop":
+            self._tmpInstr[newConditionalInstr.__name__] = frame.getActualSubBlock().instr[-1][0]
+        else:
+            self._tmpInstr[newConditionalInstr.__name__] = frame.subBlock.instr[-1][0]
+
+        self.constructionStack.append(newConditionalInstr.__name__)
+
+    def endBlock(self):
+        frame = self._getActualStackFrame()
+
+        if frame == self.main:
+            print("Cannot end main function.")
+            return
+
+        frame.nextStep()
+
+        if frame.isFinished():
+            self.constructionStack.pop()
+
+    def run(self):
+        scope = {}
+        scope, returnedValue = self.main(scope)
 
 
-    test.add_instruction("createVar", "b", 105)
-    test.add_instruction("setColor", 187, 40, VarCall("b"), 0)
-    test.add_instruction("drawCircle", 158, 40, VarCall("b"))
+    """
+    ##############################
+    # The following functions are the implementations
+    # of the drawpp functions
+    # See self.instr to have the complete list
+    # They should NEVER be called from outside the class
+    ##############################
+    """
+
+    #####################################
+    #  Variable related functions (Defined in _subBlock to respect scope)
+    ######################################
+    def _functReturnStatement(self, var):
+        pass
+
+    def _storeReturnedValueFromFuncInVar(self, varName: str) -> None:
+        pass
+
+    def _createVar(self, name: str, value) -> None:
+        pass
+        #self.varDict[name] = value
+
+    def _addToVar(self, name, value) -> None:
+        pass
+
+    #########################
+    # Logic & operation functions
+    #########################
+
+    def _greaterThan(self, a, b) -> bool:
+        return a > b
+
+    def _greaterThanOrEquals(self, a, b) -> bool:
+        return a >= b
+
+    def _lowerThan(self, a, b) -> bool:
+        return a < b
+
+    def _lowerThanOrEquals(self, a, b) -> bool:
+        return a <= b
+
+    def _equals(self, a, b) -> bool:
+        return a == b
+
+    def _isNot(self, a: bool) -> bool:
+        return not a
+    def _and(self, a, b) -> bool:
+        return a and b
+
+    def _or(self, a, b) -> bool:
+        return a or b
 
 
-    test.createFunc("MyTestFunction2", ["acb"])
-    test.addInstructionToFunction("MyTestFunction2", "deb", VarCall("acb"))
+    ##############################################
+    #Draw functions
+    ###############################################
+    def _drawCircle(self, x, y, radius):
+        #TODO: add type verif for parameters x,y,radius (and range ? yes for radius)
+        self.file.write("drawCircle(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ");\n")
 
-    test.createFunc("MyTestFunction", ["a"])
-    test.addInstructionToFunction("MyTestFunction", "deb", VarCall("a"))
-    test.addInstructionToFunction("MyTestFunction", "MyTestFunction2", "salut")
+    def _drawCircleFill(self, x, y, radius):
+        #TODO: add type verif for parameters x,y,radius (and range ? yes for radius)
+        self.file.write("drawCircleFill(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ");\n")
 
-    test.add_instruction("MyTestFunction", 5)
-    test.add_instruction("MyTestFunction", "Test")
-    test.add_instruction("MyTestFunction", 5)
+    def _drawRect(self, x, y, width, height):
+        #TODO: add type verif for parameters x,y,width,height (and range ? probably not)
+        self.file.write(
+            "drawRect(renderer, " + str(x) + ", " + str(y) + ", " + str(width) + ", " + str(height) + ");\n")
 
-    test.run()
-"""
+    def _drawRectFill(self, x, y, width, height):
+        #TODO: add type verif for parameters x,y,width,height (and range ? probably not)
+        self.file.write(
+            "drawRectFill(renderer, " + str(x) + ", " + str(y) + ", " + str(width) + ", " + str(height) + ");\n")
+
+    def _setColor(self, r, g, b, a):
+
+        # Check that RGB values are in the range [0, 255]
+        if not (0 <= r <= 255):
+            print(f"Error: Red value must be between 0 and 255. Received: {r}")
+            return  # Return early if red value is out of range
+        if not (0 <= g <= 255):
+            print(f"Error: Green value must be between 0 and 255. Received: {g}")
+            return  # Return early if green value is out of range
+        if not (0 <= b <= 255):
+            print(f"Error: Blue value must be between 0 and 255. Received: {b}")
+            return  # Return early if blue value is out of range
+
+        # Check that alpha value is in the range [0, 1]
+        if not (0 <= a <= 1):
+            print(f"Error: Alpha value must be between 0 and 1. Received: {a}")
+            return  # Return early if alpha value is out of range
+
+        self.file.write(
+            "SDL_SetRenderDrawColor(renderer, " + str(r) + ", " + str(g) + ", " + str(b) + ", " + str(a) + ");\n")
+
+    ################################
+    # Animation
+    ################################
+    def _sleep(self, milliseconds):
+        if not isinstance(milliseconds, int):
+            print("milliseconds must be int type")
+            return
+        self.file.write("SDL_Delay( " + str(milliseconds) + ");\n")
+
+    ######################
+    # Debug
+    ######################
+
+    def _deb(self, test):
+        print(test)

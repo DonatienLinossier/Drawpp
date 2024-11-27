@@ -1,14 +1,13 @@
-from typing import TypeVar, Optional, overload
+from typing import overload
 
-from pydpp.compiler.position import extend_span, invisible_span
 from pydpp.compiler.syntax import *
 from pydpp.compiler.tokenizer import *
-from pydpp.compiler.types import BuiltInTypeKind
-
 
 # =============================================================================
 # parser.py: The magic parser transforming tokens into a syntax tree
 # =============================================================================
+
+N = TypeVar("N", bound=InnerNode)
 
 class _Parser:
     """
@@ -19,20 +18,22 @@ class _Parser:
     It has a similar structure as the tokenizer, with the same cursor system.
     """
 
-    __slots__ = ("tokens", "cursor", "eof", "program_statements", "problems")
+    __slots__ = ("tokens", "tok_positions", "cursor", "eof", "eof_token", "eof_idx")
 
-    def __init__(self, tokens: list[Token], problems: ProblemSet):
+    def __init__(self, tokens: list[Token]):
+        if len(tokens) == 0 or tokens[-1].kind != TokenKind.EOF:
+            raise ValueError("The last element of the token list should be an EOF token.")
+
         self.tokens = tokens
         "The list of tokens to parse."
         self.cursor = 0
         "The index of the next token to read. If it's equal to len(tokens), we've reached the end of the file."
-        self.eof = len(tokens) == 0
+        self.eof = len(tokens) == 1
         "Whether we've reached the end of the file."
-
-        self.program_statements = []
-        "The list of statements we've read so far, that will be put inside a Program node."
-        self.problems = problems
-        "The problem set to report errors to."
+        self.eof_token = tokens[-1]
+        "The last token: the end-of-file token."
+        self.eof_idx = len(tokens) - 1
+        "The index of the EOF token."
 
     def parse(self):
         """
@@ -40,16 +41,17 @@ class _Parser:
         """
         if self.eof:
             # We have no tokens! Return an empty program.
-            return Program([], FileSpan(FileCoordinates(0, 1, 1), FileCoordinates(0, 1, 1)))
+            return Program([], leaf(self.eof_token))
+
+        # The list of statements that make up the program.
+        program_statements = []
 
         # Keep track of the sequence of tokens that don't make a valid statement.
         invalid_tokens = []
 
         def flush_invalid_tokens():
             if len(invalid_tokens) > 0:
-                self.problems.append(problem="Instruction non reconnue.",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=extend_span(invalid_tokens[0].pos, invalid_tokens[-1].pos))
+                program_statements.append(self.make_error_stmt(invalid_tokens))
                 invalid_tokens.clear()
 
         # Keep reading tokens until we're finished.
@@ -57,8 +59,8 @@ class _Parser:
             # Try reading a statement
             if stmt := self.parse_statement():
                 # Got one! Get rid of the invalid tokens (non-statement) if we got some.
-                self.program_statements.append(stmt)
                 flush_invalid_tokens()
+                program_statements.append(stmt)
             else:
                 # That token wasn't recognized as a statement, add it to the unrecognized pile.
                 tkn = self.consume()
@@ -68,9 +70,8 @@ class _Parser:
         # If we have some invalid tokens left, report them as an error.
         flush_invalid_tokens()
 
-        # Make the Program node, take the entire span of the file, and return it!
-        pos = extend_span(self.tokens[0].pos, self.tokens[-1].pos)
-        return Program(self.program_statements, pos)
+        # Make the Program node, and return it!
+        return Program(program_statements, leaf(self.eof_token))
 
     def parse_statement(self) -> Optional[Statement]:
         """
@@ -89,10 +90,7 @@ class _Parser:
             return stmt
         elif stmt := self.parse_else_statement():
             # todo: change this to move the logic down in if_statement that should check for else
-            self.problems.append(problem="Bloc « else » sans « if » correspondant.",
-                                 severity=ProblemSeverity.ERROR,
-                                 pos=stmt.pos)
-            return stmt
+            return stmt.with_problems(InnerNodeProblem("Bloc « else » sans « if » correspondant."))
         elif stmt := self.parse_block_statement():
             return stmt
         elif stmt := self.parse_assign_statement():
@@ -108,22 +106,20 @@ class _Parser:
         """
 
         if if_kw := self.consume_exact(TokenKind.KW_IF):
+            if_problems = []
+
             # We got an if keyword, try looking for a condition.
             condition = self.parse_expression()
             if condition is None:
-                # No condition, make one up and error out.
-                condition = ErrorExpr(invisible_span(if_kw.pos))
-                self.problems.append(problem="Condition manquante après un « if ».",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=if_kw.pos)
+                # No condition, keep it null
+                if_problems.append(InnerNodeProblem(message="Condition manquante après un « if ».",
+                                                    slot=IfStmt.condition_slot))
 
             block = self.parse_block_statement()
             if block is None:
-                # No block?? Make one up!
-                block = BlockStmt([], invisible_span(if_kw.pos))
-                self.problems.append(problem="Bloc d'instructions manquant après un « if ».",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=if_kw.pos)
+                # No block?? Keep it null
+                if_problems.append(InnerNodeProblem(message="Bloc d'instructions manquant après un « if ».",
+                                                    slot=IfStmt.then_block_slot))
 
             # Read all "else" blocks after the if.
             elses = []
@@ -137,13 +133,12 @@ class _Parser:
                 # If we got another "else" block, report an error.
                 if saw_final_else:
                     block_name = "else" if else_stmt.condition is None else "else if"
-                    self.problems.append(problem=f"Bloc « {block_name} » situé après un « else » existant.",
-                                         severity=ProblemSeverity.ERROR,
-                                         pos=else_stmt.pos)
+                    prob = InnerNodeProblem(f"Bloc « {block_name} » situé après un « else » existant.")
+                    else_stmt.with_problems(prob)
                 else:
                     saw_final_else = else_stmt.condition is None
 
-            return IfStmt(condition, block, elses, extend_span(if_kw.pos, block.pos))
+            return IfStmt(leaf(if_kw), condition, block, elses).with_problems(*if_problems)
 
     def parse_else_statement(self) -> Optional[ElseStmt]:
         """
@@ -151,28 +146,28 @@ class _Parser:
         """
 
         if else_kw := self.consume_exact(TokenKind.KW_ELSE):
+            problems = []
+
             # We got an else keyword, try looking for a condition if we need one
             condition = None
             if if_kw := self.consume_exact(TokenKind.KW_IF):
                 condition = self.parse_expression()
                 if condition is None:
                     # No condition found despite it being "else if"
-                    condition = ErrorExpr(invisible_span(if_kw.pos))
-                    self.problems.append(problem="Condition manquante après un « else if ».",
-                                         severity=ProblemSeverity.ERROR,
-                                         pos=if_kw.pos)
+                    problems.append(InnerNodeProblem(message="Condition manquante après un « else if ».",
+                                                     severity=ProblemSeverity.ERROR,
+                                                     slot=ElseStmt.condition_slot))
 
             block = self.parse_block_statement()
             if block is None:
-                # No block?? Make one up!
-                block = BlockStmt([], invisible_span(else_kw.pos))
+                # No block?? Make none!
                 name = "else if" if condition else "else"
-                self.problems.append(problem=f"Bloc d'instructions manquant après un « {name} ».",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=else_kw.pos)
+                problems.append(InnerNodeProblem(message=f"Bloc d'instructions manquant après un « {name} ».",
+                                                 severity=ProblemSeverity.ERROR,
+                                                 slot=ElseStmt.block_slot))
 
             # Make the node and return it.
-            return ElseStmt(condition, block, extend_span(else_kw.pos, block.pos))
+            return ElseStmt(leaf(else_kw), leaf(if_kw), condition, block).with_problems(*problems)
 
         return None
 
@@ -186,6 +181,7 @@ class _Parser:
             return None
 
         statements: list[Statement] = []
+        problems = []
 
         # Keep track of the sequence of tokens that don't make a valid statement.
         # (copied from parse)
@@ -193,9 +189,7 @@ class _Parser:
 
         def flush_invalid_tokens():
             if len(invalid_tokens) > 0:
-                self.problems.append(problem="Instruction non reconnue.",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=extend_span(invalid_tokens[0].pos, invalid_tokens[-1].pos))
+                statements.append(self.make_error_stmt(invalid_tokens))
                 invalid_tokens.clear()
 
         # Keep reading statements until we stumble upon a right brace.
@@ -208,17 +202,16 @@ class _Parser:
                 if tkn:
                     invalid_tokens.append(tkn)
 
-        if nxt: # Then it must be a SYM_RBRACE if we stop there
-            self.consume()
+        rbrace = None
+        if nxt:  # Then it must be a SYM_RBRACE if we stop there
+            rbrace = self.consume()
         else:
             # EOF, no closing brace! Report an error
-            self.problems.append(problem="Bloc d'instructions non fermé.",
-                                 severity=ProblemSeverity.ERROR,
-                                 pos=extend_span(lbrace.pos, self.peek(skip=-1).pos))
+            problems.append(InnerNodeProblem("Bloc d'instructions non fermé."))
 
         flush_invalid_tokens()
 
-        return BlockStmt(statements, extend_span(lbrace.pos, self.peek(skip=-1).pos))
+        return BlockStmt(leaf(lbrace), statements, leaf(rbrace)).with_problems(*problems)
 
     def parse_function_call_statement(self):
         """
@@ -226,8 +219,9 @@ class _Parser:
         """
 
         if fc := self.parse_function_expression():
-            sm = self.expect_semicolon()
-            return FunctionCallStmt(fc, extend_span(fc.pos, sm))
+            problems = []
+            sm = self.expect_semicolon_2(problems, FunctionCallStmt.semi_colon_slot)
+            return FunctionCallStmt(fc, leaf(sm)).with_problems(*problems)
         else:
             return None
 
@@ -238,31 +232,30 @@ class _Parser:
 
         # If come across a type, it's a variable declaration beginning.
         if var_type := self.parse_built_in_type():
+            problems = []
+
             # Then we need to find the identifier of the variable.
-            if ident := self.parse_identifier():
+            if ident := self.consume_exact(TokenKind.IDENTIFIER):
                 # Let's see if there's an assignment or not.
                 value = None
                 if assign := self.consume_exact(TokenKind.SYM_ASSIGN):
                     # We have an assignment operator, now we need to find the value.
                     value = self.parse_expression()
                     if value is None:
-                        # Make one up again...
-                        value = ErrorExpr(invisible_span(assign.pos))
-                        self.problems.append(problem="Valeur manquante après l'assignation '='.",
-                                             severity=ProblemSeverity.ERROR,
-                                             pos=assign.pos)
+                        problems.append(InnerNodeProblem(message="Valeur manquante après l'assignation '='.",
+                                                         severity=ProblemSeverity.ERROR,
+                                                         slot=VariableDeclarationStmt.assign_token_slot))
 
-                sm = self.expect_semicolon()
-                return VariableDeclarationStmt(var_type, ident, value, extend_span(var_type.pos, sm))
+                sm = self.expect_semicolon_2(problems, VariableDeclarationStmt.semi_colon_slot)
+                return VariableDeclarationStmt(var_type, leaf(ident), leaf(assign), value, leaf(sm)).with_problems(*problems)
             else:
-                # No identifier? Make one up!
-                ident = Identifier("", invisible_span(var_type.pos))
-                self.problems.append(problem="Identificateur manquant après le type de variable.",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=var_type.pos)
+                # No identifier? Then it'll be None.
+                problems.append(InnerNodeProblem(message="Identificateur manquant après le type de variable.",
+                                                 severity=ProblemSeverity.ERROR,
+                                                 slot=VariableDeclarationStmt.name_token_slot))
 
-                sm = self.expect_semicolon()
-                return VariableDeclarationStmt(var_type, ident, None, extend_span(var_type.pos, sm))
+                sm = self.expect_semicolon_2(problems, VariableDeclarationStmt.semi_colon_slot)
+                return VariableDeclarationStmt(var_type, None, None, None, leaf(sm)).with_problems(*problems)
 
     def parse_assign_statement(self):
         """
@@ -271,20 +264,20 @@ class _Parser:
 
         # First we need to make sure that we have an identifier and an assignment operator.
         if (ident := self.peek()) and (assign := self.peek(skip=1)):
-            if isinstance(ident, IdentifierToken) and assign.kind == TokenKind.SYM_ASSIGN:
+            if ident.kind == TokenKind.IDENTIFIER and assign.kind == TokenKind.SYM_ASSIGN:
                 # Consume both identifier and assignment tokens.
                 self.consume()
                 self.consume()
 
+                problems = []
                 if (val := self.parse_expression()) is None:
-                    # No expression after the equal sign: make something up and report an error.
-                    val = ErrorExpr(invisible_span(assign.pos))
-                    self.problems.append(problem="Valeur manquante après l'assignation '='.",
-                                         severity=ProblemSeverity.ERROR,
-                                         pos=assign.pos)
+                    # No expression after the equal sign: keep it None and report an error.
+                    problems.append(InnerNodeProblem(message="Valeur manquante après l'assignation '='.",
+                                                     severity=ProblemSeverity.ERROR,
+                                                     slot=AssignStmt.value_slot))
 
-                sm = self.expect_semicolon()
-                return AssignStmt(Identifier(ident.name, ident.pos), val, extend_span(ident.pos, sm))
+                sm = self.expect_semicolon_2(problems, AssignStmt.semi_colon_slot)
+                return AssignStmt(leaf(ident), leaf(assign), val, leaf(sm)).with_problems(*problems)
 
         return None
 
@@ -294,54 +287,37 @@ class _Parser:
         """
 
         if while_kw := self.consume_exact(TokenKind.KW_WHILE):
+            problems = []
+
             # We got a while keyword, try looking for a condition.
             condition = self.parse_expression()
             if condition is None:
-                condition = ErrorExpr(invisible_span(while_kw.pos))
-                self.problems.append(problem="Condition manquante après un « while ».",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=while_kw.pos)
+                problems.append(InnerNodeProblem(message="Condition manquante après un « while ».",
+                                                 severity=ProblemSeverity.ERROR,
+                                                 slot=WhileStmt.condition_slot))
 
             block = self.parse_block_statement()
             if block is None:
-                # No block?? Make one up!
-                block = BlockStmt([], invisible_span(while_kw.pos))
-                self.problems.append(problem="Bloc d'instructions manquant après un « while ».",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=while_kw.pos)
+                problems.append(InnerNodeProblem(message="Bloc d'instructions manquant après un « while ».",
+                                                 severity=ProblemSeverity.ERROR,
+                                                 slot=WhileStmt.block_slot))
 
-            return WhileStmt(condition, block, extend_span(while_kw.pos, block.pos))
+            return WhileStmt(leaf(while_kw), condition, block).with_problems(*problems)
         else:
             return None
 
-    def expect_semicolon(self) -> Optional[FileSpan]:
+    def expect_semicolon_2(self, problems: list[InnerNodeProblem], sm_slot: SingleNodeSlot[InnerNode, LeafNode]) -> Token | None:
         """
-        Consumes the incoming semicolon token. If it is not present, reports an error
-        and returns a 0-length span to the last parsed token.
-
-        May be None if no token was parsed or if the token doesn't have a span.
+        Consumes the incoming semicolon token. Errors out if not present.
         """
         if tkn := self.consume_exact(TokenKind.SYM_SEMICOLON):
             # We have a semicolon, all good, return its position.
-            return tkn.pos
+            return tkn
         else:
             # We don't! Report and error and given the position of the last parsed token.
-            self.problems.append(problem="Point-virgule manquant à la fin d'une instruction.",
-                                 severity=ProblemSeverity.ERROR,
-                                 pos=self.peek(skip=-1).pos)
-            if self.cursor > 0:
-                return extend_span(self.peek(skip=-1).pos, self.peek(skip=-1).pos)
-            else:
-                return None
-
-    def parse_identifier(self):
-        """
-        Parses the next identifier node.
-        """
-        # Check if we have an incoming identifier token.
-        if ident_token := self.consume_exact(IdentifierToken):
-            return Identifier(ident_token.name, ident_token.pos)
-        else:
+            problems.append(InnerNodeProblem(message="Point-virgule manquant à la fin d'une instruction.",
+                                             severity=ProblemSeverity.ERROR,
+                                             slot=sm_slot))
             return None
 
     def parse_built_in_type(self):
@@ -353,37 +329,29 @@ class _Parser:
 
         # Try all possible matching type keywords.
         match self.peek().kind:
-            case TokenKind.KW_INT:
-                built_type = BuiltInTypeKind.INT
-            case TokenKind.KW_FLOAT:
-                built_type = BuiltInTypeKind.FLOAT
-            case TokenKind.KW_STRING:
-                built_type = BuiltInTypeKind.STRING
-            case TokenKind.KW_BOOL:
-                built_type = BuiltInTypeKind.BOOL
+            case TokenKind.KW_INT | TokenKind.KW_FLOAT | TokenKind.KW_STRING | TokenKind.KW_BOOL:
+                tkn = self.consume()
+                return BuiltInType(leaf(tkn))
             case _:
                 return None
-
-        tkn = self.consume()
-        return BuiltInType(built_type, tkn.pos)
 
     # Precedence of all binary operators, from lowest to highest.
     # Precedence is what tells which expression is evaluated first. As in a+b*c, b*c is evaluated first.
     # The higher the precedence, deeper it is present in the syntax tree.
     # Inversely, a low precedence means it's higher up in the tree.
     op_to_prec = {
-        TokenKind.KW_OR: (0, BinaryOperator.OR),
-        TokenKind.KW_AND: (1, BinaryOperator.AND),
-        TokenKind.SYM_EQ: (2, BinaryOperator.EQ),
-        TokenKind.SYM_NEQ: (2, BinaryOperator.NEQ),
-        TokenKind.SYM_LT: (2, BinaryOperator.LT),
-        TokenKind.SYM_LEQ: (2, BinaryOperator.LEQ),
-        TokenKind.SYM_GT: (2, BinaryOperator.GT),
-        TokenKind.SYM_GEQ: (2, BinaryOperator.GEQ),
-        TokenKind.SYM_PLUS: (3, BinaryOperator.ADD),
-        TokenKind.SYM_MINUS: (3, BinaryOperator.SUB),
-        TokenKind.SYM_STAR: (4, BinaryOperator.MUL),
-        TokenKind.SYM_SLASH: (4, BinaryOperator.DIV)
+        TokenKind.KW_OR: 0,
+        TokenKind.KW_AND: 1,
+        TokenKind.SYM_EQ: 2,
+        TokenKind.SYM_NEQ: 2,
+        TokenKind.SYM_LT: 2,
+        TokenKind.SYM_LEQ: 2,
+        TokenKind.SYM_GT: 2,
+        TokenKind.SYM_GEQ: 2,
+        TokenKind.SYM_PLUS: 3,
+        TokenKind.SYM_MINUS: 3,
+        TokenKind.SYM_STAR: 4,
+        TokenKind.SYM_SLASH: 4
     }
 
     def parse_expression(self):
@@ -465,37 +433,36 @@ class _Parser:
         # call treat them in the RHS.
         #
         # See https://en.wikipedia.org/wiki/Operator-precedence_parser
-        def binary_op_left_assoc(lhs, min_prec: int=0):
-            op = None
+        def binary_op_left_assoc(lhs, min_prec: int = 0):
+            prec = None
 
             # Continue reading operators until we find one of lower precedence, in that is the case,
             # the parent function call will take over reading expressions of lower precedence.
-            while (nxt := self.peek()) and (op := _Parser.op_to_prec.get(nxt.kind)) and op[0] >= min_prec:
-                # Consume the read operator
+            while (operator := self.peek()) and (prec := _Parser.op_to_prec.get(operator.kind)) is not None and prec >= min_prec:
+                # Consume the operator we've just read
                 self.consume()
 
                 # Read the RHS, and make one up if it's not there.
                 rhs = non_binary_expr()
                 if rhs is None:
-                    rhs = ErrorExpr(invisible_span(nxt.pos))
-                    self.problems.append(problem=f"Opérande de droite manquante après l'opérateur « {nxt} » ",
-                                         severity=ProblemSeverity.ERROR,
-                                         pos=extend_span(lhs.pos, nxt.pos))
+                    # Unsure what to do here. Exceptionally using an empty ErrorExpr.
+                    rhs = ErrorExpr([]).with_problems(InnerNodeProblem(
+                        f"Opérande de droite manquante après l'opérateur « {operator} » "))
 
                 # If the next operator is one of HIGHER precedence, then "pause" this function's execution,
                 # and leave it to another call that will read all operators of higher precedence.
-                op2 = None
-                if (nxt := self.peek()) and (op2 := _Parser.op_to_prec.get(nxt.kind)) and op2[0] > op[0]:
+                prec2 = None
+                if (op2 := self.peek()) and (prec2 := _Parser.op_to_prec.get(op2.kind)) and prec2 > prec:
                     # Make sure to give it the RHS we got as *its* LHS.
                     # For instance, we can be reading 5+6*, while being at the '*' operator, with '+' having RHS=6
                     # Then, the '*' expression should have an LHS of 6.
-                    rhs = binary_op_left_assoc(rhs, op2[0])
+                    rhs = binary_op_left_assoc(rhs, prec2)
 
                 # If we didn't enter the loop above, that means we've read an operator of same precedence,
                 # or that we don't have operators anymore.
 
                 # Associate the LHS with the RHS we've read.
-                lhs = BinaryOperationExpr(lhs, op[1], rhs, extend_span(lhs.pos, rhs.pos))
+                lhs = BinaryOperationExpr(lhs, leaf(operator), rhs)
 
             return lhs
 
@@ -521,26 +488,24 @@ class _Parser:
         def unary():
             """Recognizes unary expressions, currently: '-expr', 'not expr'."""
 
+            problem = None
+
             # Check if we have "-" or "and"
-            nxt = self.peek()
-            if nxt is None or nxt.kind != TokenKind.SYM_MINUS and nxt.kind != TokenKind.KW_NOT:
+            op = self.peek()
+            if op is None or op.kind != TokenKind.SYM_MINUS and op.kind != TokenKind.KW_NOT:
                 return None
 
             # We got a '-' or 'not' prefix! Consume it and get the next incoming expression.
             self.consume()
             expression = non_binary_expr()
             if expression is None:
-                # No expression following the prefix? Make a fake expression and error out.
-                expression = ErrorExpr(invisible_span(nxt.pos))
-                self.problems.append(problem=f"Expression manquante après « {nxt} » ",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=nxt.pos)
+                # No expression following the prefix? Error out.
+                problem = InnerNodeProblem(message=f"Expression manquante après « {op} » ",
+                                           severity=ProblemSeverity.ERROR,
+                                           slot=UnaryExpr.op_token_slot)
 
             # Create the according expression node.
-            if nxt.kind == TokenKind.SYM_MINUS:
-                return NegativeExpr(expression, nxt.pos)
-            else:
-                return NotExpr(expression, nxt.pos)
+            return UnaryExpr(leaf(op), expression).with_problems(problem)
 
         def parenthesized():
             """Recognizes parenthesized expressions, like (expr)."""
@@ -548,49 +513,46 @@ class _Parser:
             # See if we have an opening parenthesis coming.
             # If so, we're going to start a parenthesized expression.
             if lparen := self.consume_exact(TokenKind.SYM_LPAREN):
+                problems = []
+
                 # Read the incoming expression (not just non_binary, all kinds!)
                 expr = self.parse_expression()
 
                 if not expr:
-                    # We didn't find one? Make a fake expression.
-                    expr = ErrorExpr(invisible_span(lparen.pos))
-                    self.problems.append(problem="Expression manquante après une parenthèse ouvrante.",
-                                         severity=ProblemSeverity.ERROR,
-                                         pos=lparen.pos)
-                    return ParenthesizedExpr(expr, lparen.pos)
+                    # We didn't find one? Make it none
+                    problems.append(InnerNodeProblem(message="Expression manquante après une parenthèse ouvrante.",
+                                                     severity=ProblemSeverity.ERROR,
+                                                     slot=ParenthesizedExpr.expr_slot))
 
                 # Find the closing parenthesis and we're done!
                 if (rparen := self.consume_exact(TokenKind.SYM_RPAREN)) is None:
-                    # Unfinished parenthesized expression! Act as if the parenthesis was closed.
-                    self.problems.append(
-                        problem="Parenthèse fermante manquante après une expression entre parenthèses.",
+                    # Unfinished parenthesized expression! Make it None.
+                    problems.append(InnerNodeProblem(
+                        message="Parenthèse fermante manquante après une expression entre parenthèses.",
                         severity=ProblemSeverity.ERROR,
-                        pos=extend_span(lparen.pos, expr.pos))
-                    return ParenthesizedExpr(expr, extend_span(lparen.pos, expr.pos))
+                        slot=ParenthesizedExpr.rparen_token_slot))
 
-                return ParenthesizedExpr(expr, extend_span(lparen.pos, rparen.pos))
+                return ParenthesizedExpr(leaf(lparen), expr, leaf(rparen)).with_problems(*problems)
             else:
                 return None
 
         def variable():
             """Recognizes variable expressions, like myVar, cool_var."""
             # See if we have an identifier coming, and if so that's a variable expression.
-            if ident := self.parse_identifier():
-                return VariableExpr(ident, ident.pos)
+            if ident := self.consume_exact(TokenKind.IDENTIFIER):
+                return VariableExpr(leaf(ident))
             else:
                 return None
 
         def literal():
             """Recognizes literal expressions, like 5, "hello", true."""
             # Try all kinds of literals we know. Order has no importance.
-            if str_lit := self.consume_exact(StringLiteralToken):
-                return StringLiteralExpr(str_lit.value, str_lit.pos)
-            elif num_lit := self.consume_exact(NumberLiteralToken):
-                return NumberLiteralExpr(num_lit.int_part, num_lit.dec_part, num_lit.pos)
-            elif bool_lit := self.consume_exact(BoolLiteralToken):
-                return BoolLiteralExpr(bool_lit.value, bool_lit.pos)
-            else:
-                return None
+            if tkn := self.peek():
+                match tkn.kind:
+                    case TokenKind.LITERAL_NUM | TokenKind.LITERAL_STRING | TokenKind.LITERAL_BOOL:
+                        self.consume()
+                        return LiteralExpr(leaf(tkn))
+            return None
 
         # Start reading the expression.
         l = non_binary_expr()
@@ -600,69 +562,60 @@ class _Parser:
             return None
 
     def parse_function_expression(self) -> Optional[FunctionExpr]:
-        def flush_trash_tokens(tt: list[Token]):
-            if len(tt) > 0:
-                self.problems.append(problem="Argument de fonction invalide.",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=extend_span(tt[0].pos, tt[-1].pos))
-                tt.clear()
+        if (ident := self.peek()) and ident.kind == TokenKind.IDENTIFIER \
+                and ((lparen := self.peek(skip=1)) and lparen.kind == TokenKind.SYM_LPAREN):
+            ident = self.consume()
+            arg_list = self.parse_arg_list()
 
+            # TODO: Err if arg list empty
+
+            return FunctionExpr(leaf(ident), arg_list)
+
+    def parse_arg_list(self) -> Optional[ArgumentList]:
         # Find the (possibly) identifier token and opening parenthesis "(" token
-        ident = self.peek()  # identifier
-        paren = self.peek(skip=1)  # (
-        if ident and paren and isinstance(ident, IdentifierToken) and paren.kind == TokenKind.SYM_LPAREN:
-            # Consume both tokens (ident and paren)
-            self.consume()
+        lparen = self.peek()  # (
+        if lparen and lparen.kind == TokenKind.SYM_LPAREN:
+            # Consume token (paren)
             self.consume()
 
             # All arguments we've found.
             args = []
-            # True when we were supposed to have an expression, up until we find a comma to delimit the invalid expr.
-            expression_missing = False
-            # The tokens of the invalid expression.
-            trash_tokens = []
 
             # Continue reading the argument list until we find a closing parenthesis or a semicolon.
             # NOTE: The semicolon check is a bit of a weird choice, we might just give up reading the list
             # instead of waiting for an end of statement.
             while (nxt := self.peek()) and nxt.kind != TokenKind.SYM_RPAREN and nxt.kind != TokenKind.SYM_SEMICOLON:
-                if expression_missing:
-                    if nxt.kind == TokenKind.SYM_COMMA:
-                        expression_missing = False
-                        flush_trash_tokens(trash_tokens)
-                        self.consume()
-                    else:
-                        trash_tokens.append(self.consume())
-                        continue
-                elif len(args) > 0:
-                    # We already parsed one argument, a comma should comme next.
-                    if not self.consume_exact(TokenKind.SYM_COMMA):
-                        self.problems.append(problem="Virgule manquante entre deux arguments de fonction.",
-                                             severity=ProblemSeverity.ERROR,
-                                             pos=args[-1].pos)
-
                 # Then we must have an expression coming next. Try to read it.
                 arg = self.parse_expression()
-                if arg:
-                    args.append(arg)
-                else:
-                    expression_missing = True
+                if not arg:
+                    # TODO: Err if no expression
+                    erroneous = []
+                    while ((nxt := self.peek())
+                           and nxt.kind != TokenKind.SYM_RPAREN
+                           and nxt.kind != TokenKind.SYM_SEMICOLON
+                           and nxt.kind != TokenKind.SYM_COMMA):
+                        erroneous.append(leaf(self.consume()))
+                    arg = ErrorExpr(erroneous)
 
-            if expression_missing and len(trash_tokens) == 0:
-                self.problems.append(problem="Argument attendu après une virgule",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=self.peek(skip=-1).pos)
-            else:
-                flush_trash_tokens(trash_tokens)
+                # TODO: Err if comma missing
+                n = self.consume_exact(TokenKind.SYM_COMMA)
+                args.append(Argument(arg, leaf(n) if n else None))
 
-            if end := self.consume_exact(TokenKind.SYM_RPAREN):
-                return FunctionExpr(Identifier(ident.name, ident.pos), args, extend_span(ident.pos, end.pos))
-            else:
-                self.problems.append(problem="L'appel de fonction n'a pas été proprement fermée.",
-                                     severity=ProblemSeverity.ERROR,
-                                     pos=extend_span(ident.pos, self.peek(skip=-1).pos))
-                return FunctionExpr(Identifier(ident.name, ident.pos), args,
-                                    extend_span(ident.pos, self.peek(skip=-1).pos))
+            rparen = self.consume_exact(TokenKind.SYM_RPAREN)
+            # TODO: Err if rparen missing
+            return ArgumentList(leaf(lparen), args, leaf(rparen))
+
+    def make_error_expr(self, tokens: list[Token]) -> ErrorExpr:
+        """
+        Makes an error expression from a list of tokens.
+        """
+        return ErrorExpr(leaf(t) for t in tokens).with_problems(InnerNodeProblem("Expression invalide."))
+
+    def make_error_stmt(self, tokens: list[Token]) -> ErrorStmt:
+        """
+        Makes an error statement from a list of tokens.
+        """
+        return ErrorStmt(leaf(t) for t in tokens).with_problems(InnerNodeProblem("Instruction invalide."))
 
     def peek(self, skip=0):
         """
@@ -670,24 +623,24 @@ class _Parser:
 
         The ``skip`` parameter can be specified to skip N characters.
 
-        Can return None if we've reached the EOF.
+        Can return None if the next token is the EOF token.
         """
-        if self.cursor + skip >= len(self.tokens):
+        if self.cursor + skip >= self.eof_idx:
             return None
         return self.tokens[self.cursor + skip]
 
     def consume(self):
         """
         Consumes the next incoming token, and advances the cursor by one.
-        Returns the consumed token, or None if we've reached the EOF.
+        Returns the consumed token, or None if the next token is the EOF token.
         """
-        if self.eof:  # <==> self.cursor == len(self.tokens)
+        if self.eof:  # <==> self.cursor == len(self.tokens) - 1
             return None
 
         # Store the token to return it and advance the cursor by one.
         tok = self.tokens[self.cursor]
         self.cursor += 1
-        self.eof = self.cursor == len(self.tokens)
+        self.eof = self.cursor == self.eof_idx
         return tok
 
     # Here goes some stuff so python understands how the consume_exact function works
@@ -735,17 +688,17 @@ class _Parser:
         """
 
         # Make sure we aren't moving to some bizarre index (negative or too big).
-        if to < 0 or to > len(self.tokens):
-            raise ValueError(f"Attempted to move to an invalid index: {to} (max: {len(self.tokens)})")
+        if to < 0 or to > self.eof_idx:
+            raise ValueError(f"Attempted to move to an invalid index: {to} (max: {self.eof_idx})")
 
         # Update the cursor and EOF flag. Return the token.
         self.cursor = to
-        self.eof = self.cursor == len(self.tokens)
+        self.eof = self.cursor == self.eof_idx
         return self.peek()
 
 
-def parse(tokens: list[Token], problems: ProblemSet) -> Program:
+def parse(tokens: list[Token]) -> Program:
     """
     Parses the given list of tokens and returns the root Program node.
     """
-    return _Parser(tokens, problems).parse()
+    return _Parser(tokens).parse()

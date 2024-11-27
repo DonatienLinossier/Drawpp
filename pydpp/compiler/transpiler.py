@@ -1,4 +1,3 @@
-from pydpp.compiler import ProblemSet, ProblemSeverity
 from pydpp.compiler.semantic import ProgramSemanticInfo
 from pydpp.compiler.syntax import Program
 
@@ -7,7 +6,7 @@ from pydpp.compiler.syntax import Program
 # transpiler.py: The transpiler producing C code
 # ======================================================
 
-def transpile(program: Program, semantic_info: ProgramSemanticInfo, ps: ProblemSet) -> str:
+def transpile(program: Program, semantic_info: ProgramSemanticInfo) -> str:
     """
     Produces working C code to run the program, which should have been
     successfully parsed and semantically analysed beforehand.
@@ -22,8 +21,8 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, ps: ProblemS
     """
 
     # Exit the function if we have any errors, or if we don't have semantic info
-    if len(ps.grouped[ProblemSeverity.ERROR]) > 0:
-        raise RuntimeError("Cannot transpile a program with errors.")
+    if program.has_problems:
+        raise RuntimeError("Cannot transpile a program with parsing errors.")
     elif semantic_info is None:
         raise RuntimeError("Cannot transpile a program without complete semantic analysis.")
 

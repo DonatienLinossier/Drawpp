@@ -1,34 +1,40 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Set project name
 project(drawppCompiler C)
 
-# Specify the path to the SDL2 installation
+# Set the output directory for the compiled files
+set(OUTPUT_DIR .drawppTmp)
+
+# Add the submodule for sdlEncapsulation only if it hasn't been compiled yet
+if(NOT TARGET sdlEncapsulation)
+    add_subdirectory(libs/sdlEncapsulation)
+endif()
+
+include_directories(${CMAKE_SOURCE_DIR}/libs/sdlEncapsulation/include)
+
+# Specify the main source file for the executable
+set(MAIN_SRC ${OUTPUT_DIR}/tmp.c)
+
+# Create the main executable
+add_executable(${PROJECT_NAME} ${MAIN_SRC})
+
+# Link the shared library from the submodule
+target_link_libraries(${PROJECT_NAME} sdlEncapsulation)
+
+# Copy sdl2.dll to the output directory if required
 if(WIN32)
-    set(CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/libs/SDL2-2.30.8/x86_64-w64-mingw32")
-endif ()
-
-# Find SDL2
-find_package(SDL2 REQUIRED)
-
-# Include directories
-include_directories(${SDL2_INCLUDE_DIRS})
-include_directories(${CMAKE_SOURCE_DIR}/include)
-
-SET(SRC_DIR src)
-SET(OUTPUT_DIR output)
-
-SET(SRC1 ${SRC_DIR}/main.c ${SRC_DIR}/cursor.c ${SRC_DIR}/sdlEncapsulation.c)
-SET(SRC2 ${OUTPUT_DIR}/test.c ${SRC_DIR}/cursor.c ${SRC_DIR}/sdlEncapsulation.c)
+    set(SDL2_DLL "${CMAKE_SOURCE_DIR}/libs/SDL2-2.30.8/x86_64-w64-mingw32/bin/sdl2.dll")
+    if(EXISTS "${SDL2_DLL}")
+        file(COPY "${SDL2_DLL}" DESTINATION "${CMAKE_BINARY_DIR}")
+    else()
+        message(FATAL_ERROR "SDL2 DLL not found at ${SDL2_DLL}")
+    endif()
+endif()
 
 
-# Add executable
-add_executable(${PROJECT_NAME} ${SRC1})
-add_executable(pymain ${SRC2})
-
-
-# Link SDL2 libraries
-target_link_libraries(pymain ${SDL2_LIBRARIES})
-target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARIES})
-
-#TODO: Copy sdl2.dll
+set(SDLENCAPS_DLL "${CMAKE_SOURCE_DIR}/libs/sdlEncapsulation/bin/libsdlEncapsulation.dll")
+if(EXISTS "${SDLENCAPS_DLL}")
+    file(COPY "${SDLENCAPS_DLL}" DESTINATION "${CMAKE_BINARY_DIR}")
+else()
+    message(FATAL_ERROR "SDL2 DLL not found at ${SDLENCAPS_DLL}")
+endif()

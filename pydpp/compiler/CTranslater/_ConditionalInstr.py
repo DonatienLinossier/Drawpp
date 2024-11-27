@@ -1,47 +1,69 @@
 """Not working yet"""
 
+from ._subBlock import _subBlock
 
-from .Variable import VarCall
-class Function:
-    def __init__(self, name, listParameters):
-        self.__name__ = name
-        self.condition = []
-        self.trueInstr = []
-        self.falseInstr = []
+"""
+Conditional instructions are defined by:
+                - 3 _subBlocks (_condition, _ifFunction, _elseFunction)
+                - The step of build (Are we building the condition function ? the ifFunction ? or the elseFunction ?)
+                - The variable dict that they share with the parent function (pass at init and returned after execution)
 
-    def __call__(self, *args):
-
-
-
-
-        if True:
-            instructions = self.trueInstr
+At runtime, they can be assimilated as the following function:
+        if self.condition() :
+            self.ifFunction()
         else :
-            instructions = self.falseInstr
+            self.elseFunction()
+            
+            
+At creation, the step of build is 0(condition). So when adding an instr it will be added to the conditionFunction. 
+When finished with the conditional function, call the nextStep in order to pass to the next step, the ifFunction.
+So now, when adding an instr it will be added to the ifFunction.
+When finished, same as before, you need to call the nextStep function to get to the elseFunction
+"""
 
-        for instr in instructions:
-            # Extract function and arguments
-            func = instr[0]
-            arguments = instr[1]
-            argumentsFinal = []
 
-            for arg in arguments:
-                # Handle variable references
-                if isinstance(arg, VarCall):
-                    if arg.name in self.FunctVarDict:
-                        argumentsFinal.append(self.FunctVarDict[arg.name])
-                    else :
-                        pass
-                        #TODO: HAndle error
-                else:
-                    argumentsFinal.append(arg)
+class _ConditionalInstr:
+    def __init__(self, id: int):
+        self.__name__ = "#conditionalFunc_" + str(id)
+        self.varDict = {}
+        self.condition = _subBlock()
+        self.ifFunction = _subBlock()
+        self.elseFunction = _subBlock()
+        self.actualSteps = 0
 
-            # Call the function with final arguments
-            func(*argumentsFinal)
-            #print("In function: " + str(self.FunctVarDict))
+    def __call__(self, varDict: dict) -> (dict, any):
+        #returns the scope and the returnValue
 
-    def add_trueInstruction(self, func, *args):
-            self.trueInstr.append((func, args))
+        self.varDict = varDict
 
-    def add_falseInstruction(self, func, *args):
-        self.falseInstr.append((func, args))
+        if self.condition(self.varDict)[1]:
+            scope, returnedValue = self.ifFunction(self.varDict)
+            return scope, returnedValue
+        else:
+            scope, returnedValue = self.elseFunction(self.varDict)
+            return scope, returnedValue
+
+    ###########################
+    # The next functions are used to create the _ConditionalInstr
+    ###########################
+    def nextStep(self):
+        self.actualSteps += 1
+        #Todo: Add verif that condition returns a bool value before changing step
+
+    def isFinished(self):
+        if self.actualSteps > 2:
+            return True
+        else:
+            return False
+
+    def add_instruction(self, instr, *args):
+        match self.actualSteps:
+            case 0:
+                self.condition.add_instruction(instr, *args)
+            case 1:
+                self.ifFunction.add_instruction(instr, *args)
+            case 2:
+                self.elseFunction.add_instruction(instr, *args)
+            case _:
+                print("Error !!")
+                #todo: handle error
