@@ -106,11 +106,11 @@ class App(ctk.CTk):
     def sup_tab(self, event=None):
         tab = self.tabview.get()  # Get current tab
         if tab!="Menu":
-            offset = self.tabview.index(tab)
+            # Sets tab to previous tab in list, or last if the last one is closed
+            self.tabview.set(list(self.textboxes)[self.tabview.index(tab) + (1 if len(list(self.textboxes)) != self.tabview.index(tab)+1 else -1)]) 
             self.tabview.delete(tab)
             self.textboxes.pop(tab)
             self.newfilecount -= 1
-            self.tabview.set(list(self.textboxes)[-1]) # Move focus to last tab. Work this offset to move to next tab instead
         else:
             print("impossible")
 
