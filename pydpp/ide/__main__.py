@@ -73,12 +73,21 @@ class App(ctk.CTk):
         self.scaling_optionemenu.set("100%")
         self.newfilecount = 1
 
-    def change_appearance_mode(self, new_appearance_mode: str):
-        ctk.set_appearance_mode(new_appearance_mode)
+    def run_program(self, event=None):
+        """
+        get code compile it and return good or bad execution. 
+        Return coords of error if detected, maybe add a link to point directly in the file (the correct one)
+        """
+        self.delete_terminal()
+        self.write_to_terminal(f"{self.tabview.get()} is compiling... I don't if it works though")
+        # Call function and return something
+        code_to_exe = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
 
-    def change_scaling(self, new_scaling: str):
-        new_scaling_float = int(new_scaling.replace("%", "")) / 100
-        ctk.set_widget_scaling(new_scaling_float)
+    def write_to_terminal(self, text):
+        self.terminal.insert(ctk.END, f"\n{str(text)}")
+
+    def delete_terminal(self):
+        self.terminal.delete("0.0", ctk.END)
 
     def text_search(self, cont):
         '''
@@ -166,9 +175,11 @@ class App(ctk.CTk):
         if name:
             self.tabview.add(name)
             self.tabview.tab(name).grid_columnconfigure(0, weight=1)
-            self.tabview.tab(name).grid_rowconfigure(0, weight=1)
+            self.tabview.tab(name).grid_rowconfigure((1), weight=1)
+            self.run_button = ctk.CTkButton(self.tabview.tab(name), text="Run file", command= lambda : self.run_program())
+            self.run_button.grid(row=0, column=0, sticky="ne")
             showtext = ctk.CTkTextbox(self.tabview.tab(name))  
-            showtext.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+            showtext.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
 
             self.init_highlighting(showtext)
             showtext.bind("<<Modified>>", lambda e: self.update_highlighting(showtext))
@@ -232,6 +243,14 @@ class App(ctk.CTk):
 
         # Set modified to False so the event triggers again (it's dumb but that's how it works)
         txt.edit_modified(False)
+    
+    def change_appearance_mode(self, new_appearance_mode: str):
+        ctk.set_appearance_mode(new_appearance_mode)
+
+    def change_scaling(self, new_scaling: str):
+        new_scaling_float = int(new_scaling.replace("%", "")) / 100
+        ctk.set_widget_scaling(new_scaling_float)
+
 
 if __name__ == "__main__":
     app = App()
