@@ -4,6 +4,7 @@ import os
 from pydpp.compiler import ProblemSet, ProblemSeverity
 from pydpp.compiler.parser import parse
 from pydpp.compiler.tokenizer import tokenize, TokenKind
+from pydpp.compiler import compile_code
 
 
 ctk.set_appearance_mode("System")
@@ -16,7 +17,8 @@ class App(ctk.CTk):
 
         self.title("Draw++")
         self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}+0+0")
-        self.after(0, lambda: self.state('zoomed'))
+        if os.name == "nt":
+            self.after(0, lambda: self.state('zoomed'))
 
         # Grid layout
         self.grid_columnconfigure(1, weight=1)
@@ -65,7 +67,7 @@ class App(ctk.CTk):
         menu = ctk.CTkTextbox(self.tabview.tab("Menu"))
         self.textboxes["Menu"] = menu
 
-        self.terminal = ctk.CTkTextbox(self)
+        self.terminal = ctk.CTkTextbox(self, state="disabled")
         self.terminal.grid(row=1, column=1, padx=10, pady=(10, 0), sticky="nsew")
 
         # set default values
@@ -82,12 +84,18 @@ class App(ctk.CTk):
         self.write_to_terminal(f"{self.tabview.get()} is compiling... I don't if it works though")
         # Call function and return something
         code_to_exe = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
+        # Not implemented yet
+        # self.write_to_terminal(compile_code(code_to_exe))
 
     def write_to_terminal(self, text):
+        self.terminal.configure(state="normal")
         self.terminal.insert(ctk.END, f"\n{str(text)}")
+        self.terminal.configure(state="disabled")
 
     def delete_terminal(self):
+        self.terminal.configure(state="normal")
         self.terminal.delete("0.0", ctk.END)
+        self.terminal.configure(state="disabled")
 
     def text_search(self, cont):
         '''
