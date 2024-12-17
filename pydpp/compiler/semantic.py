@@ -40,4 +40,6 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     #     les informations nécessaires (types, déclarations) pour pouvoir générer le code C après !
     #     Ces informations devront être stockées dans le "struct" ProgramSemanticInfo, que le générateur
     #     va récupérer (transpiler.py)
-    raise NotImplementedError("Not done yet... :(")
+
+    return ProgramSemanticInfo()
+    # raise NotImplementedError("Not done yet... :(")

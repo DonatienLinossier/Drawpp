@@ -29,5 +29,7 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo) -> str:
     # TODO! À faire :
     #     - Utiliser le code de Donatien pour générer le code C avec les données de l'étape
     #       de l'analyse sémantique (ProgramSemanticInfo du fichier semantic.py).
-    #     - Bien générer toutes les instructions, déclarations, etc.
-    raise NotImplementedError("Not done yet... :(")
+    #     - Bien générer toutes les instructions, déclarations, etc.7
+
+    return "{code c}"
+    # raise NotImplementedError("Not done yet... :(")
