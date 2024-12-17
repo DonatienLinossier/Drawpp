@@ -172,7 +172,7 @@ class _PendingTokenProblem:
         self.text_space = text_space
         """
         The coordinate space indicating how the span should be calculated.
-        
+
             - None  -> 'span' starts at the beginning of the token's text, excluding auxiliary text.
             - int n -> 'span' starts at the beginning of the auxiliary text at index n.
         """
@@ -774,7 +774,7 @@ class _Tokenizer:
         if self.err_start is not None:
             chars = self.code[self.err_start:self.cursor]
             self.queue_problem(message=f"Séquence de caractères non reconnue : « {chars} ».",
-                               text_space=len(self.pending_auxiliary),)
+                               text_space=len(self.pending_auxiliary), )
             self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.INVALID, chars))
             self.err_start = None
 

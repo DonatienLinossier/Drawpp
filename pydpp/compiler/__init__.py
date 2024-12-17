@@ -56,7 +56,8 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
         c_code = transpile(program, semantic_info)
 
         # And then...? We need to compile an EXE, and call CMake/gcc whatever!
-        raise NotImplementedError("To be continued...!")
+        problems.append("Not implemented yet!", ProblemSeverity.ERROR)
+        return None, problems
 
     def collect_errors(tree: Node, problems: ProblemSet):
         """
