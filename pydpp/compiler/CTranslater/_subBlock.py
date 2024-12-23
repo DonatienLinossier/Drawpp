@@ -1,4 +1,5 @@
 from .Variable import VarCall
+from ._Cursor import _Cursor
 
 """
 This class is designed for executing a sequence of instructions in a controlled scope,
@@ -23,6 +24,10 @@ class _subBlock:
             "_getVar": self.functGetVar,
             "_addToVar": self.functAddToVar,
             "_createVar": self.functCreateVar,
+            "_createCursor": self.createCursor,
+            "_cursorJump": self.cursorJump,
+            "_cursorDrawCircle": self.cursorDrawCircle,
+            "_cursorDrawFilledCircle": self.cursorDrawFilledCircle
         }
 
     #It takes:
@@ -79,7 +84,9 @@ class _subBlock:
 
     def add_instruction(self, func, *args):
         if func.__name__ in self.overrideInstr:
-            self.instr.append((self.overrideInstr[func.__name__], args))
+
+            self.instr.append((self.overrideInstr[func.__name__], args)) #For verif and variable
+            self.instr.append((func, args))
         else:
             self.instr.append((func, args))
 
@@ -97,3 +104,36 @@ class _subBlock:
             self.blockVarDict[name] += value
         else:
             print(f"Variable '{name}' does not exist.")
+
+    def createCursor(self, name, x, y, angle, r, g, b, a):
+        if name in self.blockVarDict and type(self.blockVarDict[name]) is not _Cursor:
+            print("Variable already exists and is not a cursor")
+            #TODO: HAndle error
+            return
+        self.blockVarDict[name] = _Cursor(name, x, y, angle, r, g, b, a)
+
+    def cursorJump(self, cursor, x, y):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+            return
+
+        cursor.x += x
+        cursor.y += y
+
+        self.blockVarDict[cursor.name] = cursor
+
+
+    def cursorDrawCircle(self, cursor, r):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+
+    def cursorDrawFilledCircle(self, cursor, r):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+
+
+
+

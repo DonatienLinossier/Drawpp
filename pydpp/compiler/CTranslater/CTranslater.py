@@ -3,6 +3,7 @@ from ._Function import _Function
 from ._subBlock import _subBlock
 from ._WhileLoop import _WhileLoop
 from ._ConditionalInstr import _ConditionalInstr
+from ._Cursor import _Cursor
 
 
 class CTranslater:
@@ -42,7 +43,11 @@ class CTranslater:
             "setColor": self._setColor,
             "deb": self._deb,
             "sleep": self._sleep,
-            "functReturnStatement": self._functReturnStatement
+            "functReturnStatement": self._functReturnStatement,
+            "createCursor": self._createCursor,
+            "cursorJump": self._cursorJump,
+            "cursorDrawCircle": self._cursorDrawCircle,
+            "cursorDrawFilledCircle": self._cursorDrawFilledCircle
         }
         self.constructionStack = ["main"]
 
@@ -188,6 +193,20 @@ class CTranslater:
 
     def _addToVar(self, name, value) -> None:
         pass
+
+    def _createCursor(self, name, x, y, angle, r, g, b, a):
+        pass
+
+    def _cursorJump(self, circle, x, y):
+        self._drawRect(circle.x, circle.y, circle.x+x, circle.y+y)
+
+    def _cursorDrawCircle(self, circle, r):
+        self._setColor(circle.color[0], circle.color[1], circle.color[2], circle.color[3])
+        self._drawCircle(circle.x, circle.y, r)
+
+    def _cursorDrawFilledCircle(self, circle, r):
+        self._setColor(circle.color[0], circle.color[1], circle.color[2], circle.color[3])
+        self._drawCircleFill(circle.x, circle.y, r)
 
     #########################
     # Logic & operation functions
