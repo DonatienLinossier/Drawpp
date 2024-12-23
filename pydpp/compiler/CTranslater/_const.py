@@ -2,7 +2,6 @@ header = """
 #include <SDL2/SDL.h>
 #include <stdio.h>
 
-#include "cursor.h"
 #include "sdlEncapsulation.h"
 
 

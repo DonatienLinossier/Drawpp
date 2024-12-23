@@ -27,7 +27,9 @@ class _subBlock:
             "_createCursor": self.createCursor,
             "_cursorJump": self.cursorJump,
             "_cursorDrawCircle": self.cursorDrawCircle,
-            "_cursorDrawFilledCircle": self.cursorDrawFilledCircle
+            "_cursorDrawFilledCircle": self.cursorDrawFilledCircle,
+            "_cursorRotate": self.cursorRotate,
+            "_cursorPrintData": self.cursorPrintData
         }
 
     #It takes:
@@ -123,6 +125,29 @@ class _subBlock:
 
         self.blockVarDict[cursor.name] = cursor
 
+    def cursorRotate(self, cursor, angle):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+
+        cursor.angle += angle
+
+        if cursor.angle >= 360:
+            cursor.angle -= 360
+
+        elif cursor.angle <= 0:
+            cursor.angle += 360
+
+        self.blockVarDict[cursor.name] = cursor
+
+
+    def cursorPrintData(self, cursor):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+
+        print(vars(cursor))
+
 
     def cursorDrawCircle(self, cursor, r):
         if type(cursor) is not _Cursor:
@@ -133,6 +158,14 @@ class _subBlock:
         if type(cursor) is not _Cursor:
             #TODO: handle error
             print(cursor, "is not a cursor.")
+
+
+
+
+
+
+
+
 
 
 

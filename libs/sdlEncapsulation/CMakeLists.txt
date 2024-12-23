@@ -24,7 +24,6 @@ include_directories(${SDL2_INCLUDE_DIRS})
 # Specify the source files for the shared library
 set(SDL_ENCAPSULATION_SRC
         ${SRC_DIR}/sdlEncapsulation.c
-        ${SRC_DIR}/cursor.c
 )
 
 # Create the shared library (DLL) for SDL encapsulation

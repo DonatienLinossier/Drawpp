@@ -47,7 +47,9 @@ class CTranslater:
             "createCursor": self._createCursor,
             "cursorJump": self._cursorJump,
             "cursorDrawCircle": self._cursorDrawCircle,
-            "cursorDrawFilledCircle": self._cursorDrawFilledCircle
+            "cursorDrawFilledCircle": self._cursorDrawFilledCircle,
+            "cursorRotate": self._cursorRotate,
+            "_cursorPrintData": self._cursorPrintData
         }
         self.constructionStack = ["main"]
 
@@ -207,6 +209,12 @@ class CTranslater:
     def _cursorDrawFilledCircle(self, circle, r):
         self._setColor(circle.color[0], circle.color[1], circle.color[2], circle.color[3])
         self._drawCircleFill(circle.x, circle.y, r)
+
+    def _cursorRotate(self, cursor, angle):
+        pass
+
+    def _cursorPrintData(self, cursor):
+        pass
 
     #########################
     # Logic & operation functions
