@@ -17,7 +17,9 @@ Each test contains :
 | test_06  |  23/12/24    | Create cursor
 | test_07  |  23/12/24    | cursor draw circle
 | test_08  |  23/12/24    | cursor draw filled circle
-|          |              |
+| test_09  |  23/12/24    | cursor rotation
+| test_10  |  23/12/24    | cursor thickness
+| test_11  |  23/12/24    | cursor color
 |          |              |
 |          |              |
 |          |              |

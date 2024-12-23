@@ -49,7 +49,9 @@ class CTranslater:
             "cursorDrawCircle": self._cursorDrawCircle,
             "cursorDrawFilledCircle": self._cursorDrawFilledCircle,
             "cursorRotate": self._cursorRotate,
-            "_cursorPrintData": self._cursorPrintData
+            "_cursorPrintData": self._cursorPrintData,
+            "cursorChangeColor": self._cursorChangeColor,
+            "cursorChangeThickness": self._cursorChangeThickness,
         }
         self.constructionStack = ["main"]
 
@@ -214,6 +216,12 @@ class CTranslater:
         pass
 
     def _cursorPrintData(self, cursor):
+        pass
+
+    def _cursorChangeThickness(self, cursor, thickness):
+        pass
+
+    def _cursorChangeColor(self, cursor, r, g, b, a):
         pass
 
     #########################

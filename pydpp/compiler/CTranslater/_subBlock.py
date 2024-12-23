@@ -29,7 +29,9 @@ class _subBlock:
             "_cursorDrawCircle": self.cursorDrawCircle,
             "_cursorDrawFilledCircle": self.cursorDrawFilledCircle,
             "_cursorRotate": self.cursorRotate,
-            "_cursorPrintData": self.cursorPrintData
+            "_cursorPrintData": self.cursorPrintData,
+            "_cursorChangeColor": self.cursorChangeColor,
+            "_cursorChangeThickness": self.cursorChangeThickness,
         }
 
     #It takes:
@@ -129,6 +131,7 @@ class _subBlock:
         if type(cursor) is not _Cursor:
             #TODO: handle error
             print(cursor, "is not a cursor.")
+            return
 
         cursor.angle += angle
 
@@ -145,8 +148,46 @@ class _subBlock:
         if type(cursor) is not _Cursor:
             #TODO: handle error
             print(cursor, "is not a cursor.")
+            return
 
         print(vars(cursor))
+
+    def cursorChangeThickness(self, cursor, thickness):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+            return
+
+        if thickness <= 0:
+            #TODO: handle error
+            print("Cursor Thickness cannot be lower or equal to 0")
+            return
+
+        cursor.thickness = thickness
+        self.blockVarDict[cursor.name] = cursor
+
+
+
+    def cursorChangeColor(self, cursor, r, g, b, a):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+            return
+
+        if r < 0 or r > 255 \
+        or g < 0 or g > 255 \
+        or b < 0 or b > 255:
+            #todo: handle error
+            print("Color value cannot be lower than 0 or greater than 255.")
+            return
+
+        if a<0 or a>1:
+            #todo: handle error
+            print("Color a value cannot be lower than 0 or greater than 1.")
+            return
+
+        cursor.color = [r, g, b, a]
+        self.blockVarDict[cursor.name] = cursor
 
 
     def cursorDrawCircle(self, cursor, r):
