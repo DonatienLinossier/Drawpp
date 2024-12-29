@@ -210,7 +210,7 @@ class App(ctk.CTk):
         txt.tag_bind("err", "<Leave>", err_exit)
 
     def update_highlighting(self, txt: ctk.CTkTextbox):
-        # Converts FileCoordinates into tkinter coordinates
+        # Converts a string index into tkinter coordinates
         def tidx_to_tkidx(idx):
             return f"1.0+{idx}c"
 
@@ -224,11 +224,10 @@ class App(ctk.CTk):
         t = txt.get("1.0", "end")
 
         # Run the tokenizer (for primary syntax highlighting) and the parser (for error recognition)
-        tkn_list = bench("tokenize:", lambda: tokenize(t))
-        tree = bench("parse:", lambda: parse(tkn_list))  # not used yet, costly!
+        tkn_list = profile("tokenize", lambda: tokenize(t))
 
         # Highlight every portion of the text that matches with a token
-        s = bench_start("highlighting")
+        s = profile_start("highlighting")
         start = 0
         keywords = {x for x in TokenKind if x.name.startswith("KW") or x == TokenKind.LITERAL_BOOL}
         for t in tkn_list:
@@ -243,16 +242,21 @@ class App(ctk.CTk):
                 # Number
                 txt.tag_add("num", tidx_to_tkidx(start), tidx_to_tkidx(start + l))
             start += l
-        bench_end(s)
+        profile_end(s)
+
+        # Now, let's parse the tree to find any errors
+        tree = profile("parse", lambda: parse(tkn_list))
 
         # Highlight every error (not warnings for now)
-        def f():
-            ps = ProblemSet()
-            collect_errors(tree, ps)
-            for e in ps.grouped[ProblemSeverity.ERROR]:
-                txt.tag_add("err", tidx_to_tkidx(e.pos.start), tidx_to_tkidx(e.pos.end))
+        s = profile_start("error finding")
+        ps = ProblemSet()
+        # Collect all errors from the tree, and put them all in the problem set
+        collect_errors(tree, ps)
+        for e in ps.grouped[ProblemSeverity.ERROR]:
+            txt.tag_add("err", tidx_to_tkidx(e.pos.start), tidx_to_tkidx(e.pos.end))
+        profile_end(s)
 
-        bench("error finding", f)
+        print("---")
 
         # Set modified to False so the event triggers again (it's dumb but that's how it works)
         txt.edit_modified(False)
@@ -265,8 +269,9 @@ class App(ctk.CTk):
         ctk.set_widget_scaling(new_scaling_float)
 
 
+# Temporary functions to profile the perf of highlighting updates
 import time
-def bench(name, func):
+def profile(name, func):
     start_time = time.perf_counter_ns()
     res = func()
     end_time = time.perf_counter_ns()
@@ -275,12 +280,12 @@ def bench(name, func):
     print(f"{name}: {elapsed_time_ms} ms")
     return res
 
-def bench_start(name):
+def profile_start(name):
     start_time = time.perf_counter_ns()
-    print(f"{name}... ", end="")
+    print(f"{name}: ", end="")
     return start_time
 
-def bench_end(start_time):
+def profile_end(start_time):
     end_time = time.perf_counter_ns()
     elapsed_time_ms = (end_time - start_time) / 1_000_000
     print(f"{elapsed_time_ms} ms")
