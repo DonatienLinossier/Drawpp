@@ -13,15 +13,20 @@ class BuiltInTypeKind(Enum):
     STRING = "string"
     BOOL = "bool"
     NOTHING = "nothing" # like void in C? but a little bit more original?
+    ERROR = "error"
 
-class Type:
-    """
-    A type in the language: user-defined or built-in.
-    Can also be an "error" type if an expression doesn't make sense.
-    For example, what type would "pastèque" / 2 have? ERROR!
-    """
-    # TODO!
-    pass
+    def __str__(self):
+        return self.value
+
+
+# class Type:
+#     """
+#     A type in the language: user-defined or built-in.
+#     Can also be an "error" type if an expression doesn't make sense.
+#     For example, what type would "pastèque" / 2 have? ERROR!
+#     """
+#     # TODO!
+#     pass
 
 # Idea: A "type classification" enum? BUILT-IN/USER-DEFINED/ERROR?
 # User-defined isn't on the table at the moment, we could add it later one.

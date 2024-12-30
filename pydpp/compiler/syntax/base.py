@@ -532,22 +532,12 @@ class InnerNode(Node):
     different from your usual tree, which doesn't care about *why* children are there in the first place.
     """
 
-    __slots__ = ("semantic_info", "_cached_text", "problems", "has_problems")
+    __slots__ = ("_cached_text", "problems", "has_problems")
 
     element_slots: tuple[NodeSlot[Self, "Node"], ...] = ()
     inner_node_slots: tuple[NodeSlot[Self, "InnerNode"], ...] = ()
 
     def __init__(self):
-        self.semantic_info: Any = None
-        """
-        The semantic information of the node, mainly containing info about types.
-
-        This attribute is None when the semantic analysis hasn't been done on this node, 
-        or when this node doesn't need that.
-
-        For now, it's can be anything, we haven't decided on what it should be yet.
-        """
-
         self._cached_text: str | None = None
         self._cached_fss: int | None = None
 
