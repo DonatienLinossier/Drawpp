@@ -788,6 +788,10 @@ class InnerNode(Node):
 
         return self
 
+    def add_problem(self, problem: InnerNodeProblem):
+        self.problems += (problem, )
+        self._update_has_problems()
+
     def _update_has_problems(self, problematic_child=False):
         prev = self.has_problems
         self.has_problems = len(self.problems) > 0 or problematic_child or any(n for n in self.children if n.has_problems)

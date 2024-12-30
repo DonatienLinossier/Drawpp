@@ -60,6 +60,7 @@ BuiltInType.inner_node_slots = ()
 class Argument(InnerNode):
     """
     An argument to a function call.
+    Example: 8, 2, my_func(840), "artichaut"
     """
     __slots__ = ('_expr', '_comma_token', )
 
@@ -216,6 +217,110 @@ class ArgumentList(InnerNode):
 
 ArgumentList.element_slots = (ArgumentList.lparen_token_slot, ArgumentList.arguments_slot, ArgumentList.rparen_token_slot, )
 ArgumentList.inner_node_slots = (ArgumentList.arguments_slot, )
+
+
+class FunctionParameter(InnerNode):
+    """
+    A parameter defined within a function (fct).
+    Example: int x
+    """
+    __slots__ = ('_type', '_name_token', '_comma', )
+
+    type_slot: SingleNodeSlot["FunctionParameter", BuiltInType] = SingleNodeSlot('_type', BuiltInType)
+    "The type of the parameter."
+    name_token_slot: SingleNodeSlot["FunctionParameter", LeafNode] = SingleNodeSlot('_name_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
+    "The name of the parameter."
+    comma_slot: SingleNodeSlot["FunctionParameter", LeafNode] = SingleNodeSlot('_comma', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_COMMA)
+    "The ',' token, when inside a list of function parameters."
+
+    def __init__(self, type: BuiltInType | None, name_token: LeafNode | None, comma: LeafNode | None):
+        super().__init__()
+        assert type is None or FunctionParameter.type_slot.accepts(type)
+        self._type = type
+        if type is not None: 
+            type.register_attachment(self, FunctionParameter.type_slot)
+            if type.has_problems: self._update_has_problems(True)
+
+        assert name_token is None or FunctionParameter.name_token_slot.accepts(name_token)
+        self._name_token = name_token
+        if name_token is not None: 
+            name_token.register_attachment(self, FunctionParameter.name_token_slot)
+            if name_token.has_problems: self._update_has_problems(True)
+
+        assert comma is None or FunctionParameter.comma_slot.accepts(comma)
+        self._comma = comma
+        if comma is not None: 
+            comma.register_attachment(self, FunctionParameter.comma_slot)
+            if comma.has_problems: self._update_has_problems(True)
+
+
+    @property
+    def type(self) -> BuiltInType | None:
+        """
+        The type of the parameter.
+        """
+        return self._type
+
+    @type.setter
+    def type(self, value: BuiltInType | None):
+        if value is not None: 
+            self._type = self.attach_child(self.type_slot, value)
+        else:
+            self.detach_child(self.type_slot)
+
+    @property
+    def name_token(self) -> LeafNode | None:
+        """
+        The name of the parameter.
+        """
+        return self._name_token
+
+    @name_token.setter
+    def name_token(self, value: LeafNode | None):
+        if value is not None: 
+            self._name_token = self.attach_child(self.name_token_slot, value)
+        else:
+            self.detach_child(self.name_token_slot)
+
+    @property
+    def name_token_str(self) -> str:
+        """
+        The name of the parameter.
+        """
+        return self._name_token.text
+
+    @property
+    def comma(self) -> LeafNode | None:
+        """
+        The ',' token, when inside a list of function parameters.
+        """
+        return self._comma
+
+    @comma.setter
+    def comma(self, value: LeafNode | None):
+        if value is not None: 
+            self._comma = self.attach_child(self.comma_slot, value)
+        else:
+            self.detach_child(self.comma_slot)
+
+    @property
+    def children(self):
+        if self._type is not None: yield self._type
+        if self._name_token is not None: yield self._name_token
+        if self._comma is not None: yield self._comma
+
+    @property
+    def children_reversed(self):
+        if self._comma is not None: yield self._comma
+        if self._name_token is not None: yield self._name_token
+        if self._type is not None: yield self._type
+
+    @property
+    def child_inner_nodes(self):
+        if self._type is not None: yield self._type
+
+FunctionParameter.element_slots = (FunctionParameter.type_slot, FunctionParameter.name_token_slot, FunctionParameter.comma_slot, )
+FunctionParameter.inner_node_slots = (FunctionParameter.type_slot, )
 
 
 class LiteralExpr(Expression):
@@ -797,6 +902,179 @@ class BlockStmt(Statement):
 
 BlockStmt.element_slots = (BlockStmt.lbrace_token_slot, BlockStmt.statements_slot, BlockStmt.rbrace_token_slot, )
 BlockStmt.inner_node_slots = (BlockStmt.statements_slot, )
+
+
+class FunctionDeclarationStmt(Statement):
+    """
+    A function declaration, with a return type, name, parameters, and a block of statements.
+    Example:
+        fct my_func(int a, float b) {
+            say("hi");
+        }
+    """
+    __slots__ = ('_fct_token', '_name_token', '_lparen_token', '_parameters', '_rparen_token', '_body', )
+
+    fct_token_slot: SingleNodeSlot["FunctionDeclarationStmt", LeafNode] = SingleNodeSlot('_fct_token', LeafNode)
+    "The 'fct' token."
+    name_token_slot: SingleNodeSlot["FunctionDeclarationStmt", LeafNode] = SingleNodeSlot('_name_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
+    "The name of the function."
+    lparen_token_slot: SingleNodeSlot["FunctionDeclarationStmt", LeafNode] = SingleNodeSlot('_lparen_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_LPAREN)
+    "The '(' token."
+    parameters_slot: MultiNodeSlot["FunctionDeclarationStmt", FunctionParameter] = MultiNodeSlot('_parameters', FunctionParameter)
+    "The parameters of the function."
+    rparen_token_slot: SingleNodeSlot["FunctionDeclarationStmt", LeafNode] = SingleNodeSlot('_rparen_token', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_RPAREN)
+    "The ')' token."
+    body_slot: SingleNodeSlot["FunctionDeclarationStmt", BlockStmt] = SingleNodeSlot('_body', BlockStmt)
+    "The block of statements inside the function."
+
+    def __init__(self, fct_token: LeafNode | None, name_token: LeafNode | None, lparen_token: LeafNode | None, parameters: Iterable[FunctionParameter], rparen_token: LeafNode | None, body: BlockStmt | None):
+        super().__init__()
+        assert fct_token is None or FunctionDeclarationStmt.fct_token_slot.accepts(fct_token)
+        self._fct_token = fct_token
+        if fct_token is not None: 
+            fct_token.register_attachment(self, FunctionDeclarationStmt.fct_token_slot)
+            if fct_token.has_problems: self._update_has_problems(True)
+
+        assert name_token is None or FunctionDeclarationStmt.name_token_slot.accepts(name_token)
+        self._name_token = name_token
+        if name_token is not None: 
+            name_token.register_attachment(self, FunctionDeclarationStmt.name_token_slot)
+            if name_token.has_problems: self._update_has_problems(True)
+
+        assert lparen_token is None or FunctionDeclarationStmt.lparen_token_slot.accepts(lparen_token)
+        self._lparen_token = lparen_token
+        if lparen_token is not None: 
+            lparen_token.register_attachment(self, FunctionDeclarationStmt.lparen_token_slot)
+            if lparen_token.has_problems: self._update_has_problems(True)
+
+        self._parameters = list(parameters)
+        for s_init_el in self._parameters:
+            assert s_init_el is not None and FunctionDeclarationStmt.parameters_slot.accepts(s_init_el)
+            s_init_el.register_attachment(self, FunctionDeclarationStmt.parameters_slot)
+            if s_init_el.has_problems: self._update_has_problems(True)
+
+        assert rparen_token is None or FunctionDeclarationStmt.rparen_token_slot.accepts(rparen_token)
+        self._rparen_token = rparen_token
+        if rparen_token is not None: 
+            rparen_token.register_attachment(self, FunctionDeclarationStmt.rparen_token_slot)
+            if rparen_token.has_problems: self._update_has_problems(True)
+
+        assert body is None or FunctionDeclarationStmt.body_slot.accepts(body)
+        self._body = body
+        if body is not None: 
+            body.register_attachment(self, FunctionDeclarationStmt.body_slot)
+            if body.has_problems: self._update_has_problems(True)
+
+
+    @property
+    def fct_token(self) -> LeafNode | None:
+        """
+        The 'fct' token.
+        """
+        return self._fct_token
+
+    @fct_token.setter
+    def fct_token(self, value: LeafNode | None):
+        if value is not None: 
+            self._fct_token = self.attach_child(self.fct_token_slot, value)
+        else:
+            self.detach_child(self.fct_token_slot)
+
+    @property
+    def name_token(self) -> LeafNode | None:
+        """
+        The name of the function.
+        """
+        return self._name_token
+
+    @name_token.setter
+    def name_token(self, value: LeafNode | None):
+        if value is not None: 
+            self._name_token = self.attach_child(self.name_token_slot, value)
+        else:
+            self.detach_child(self.name_token_slot)
+
+    @property
+    def name_token_str(self) -> str:
+        """
+        The name of the function.
+        """
+        return self._name_token.text
+
+    @property
+    def lparen_token(self) -> LeafNode | None:
+        """
+        The '(' token.
+        """
+        return self._lparen_token
+
+    @lparen_token.setter
+    def lparen_token(self, value: LeafNode | None):
+        if value is not None: 
+            self._lparen_token = self.attach_child(self.lparen_token_slot, value)
+        else:
+            self.detach_child(self.lparen_token_slot)
+
+    @property
+    def parameters(self) -> Iterable[FunctionParameter]:
+        """
+        The parameters of the function.
+        """
+        return self._parameters
+
+    @property
+    def rparen_token(self) -> LeafNode | None:
+        """
+        The ')' token.
+        """
+        return self._rparen_token
+
+    @rparen_token.setter
+    def rparen_token(self, value: LeafNode | None):
+        if value is not None: 
+            self._rparen_token = self.attach_child(self.rparen_token_slot, value)
+        else:
+            self.detach_child(self.rparen_token_slot)
+
+    @property
+    def body(self) -> BlockStmt | None:
+        """
+        The block of statements inside the function.
+        """
+        return self._body
+
+    @body.setter
+    def body(self, value: BlockStmt | None):
+        if value is not None: 
+            self._body = self.attach_child(self.body_slot, value)
+        else:
+            self.detach_child(self.body_slot)
+
+    @property
+    def children(self):
+        if self._fct_token is not None: yield self._fct_token
+        if self._name_token is not None: yield self._name_token
+        if self._lparen_token is not None: yield self._lparen_token
+        yield from self._parameters
+        if self._rparen_token is not None: yield self._rparen_token
+        if self._body is not None: yield self._body
+
+    @property
+    def children_reversed(self):
+        if self._body is not None: yield self._body
+        if self._rparen_token is not None: yield self._rparen_token
+        yield from reversed(self._parameters)
+        if self._lparen_token is not None: yield self._lparen_token
+        if self._name_token is not None: yield self._name_token
+        if self._fct_token is not None: yield self._fct_token
+
+    @property
+    def child_inner_nodes(self):
+        yield from self._parameters
+        if self._body is not None: yield self._body
+
+FunctionDeclarationStmt.element_slots = (FunctionDeclarationStmt.fct_token_slot, FunctionDeclarationStmt.name_token_slot, FunctionDeclarationStmt.lparen_token_slot, FunctionDeclarationStmt.parameters_slot, FunctionDeclarationStmt.rparen_token_slot, FunctionDeclarationStmt.body_slot, )
+FunctionDeclarationStmt.inner_node_slots = (FunctionDeclarationStmt.parameters_slot, FunctionDeclarationStmt.body_slot, )
 
 
 class VariableDeclarationStmt(Statement):

@@ -22,6 +22,7 @@ def definitions() -> list[type]:
     class Argument(InnerNode):
         """
         An argument to a function call.
+        Example: 8, 2, my_func(840), "artichaut"
         """
 
         expr = single(Expression, doc="The expression representing the argument.")
@@ -36,6 +37,16 @@ def definitions() -> list[type]:
         lparen_token = single(TK.SYM_LPAREN, doc="The '(' token.")
         arguments = multi(Argument, doc="The arguments to the function.")
         rparen_token = single(TK.SYM_RPAREN, doc="The ')' token.")
+
+    @node_def
+    class FunctionParameter(InnerNode):
+        """
+        A parameter defined within a function (fct).
+        Example: int x
+        """
+        type = single(BuiltInType, doc="The type of the parameter.")
+        name_token = single(TK.IDENTIFIER, doc="The name of the parameter.")
+        comma = single(TK.SYM_COMMA, doc="The ',' token, when inside a list of function parameters.", optional=True)
 
     # ----------
     # Expressions
@@ -146,6 +157,23 @@ def definitions() -> list[type]:
         lbrace_token = single(TK.SYM_LBRACE, doc="The '{' token.")
         statements = multi(Statement, doc="The statements contained within the block.")
         rbrace_token = single(TK.SYM_RBRACE, doc="The '}' token.")
+
+    @node_def
+    class FunctionDeclarationStmt(Statement):
+        """
+        A function declaration, with a return type, name, parameters, and a block of statements.
+        Example:
+            fct my_func(int a, float b) {
+                say("hi");
+            }
+        """
+
+        fct_token = single(Token, doc="The 'fct' token.")
+        name_token = single(TK.IDENTIFIER, doc="The name of the function.")
+        lparen_token = single(TK.SYM_LPAREN, doc="The '(' token.")
+        parameters = multi(FunctionParameter, doc="The parameters of the function.")
+        rparen_token = single(TK.SYM_RPAREN, doc="The ')' token.")
+        body = single(BlockStmt, doc="The block of statements inside the function.")
 
     @node_def
     class VariableDeclarationStmt(Statement):

@@ -71,13 +71,19 @@ assign_stmt = identifier, '=', expression, statement_end;
 block_stmt = '{', statement_list, '}';
 (*
     A function declaration, defining a function with its name, arguments and body.
+    The arguments can be entirely optional
     TODO: Currently, user-made functions can't return values!
     Example:
         fct my_func(int x, int y) {
             Line(x, y);
         }
+
+    Example:
+        fct nice_shape {
+            Circle(5, 5, 10);
+        }
 *)
-function_decl_stmt = 'fct', identifier, '(', comma_sep_expression_list, ')', block_stmt;
+function_decl_stmt = 'fct', identifier, ['(', comma_sep_function_parameter_list, ')'], block_stmt;
 (*
     An if statement with a conditional expression, followed by [0..N] "else if" statements and [0..1] "else" statement.
     Examples:
@@ -114,6 +120,18 @@ statement_end = ';';
     Example: 8, 2, my_func(840), "artichaut"
 *)
 comma_sep_expression_list = [expression, {',', expression}];
+
+(*
+    A parameter defined within a function (fct).
+    Example: int x
+*)
+function_parameter = type, identifier;
+
+(*
+    A comma separated list of [0..N] function parameters.
+    Example: int x, int y, float z
+*)
+comma_sep_function_parameter_list = [expression, {',', expression}];
 
 (*
     EXPRESSIONS
