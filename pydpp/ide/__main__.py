@@ -87,6 +87,20 @@ class App(ctk.CTk):
         # Not implemented yet
         # self.write_to_terminal(compile_code(code_to_exe))
 
+        # POC for error at execution and redirect in code
+        index_err = "5.7"
+        self.write_to_terminal(f"test at {index_err} (double click to access)")
+        textbx = self.textboxes[self.tabview.get()]
+        self.terminal.tag_config("err", underline=True, foreground="blue")
+        self.terminal.tag_bind("err", "<Button-1>", lambda event: self.get_to_text(textbx, index_err))
+        self.terminal.tag_add("err", "3.8", "3.11")
+
+
+    def get_to_text(self, txt, index, event=None):
+        txt.mark_set("insert", index)  
+        txt.see(index)
+        txt.focus_force()
+
     def write_to_terminal(self, text):
         self.terminal.configure(state="normal")
         self.terminal.insert(ctk.END, f"\n{str(text)}")
