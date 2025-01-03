@@ -161,8 +161,12 @@ class App(ctk.CTk):
             textbox = self.textboxes.get(tab)  # Get corresponding Textbox
             if textbox:
                 text = textbox.get("1.0", "end-1c")  # Get Textbox content
-                file=filedialog.asksaveasfilename(filetypes=[("txt fichier",".txt")], initialfile=tab)
-                filename = os.path.basename(file)
+                file=filedialog.asksaveasfilename(
+                    defaultextension="*.txt",
+                    filetypes=[("txt","*.txt")], 
+                    initialfile=tab
+                    )
+                filename =os.path.basename(file)
                 if file:
                     with open(file, "w") as f:
                         f.write(text)
@@ -176,8 +180,8 @@ class App(ctk.CTk):
 
     def imp_event(self, event=None):
         file = filedialog.askopenfilename(title="Importer",
-                                        defaultextension=".txt",
-                                        filetypes=[("txt fichier",".txt")],
+                                        defaultextension="*.txt",
+                                        filetypes=[("txt","*.txt")],
                                         initialdir= r"PROJET", # Mettre un r pour faire la diférence entre \ en tant que signe spécial et \ pour un caractère lambda
                                         )   
         if file:    
