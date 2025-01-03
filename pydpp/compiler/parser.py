@@ -9,6 +9,7 @@ from pydpp.compiler.tokenizer import *
 
 N = TypeVar("N", bound=InnerNode)
 
+
 class _Parser:
     """
     Takes a list of tokens, and processes it to create a syntax tree from it.
@@ -86,6 +87,8 @@ class _Parser:
             return stmt
         elif stmt := self.parse_variable_declaration_statement():
             return stmt
+        elif stmt := self.parse_function_declaration():
+            return stmt
         elif stmt := self.parse_if_statement():
             return stmt
         elif stmt := self.parse_else_statement():
@@ -99,6 +102,83 @@ class _Parser:
             return stmt
 
         return None
+
+    def parse_function_declaration(self) -> Optional[FunctionDeclarationStmt]:
+        # Let's first define a function to read any function parameter, INCLUDING the comma.
+        def function_param() -> Optional[FunctionParameter]:
+            # We're doing something slightly smarter than usual. We'll try either a type, or a name,
+            # and complain if we get the type first.
+            # Note: this won't be useful anymore if we ever get user-defined types.
+            param_name = None
+            if (param_type := self.parse_built_in_type()) or (param_name := self.consume_exact(TokenKind.IDENTIFIER)):
+                # At this point, either param_type or param_name is filled.
+
+                # Don't read the name twice, hence the "param_name or"
+                param_name = param_name or self.consume_exact(TokenKind.IDENTIFIER)
+                comma = self.consume_exact(TokenKind.SYM_COMMA)
+
+                issues = []
+                if param_type is None:
+                    issues.append(InnerNodeProblem(message=f"Type du paramètre « {param_name.text} » manquant.",
+                                                     slot=FunctionParameter.type_slot))
+                if param_name is None:
+                    issues.append(InnerNodeProblem(message="Nom du paramètre manquant.",
+                                                     slot=FunctionParameter.name_token_slot))
+                # Comma checking is done later
+
+                return FunctionParameter(param_type, leaf(param_name), leaf(comma)).with_problems(*issues)
+            else:
+                return None
+
+        if fct := self.consume_exact(TokenKind.KW_FCT):
+            problems = []
+
+            name = self.consume_exact(TokenKind.IDENTIFIER)
+            if name is None:
+                problems.append(InnerNodeProblem(message="Nom manquant sur cette fonction.",
+                                                 slot=FunctionDeclarationStmt.name_token_slot))
+
+            # Let's now read all arguments. Remember that parentheses are optional if there are no arguments.
+            lparen = self.consume_exact(TokenKind.SYM_LPAREN)
+
+            # Add arguments until we simply can't.
+            args = []
+            while param := function_param():
+                args.append(param)
+
+            rparen = self.consume_exact(TokenKind.SYM_RPAREN)
+
+            # Then, we're going to check the validity of our parameters.
+            # The following scenarios are possible:
+            #     - One parenthesis is there, but not the other.
+            #     - We have some arguments, but we have missing parentheses
+            #     - Commas are missing between arguments
+
+            at_least_one_paren = lparen is not None or rparen is not None
+            any_args = len(args) != 0
+            if lparen is None and (any_args or at_least_one_paren):
+                problems.append(InnerNodeProblem(message="Parenthèse ouvrante manquante après le nom de la fonction.",
+                                                 slot=FunctionDeclarationStmt.lparen_token_slot))
+
+            if rparen is None and (any_args or at_least_one_paren):
+                problems.append(InnerNodeProblem(message="Parenthèse fermante manquante après la liste des paramètres.",
+                                                 slot=FunctionDeclarationStmt.rparen_token_slot))
+
+            # CHeck for commas missing between arguments
+            for a in args:
+                if a != args[-1] and a.comma is None:
+                    a.add_problem(InnerNodeProblem(message=f"Virgule manquante après le paramètre « {a.name_token_str} »",
+                                                   slot=FunctionParameter.comma_slot))
+
+            # Finally parse the { } block.
+            block = self.parse_block_statement()
+            if block is None:
+                problems.append(InnerNodeProblem(message="Bloc d'instructions manquant après la déclaration de la fonction.",
+                                                 slot=FunctionDeclarationStmt.body_slot))
+
+            return (FunctionDeclarationStmt(leaf(fct), leaf(name), leaf(lparen), args, leaf(rparen), block)
+                    .with_problems(*problems))
+
 
     def parse_if_statement(self) -> Optional[IfStmt]:
         """
@@ -247,7 +327,8 @@ class _Parser:
                                                          slot=VariableDeclarationStmt.assign_token_slot))
 
                 sm = self.expect_semicolon_2(problems, VariableDeclarationStmt.semi_colon_slot)
-                return VariableDeclarationStmt(var_type, leaf(ident), leaf(assign), value, leaf(sm)).with_problems(*problems)
+                return VariableDeclarationStmt(var_type, leaf(ident), leaf(assign), value, leaf(sm)).with_problems(
+                    *problems)
             else:
                 # No identifier? Then it'll be None.
                 problems.append(InnerNodeProblem(message="Identificateur manquant après le type de variable.",
@@ -306,7 +387,8 @@ class _Parser:
         else:
             return None
 
-    def expect_semicolon_2(self, problems: list[InnerNodeProblem], sm_slot: SingleNodeSlot[InnerNode, LeafNode]) -> Token | None:
+    def expect_semicolon_2(self, problems: list[InnerNodeProblem],
+                           sm_slot: SingleNodeSlot[InnerNode, LeafNode]) -> Token | None:
         """
         Consumes the incoming semicolon token. Errors out if not present.
         """
@@ -438,7 +520,8 @@ class _Parser:
 
             # Continue reading operators until we find one of lower precedence, in that is the case,
             # the parent function call will take over reading expressions of lower precedence.
-            while (operator := self.peek()) and (prec := _Parser.op_to_prec.get(operator.kind)) is not None and prec >= min_prec:
+            while (operator := self.peek()) and (
+            prec := _Parser.op_to_prec.get(operator.kind)) is not None and prec >= min_prec:
                 # Consume the operator we've just read
                 self.consume()
 
