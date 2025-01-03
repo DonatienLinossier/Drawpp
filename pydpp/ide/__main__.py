@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from tkinter import filedialog
+from tkinter import filedialog, font
 import os
 from pydpp.compiler import ProblemSet, ProblemSeverity, collect_errors
 from pydpp.compiler.parser import parse
@@ -209,8 +209,29 @@ class App(ctk.CTk):
             showtext = ctk.CTkTextbox(self.tabview.tab(name))
             showtext.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
 
+            # --- SYNTAX HIGHILIGHTING ---
+            # Initialize color tags
             self.init_highlighting(showtext)
+            # Bind the Modified event to update the syntax highlighting on type/paste/delete/etc.
             showtext.bind("<<Modified>>", lambda e: self.update_highlighting(showtext))
+            # Change font of textbox because existing one is UGLY
+            # Try all monospace fonts I know so it works on both Windows and Linux.
+            fonts = font.families()
+            if "Cascadia Code" in fonts:
+                fam = "Cascadia Code"
+            elif "Consolas" in fonts:
+                fam = "Consolas"
+            elif "Ubuntu Mono" in fonts:
+                fam = "Ubuntu Mono"
+            elif "Noto Mono" in fonts:
+                fam = "Noto Mono"
+            elif "Liberation Mono" in fonts:
+                fam = "Liberation Mono"
+            elif "Lucida Console" in fonts:
+                fam = "Lucida Console"
+            else:
+                fam = fonts[0]
+            showtext.configure(font=ctk.CTkFont(family=fam, size=13))
 
             self.textboxes[name] = showtext
             self.tabview.set(name)
@@ -223,21 +244,42 @@ class App(ctk.CTk):
         txt.tag_config("err", underline=True, underlinefg="red")
 
         def err_enter(er):
-            print("ERROR ENTER: cursor is at", txt.index("current"))
+            # print("ERROR ENTER: cursor is at", txt.index("current"))
+
+            # The cursor is on the error. Let's find the err_info_{i} tag, and grab that i value
+            # to find the problem data.
+            # To do this, we need to go through all tags spanning this character, and find the err_info_{i} tag.
+            # We *may* have multiple error spanning one character, so get them all!
+            err_indices = []
+            for tag in txt.tag_names(txt.index("current")):
+                # Is it an error info tag?
+                if tag.startswith("err_info_"):
+                    # Yep, skip the "err_info" part and get the index.
+                    err_indices.append(int(tag[len("err_info_"):]))
+
             # Then use that coordinate to find where the error is and show a tooltip... somehow.
             # It's there !!
             if not self.tt:
-                self.tt = createToolTip(txt, "Error here", int(txt.index("current").split(".")[0]), int(txt.index("current").split(".")[1]))
+                # Gather all error messages, separated with a newline, by looking at err_indices
+                msg = "\n".join([txt.drawpp_error_infos[i].message for i in err_indices])
+                self.tt = createToolTip(txt, msg, int(txt.index("current").split(".")[0]), int(txt.index("current").split(".")[1]))
 
         def err_exit(er):
-            print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
+            # print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
             if self.tt:
                 self.tt.destroy()
+                self.tt = None
 
         # Bind some functions to run when the cursor enters or leaves an error in the text.
         # We can use that to show tooltips!
         txt.tag_bind("err", "<Enter>", err_enter)
         txt.tag_bind("err", "<Leave>", err_exit)
+
+        # Add a "drawpp_error_infos" attribute to our textbox, with a list that acts as a map.
+        # This attribute is used to register additional info for each problem underlined in the text,
+        # so we can show it in the tooltip.
+        # ==> drawpp_error_infos[i] = problem data for text with tag "err_info_{i}"
+        setattr(txt, "drawpp_error_infos", [])
 
     def update_highlighting(self, txt: ctk.CTkTextbox):
         # Converts a string index into tkinter coordinates
@@ -245,15 +287,16 @@ class App(ctk.CTk):
             return f"1.0+{idx}c"
 
         # Clear all existing highlighting
-        txt.tag_remove("kw", "1.0", "end")
-        txt.tag_remove("str", "1.0", "end")
-        txt.tag_remove("num", "1.0", "end")
-        txt.tag_remove("err", "1.0", "end")
+        for tag in txt.tag_names(): # tag_names() returns all tags in the textbox
+            txt.tag_remove(tag, "1.0", "end")
+
+        # Reset errors we've saved before
+        txt.drawpp_error_infos = []
 
         # Get the entire text of the textbox
         t = txt.get("1.0", "end")
 
-        # Run the tokenizer (for primary syntax highlighting) and the parser (for error recognition)
+        # Run the tokenizer (for primary syntax highlighting)
         tkn_list = profile("tokenize", lambda: tokenize(t))
 
         # Highlight every portion of the text that matches with a token
@@ -282,11 +325,23 @@ class App(ctk.CTk):
         ps = ProblemSet()
         # Collect all errors from the tree, and put them all in the problem set
         collect_errors(tree, ps)
+        i = 0
         for e in ps.grouped[ProblemSeverity.ERROR]:
-            txt.tag_add("err", tidx_to_tkidx(e.pos.start), tidx_to_tkidx(e.pos.end))
+            # Convert coordinates to tkinter coordinates
+            start, end = tidx_to_tkidx(e.pos.start), tidx_to_tkidx(e.pos.end)
+
+            # Add the "err" tag for red underlining
+            txt.tag_add("err", start, end)
+
+            # Add the "err_info_{i}" tag used for fetching the problem info (description),
+            # and add the problem in a drawpp_error_infos list.
+            txt.tag_add(f"err_info_{i}", start, end)
+            txt.drawpp_error_infos.append(e)
+            i += 1
         profile_end(s)
 
-        print("---")
+        if ENABLE_PROFILING:
+            print("---")
 
         # Set modified to False so the event triggers again (it's dumb but that's how it works)
         txt.edit_modified(False)
@@ -328,22 +383,24 @@ class ToolTip(object):
         self.tipwindow = None
         if tw:
             tw.destroy()
+
     def destroy(self):
-        self.tipwindow.destroy()
+        if self.tipwindow:
+            self.tipwindow.destroy()
 
 def createToolTip(widget, text, x: int, y: int):
     toolTip = ToolTip(widget, x, y)
-    def enter(event):
-        toolTip.showtip(text)
-    def leave(event):
-        toolTip.hidetip()
-    widget.bind('<Enter>', enter)
-    widget.bind('<Leave>', leave)
+    toolTip.showtip(text)
     return toolTip
 
 # Temporary functions to profile the perf of highlighting updates
 import time
+import os
+ENABLE_PROFILING = os.getenv("DRAWPP_PROFILE", "0") == "1"
 def profile(name, func):
+    if not ENABLE_PROFILING:
+        return func()
+
     start_time = time.perf_counter_ns()
     res = func()
     end_time = time.perf_counter_ns()
@@ -353,11 +410,17 @@ def profile(name, func):
     return res
 
 def profile_start(name):
+    if not ENABLE_PROFILING:
+        return 0
+
     start_time = time.perf_counter_ns()
     print(f"{name}: ", end="")
     return start_time
 
 def profile_end(start_time):
+    if not ENABLE_PROFILING:
+        return
+
     end_time = time.perf_counter_ns()
     elapsed_time_ms = (end_time - start_time) / 1_000_000
     print(f"{elapsed_time_ms} ms")
