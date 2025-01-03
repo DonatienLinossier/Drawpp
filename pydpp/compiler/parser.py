@@ -664,6 +664,9 @@ class _Parser:
             # All arguments we've found.
             args = []
 
+            # True when the previous argument didn't have a comma.
+            prev_comma_missing = False
+
             # Continue reading the argument list until we find a closing parenthesis or a semicolon.
             # NOTE: The semicolon check is a bit of a weird choice, we might just give up reading the list
             # instead of waiting for an end of statement.
@@ -671,22 +674,33 @@ class _Parser:
                 # Then we must have an expression coming next. Try to read it.
                 arg = self.parse_expression()
                 if not arg:
-                    # TODO: Err if no expression
                     erroneous = []
                     while ((nxt := self.peek())
                            and nxt.kind != TokenKind.SYM_RPAREN
                            and nxt.kind != TokenKind.SYM_SEMICOLON
                            and nxt.kind != TokenKind.SYM_COMMA):
                         erroneous.append(leaf(self.consume()))
-                    arg = ErrorExpr(erroneous)
+                    arg = ErrorExpr(erroneous).with_problems(InnerNodeProblem("Argument invalide."))
 
-                # TODO: Err if comma missing
-                n = self.consume_exact(TokenKind.SYM_COMMA)
-                args.append(Argument(arg, leaf(n) if n else None))
+                # The previous argument didn't have a comma! Report the problem now, so we don't forget!
+                if prev_comma_missing:
+                    args[-1].add_problem(InnerNodeProblem("Virgule manquante entre les arguments.",
+                                                     slot=Argument.comma_token_slot))
+
+                # Read the comma, and fill out the prev_comma_missing.
+                comma = self.consume_exact(TokenKind.SYM_COMMA)
+                prev_comma_missing = comma is None
+
+                # Of course, add the argument
+                args.append(Argument(arg, leaf(comma)))
 
             rparen = self.consume_exact(TokenKind.SYM_RPAREN)
-            # TODO: Err if rparen missing
-            return ArgumentList(leaf(lparen), args, leaf(rparen))
+            if rparen:
+                return ArgumentList(leaf(lparen), args, leaf(rparen))
+            else:
+                return ArgumentList(leaf(lparen), args, None).with_problems(
+                    InnerNodeProblem("Parenthèse fermante manquante après la liste des arguments.",
+                                     slot=ArgumentList.rparen_token_slot))
 
     def make_error_expr(self, tokens: list[Token]) -> ErrorExpr:
         """

@@ -697,7 +697,10 @@ class _Tokenizer:
                 i += 1
                 while i < l and self.code[i].isspace():
                     i += 1
-                self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.WHITESPACE, self.code[very_start:i]))
+
+                if i != self.cursor:
+                    self.consume(i - self.cursor)
+                    self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.WHITESPACE, self.code[very_start:i]))
 
                 if i < l and self.code[i] != "/":
                     break
@@ -709,14 +712,14 @@ class _Tokenizer:
                 i += 2
                 m = self.until_nl_regex.match(self.code, i)
                 i += len(m.group(0)) if m else 0
-                self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.SINGLE_LINE_COMMENT, self.code[start:i]))
+
+                if i != self.cursor:
+                    self.consume(i - self.cursor)
+                    self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.SINGLE_LINE_COMMENT, self.code[start:i]))
 
             # If we've read nothing, exit the loop.
             if very_start == i:
                 break
-
-        if i != self.cursor:
-            self.consume(i - self.cursor)
 
     def consume_regex(self, regex: re.Pattern[str]) -> str:
         """
@@ -774,7 +777,8 @@ class _Tokenizer:
         if self.err_start is not None:
             chars = self.code[self.err_start:self.cursor]
             self.queue_problem(message=f"Séquence de caractères non reconnue : « {chars} ».",
-                               text_space=len(self.pending_auxiliary), )
+                               text_space=len(self.pending_auxiliary),
+                               span=TextSpan(0, len(chars)))
             self.pending_auxiliary.append(AuxiliaryText(AuxiliaryKind.INVALID, chars))
             self.err_start = None
 

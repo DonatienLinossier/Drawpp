@@ -822,9 +822,9 @@ class InnerNode(Node):
                 el.register_attachment(self, slot)
                 if el.has_problems: self._update_has_problems(True)
 
-            setattr(self, slot.attr, l)
-
             self._children_updated(slot, l, False)
+
+        setattr(self, slot.attr, l)
 
         return l
 
