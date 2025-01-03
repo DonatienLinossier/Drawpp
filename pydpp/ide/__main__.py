@@ -74,6 +74,7 @@ class App(ctk.CTk):
         self.appearance_mode_menu.set("System")
         self.scaling_optionemenu.set("100%")
         self.newfilecount = 1
+        self.tt = None
 
     def run_program(self, event=None):
         """
@@ -218,10 +219,15 @@ class App(ctk.CTk):
 
         def err_enter(er):
             print("ERROR ENTER: cursor is at", txt.index("current"))
-            # Then use that coordinate to find where the error is and show a tooltip... somehow
+            # Then use that coordinate to find where the error is and show a tooltip... somehow. 
+            # It's there !!
+            if not self.tt:
+                self.tt = createToolTip(txt, "Error here", int(txt.index("current").split(".")[0]), int(txt.index("current").split(".")[1]))
 
         def err_exit(er):
             print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
+            if self.tt:
+                self.tt.destroy()
 
         # Bind some functions to run when the cursor enters or leaves an error in the text.
         # We can use that to show tooltips!
@@ -273,6 +279,48 @@ class App(ctk.CTk):
         new_scaling_float = int(new_scaling.replace("%", "")) / 100
         ctk.set_widget_scaling(new_scaling_float)
 
+
+class ToolTip(object):
+
+    def __init__(self, widget, x_offset: int, y_offset: int):
+        self.widget = widget
+        self.tipwindow = None
+        self.id = None
+        self.x = self.y = 0
+        self.x_offset = x_offset*20
+        self.y_offset = y_offset*20
+
+    def showtip(self, text):
+        "Display text in tooltip window"
+        self.text = text
+        if self.tipwindow or not self.text:
+            return
+        x, y, cx, cy = self.widget.bbox("insert")
+        x = x + self.widget.winfo_rootx() + self.x_offset
+        y = y + cy + self.widget.winfo_rooty() + self.y_offset
+        self.tipwindow = tw = ctk.CTkToplevel(self.widget)
+        tw.wm_overrideredirect(1)
+        tw.wm_geometry("+%d+%d" % (x, y))
+        label = ctk.CTkLabel(tw, text=self.text, justify=ctk.LEFT)
+        label.pack(ipadx=1)
+
+    def hidetip(self):
+        tw = self.tipwindow
+        self.tipwindow = None
+        if tw:
+            tw.destroy()
+    def destroy(self):
+        self.tipwindow.destroy()
+
+def createToolTip(widget, text, x: int, y: int):
+    toolTip = ToolTip(widget, x, y)
+    def enter(event):
+        toolTip.showtip(text)
+    def leave(event):
+        toolTip.hidetip()
+    widget.bind('<Enter>', enter)
+    widget.bind('<Leave>', leave)
+    return toolTip
 
 if __name__ == "__main__":
     app = App()
