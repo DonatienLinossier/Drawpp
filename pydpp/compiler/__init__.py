@@ -75,7 +75,7 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
                         # TODO: Be more precise with the span (slots)
                         span = node.span
                     elif isinstance(p, TokenProblem):
-                        span = TextSpan(node.span.start + p.span.start, node.span.start + p.span.end)
+                        span = TextSpan(node.full_span_start + p.span.start, node.full_span_start + p.span.end)
                     else:
                         raise ValueError(f"Unknown problem type: {p}")
 
