@@ -1,4 +1,3 @@
-from pydpp.compiler import ProblemSet
 from pydpp.compiler.syntax import Program
 
 
@@ -17,7 +16,7 @@ class ProgramSemanticInfo:
         # TODO! Peut-être mettre "self.functions = {...}" pour stocker les fonctions de base ?
         pass
 
-def analyse(program: Program, ps: ProblemSet) -> ProgramSemanticInfo:
+def analyse(program: Program) -> ProgramSemanticInfo:
     """
     Runs semantic analysis on a program. Will make sure that all types are correct, that variables are
     valid, and will list all functions and instructions to run when transpiling.
@@ -41,4 +40,6 @@ def analyse(program: Program, ps: ProblemSet) -> ProgramSemanticInfo:
     #     les informations nécessaires (types, déclarations) pour pouvoir générer le code C après !
     #     Ces informations devront être stockées dans le "struct" ProgramSemanticInfo, que le générateur
     #     va récupérer (transpiler.py)
-    raise NotImplementedError("Not done yet... :(")
+
+    return ProgramSemanticInfo()
+    # raise NotImplementedError("Not done yet... :(")
