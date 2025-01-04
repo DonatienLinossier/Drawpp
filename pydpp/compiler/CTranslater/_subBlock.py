@@ -1,4 +1,5 @@
 from .Variable import VarCall
+from ._Cursor import _Cursor
 
 """
 This class is designed for executing a sequence of instructions in a controlled scope,
@@ -23,6 +24,14 @@ class _subBlock:
             "_getVar": self.functGetVar,
             "_addToVar": self.functAddToVar,
             "_createVar": self.functCreateVar,
+            "_createCursor": self.createCursor,
+            "_cursorJump": self.cursorJump,
+            "_cursorDrawCircle": self.cursorDrawCircle,
+            "_cursorDrawFilledCircle": self.cursorDrawFilledCircle,
+            "_cursorRotate": self.cursorRotate,
+            "_cursorPrintData": self.cursorPrintData,
+            "_cursorChangeColor": self.cursorChangeColor,
+            "_cursorChangeThickness": self.cursorChangeThickness,
         }
 
     #It takes:
@@ -79,7 +88,9 @@ class _subBlock:
 
     def add_instruction(self, func, *args):
         if func.__name__ in self.overrideInstr:
-            self.instr.append((self.overrideInstr[func.__name__], args))
+
+            self.instr.append((self.overrideInstr[func.__name__], args)) #For verif and variable
+            self.instr.append((func, args))
         else:
             self.instr.append((func, args))
 
@@ -97,3 +108,106 @@ class _subBlock:
             self.blockVarDict[name] += value
         else:
             print(f"Variable '{name}' does not exist.")
+
+    def createCursor(self, name, x, y, angle, r, g, b, a):
+        if name in self.blockVarDict and type(self.blockVarDict[name]) is not _Cursor:
+            print("Variable already exists and is not a cursor")
+            #TODO: HAndle error
+            return
+        self.blockVarDict[name] = _Cursor(name, x, y, angle, r, g, b, a)
+
+    def cursorJump(self, cursor, x, y):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+            return
+
+        cursor.x += x
+        cursor.y += y
+
+        self.blockVarDict[cursor.name] = cursor
+
+    def cursorRotate(self, cursor, angle):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+            return
+
+        cursor.angle += angle
+
+        if cursor.angle >= 360:
+            cursor.angle -= 360
+
+        elif cursor.angle <= 0:
+            cursor.angle += 360
+
+        self.blockVarDict[cursor.name] = cursor
+
+
+    def cursorPrintData(self, cursor):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+            return
+
+        print(vars(cursor))
+
+    def cursorChangeThickness(self, cursor, thickness):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+            return
+
+        if thickness <= 0:
+            #TODO: handle error
+            print("Cursor Thickness cannot be lower or equal to 0")
+            return
+
+        cursor.thickness = thickness
+        self.blockVarDict[cursor.name] = cursor
+
+
+
+    def cursorChangeColor(self, cursor, r, g, b, a):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+            return
+
+        if r < 0 or r > 255 \
+        or g < 0 or g > 255 \
+        or b < 0 or b > 255:
+            #todo: handle error
+            print("Color value cannot be lower than 0 or greater than 255.")
+            return
+
+        if a<0 or a>1:
+            #todo: handle error
+            print("Color a value cannot be lower than 0 or greater than 1.")
+            return
+
+        cursor.color = [r, g, b, a]
+        self.blockVarDict[cursor.name] = cursor
+
+
+    def cursorDrawCircle(self, cursor, r):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+
+    def cursorDrawFilledCircle(self, cursor, r):
+        if type(cursor) is not _Cursor:
+            #TODO: handle error
+            print(cursor, "is not a cursor.")
+
+
+
+
+
+
+
+
+
+
+
+
