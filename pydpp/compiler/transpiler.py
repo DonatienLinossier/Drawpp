@@ -262,7 +262,8 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
             if sym.type == BuiltInTypeKind.CURSOR:
                 # Special handling for cursors: create a cursor using the createCursor instruction.
                 # They can't have values assign to anyway.
-                ct.add_instruction("createCursor", val_sym_to_translater(sym))
+                ct.add_instruction("createCursor", val_sym_to_translater(sym),
+                                   0, 0, 0, 0, 0, 0, 1)
             else:
                 # Find the value we should initialise the variable with.
                 if s.value is not None:
