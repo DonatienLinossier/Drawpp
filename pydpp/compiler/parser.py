@@ -399,7 +399,8 @@ class _Parser:
             # We don't! Report and error and given the position of the last parsed token.
             problems.append(InnerNodeProblem(message="Point-virgule manquant à la fin d'une instruction.",
                                              severity=ProblemSeverity.ERROR,
-                                             slot=sm_slot))
+                                             slot=sm_slot,
+                                             code=ProblemCode.MISSING_SEMICOLON))
             return None
 
     def parse_built_in_type(self):
@@ -411,7 +412,7 @@ class _Parser:
 
         # Try all possible matching type keywords.
         match self.peek().kind:
-            case TokenKind.KW_INT | TokenKind.KW_FLOAT | TokenKind.KW_STRING | TokenKind.KW_BOOL:
+            case TokenKind.KW_INT | TokenKind.KW_FLOAT | TokenKind.KW_STRING | TokenKind.KW_BOOL | TokenKind.KW_CURSOR:
                 tkn = self.consume()
                 return BuiltInType(leaf(tkn))
             case _:

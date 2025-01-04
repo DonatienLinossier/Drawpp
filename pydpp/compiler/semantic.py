@@ -1,27 +1,73 @@
 import typing
+from enum import Enum
 from math import trunc
 
 from pydpp.compiler.syntax import *
-from pydpp.compiler.types import BuiltInTypeKind
-
 
 # ======================================================
 # semantic.py: The semantic analyser
 # ======================================================
 # This is also where built-in functions and types are defined.
+#
+# The semantic analyser reads the entire program tree to look for node references (variables, functions...),
+# and does type inference + checking to make sure types are correct (e.g. boolean in an if statement).
+#
+# Some nodes have semantic information attached to them, called Symbols.
+# Multiple Symbol types exist, following the [Node]Sym pattern:
+#     - FunctionSym: for function declarations
+#     - ParameterSym: for function parameters
+#     - VariableSym: for variable declarations
+#     - ExpressionSym: for expressions
+#     - AssignStmtSym: for assignation statements
+#
+# Each symbol contains the AST node it is linked to, in the "node" attribute.
+#
+# These symbols can be accessed by using the _to_sym maps (function_to_sym, variable_to_sym, etc.), stored
+# in the final ProgramSemanticInfo. (Except for ParameterSym which can only be accessed from a function.)
+
+class BuiltInTypeKind(Enum):
+    """
+    A built-in type in the language.
+    """
+    INT = "int"
+    FLOAT = "float"
+    STRING = "string"
+    BOOL = "bool"
+    CURSOR = "cursor"
+    NOTHING = "nothing" # like void in C? but a little bit more original?
+    ERROR = "error"
+
+    def __str__(self):
+        return self.value
+
 
 class FunctionSym:
+    """
+    Semantic information for a function.
+    Includes type information for parameters and return values. Supports built-in functions.
+    """
+
     def __init__(self, name: str, return_type: BuiltInTypeKind, parameters: list["ParameterSym"],
                  node: FunctionDeclarationStmt | None, c_func_name: str = None):
         self.name = name
+        "The name of the function."
         self.return_type = return_type
+        "The return type of the function. Can be set to NOTHING if this function doesn't return anything."
         self.parameters = parameters
+        "All parameters of this function, in order, as a list of ParameterSym."
         self.node = node
+        "The AST node this symbol is attached to. Can be None for built-in functions."
         self.c_func_name = c_func_name
+        "For built-in functions only: the name of the C/CTranslater function/instruction to call."
 
-    def find_param(self, n: str) -> typing.Optional["ParameterSym"]:
+    def find_param(self, name: str) -> typing.Optional["ParameterSym"]:
+        """
+        Finds a parameter symbol with the given name. Uses linear search in O(n).
+        :param name: the name of the parameter
+        :return: the parameter symbol
+        """
         for p in self.parameters:
-            if p.name == n:
+            if p.name == name:
                 return p
         return None
 
@@ -29,29 +75,63 @@ class FunctionSym:
         params = ", ".join(str(p.type) + " " + p.name for p in self.parameters)
         return f"FunctionSym({self.name}, {self.return_type}, [{params}])"
 
+
 class VariableSym:
-    def __init__(self, name: str, type: BuiltInTypeKind, node: VariableDeclarationStmt | None, builtin_val = None):
+    """
+    Semantic information for a declared variable (global or local).
+    Contains its type information.
+    Supports built-in variables with constant values.
+    """
+
+    def __init__(self, name: str, type: BuiltInTypeKind, node: VariableDeclarationStmt | None, builtin_val=None):
         self.name = name
+        "The name of the variable."
         self.type = type
+        "The type of the variable."
         self.node = node
+        "The AST node this symbol is attached to. Can be None for built-in variables."
         self.built_in_val = builtin_val
+        "The built-in value of the variable, if it's a constant. Can be None."
 
     def __str__(self):
         return f"VariableSym({self.name}, {self.type})"
 
+
 class ParameterSym:
+    """
+    Semantic information for a function parameter.
+    Contains its type information.
+    """
+
     def __init__(self, name: str, type: BuiltInTypeKind, node: FunctionParameter | None):
         self.name = name
+        "The name of the parameter."
         self.type = type
+        "The type of the parameter."
         self.node = node
+        "The AST node this symbol is attached to."
 
     def __str__(self):
         return f"ParameterSym({self.name}, {self.type})"
 
+
 class ExpressionSym:
+    """
+    Semantic information for an expression.
+    Contains its inferred type, and the symbol it references (when referencing a variable/parameter).
+    """
+
     def __init__(self, type: BuiltInTypeKind, referenced_symbol: typing.Optional["Sym"] = None):
         self.type = type
+        "The type of the expression. Can be ERROR if the expression is invalid."
         self.referenced_symbol = referenced_symbol
+        """
+        The symbol this expression references, if any.
+        Current possible referenced symbols:
+            - VariableSym: value of a variable, with a VariableExpr node.
+            - ParameterSym: value of a function parameter, with a VariableExpr node.
+            - FunctionSym: a function call, with a FunctionExpr node.
+        """
 
     def __str__(self):
         if self.referenced_symbol is not None:
@@ -59,9 +139,24 @@ class ExpressionSym:
         else:
             return f"ExpressionSym({self.type})"
 
+class AssignSym:
+    """
+    Semantic information for an assignment statement.
+    Contains symbol references to the variable and the expression being assigned.
+    """
+
+    def __init__(self, variable: VariableSym | None, value: ExpressionSym | None, node: AssignStmt):
+        self.variable = variable
+        "The variable symbol being assigned to. Can be None when not found (invalid node)."
+        self.value = value
+        "The expression symbol being assigned to the variable. Can be None when there's no expression (invalid node)."
+        self.node = node
+        "The assignation node this symbol describes."
+
 # Declare useful union types.
-ValueSym = ParameterSym | VariableSym
-Sym = ParameterSym | VariableSym | FunctionSym | ExpressionSym
+ValueSym = ParameterSym | VariableSym  # A value symbol, for VariableExpr
+Sym = ParameterSym | VariableSym | FunctionSym | ExpressionSym | AssignSym  # Any symbol
+
 
 class ProgramSemanticInfo:
     """
@@ -75,15 +170,25 @@ class ProgramSemanticInfo:
                  global_variables: dict[str, VariableSym],
                  function_to_sym: dict[FunctionDeclarationStmt, FunctionSym],
                  variable_to_sym: dict[VariableDeclarationStmt, VariableSym],
-                 expr_to_sym: dict[Expression, ExpressionSym]):
-
+                 expr_to_sym: dict[Expression, ExpressionSym],
+                 assign_to_sym: dict[AssignStmt, AssignSym]):
         self.global_functions = global_functions
+        "All declared global functions, including built-in ones."
         self.global_variables = global_variables
+        "All declared global variables, including built-in ones."
         self.function_to_sym = function_to_sym
+        "Semantic information for function nodes: function AST node -> function symbol."
         self.variable_to_sym = variable_to_sym
+        "Semantic information for variable nodes: variable AST node -> variable symbol."
         self.expr_to_sym = expr_to_sym
+        "Semantic information for expression nodes: expression AST node -> expression symbol."
+        self.assign_to_sym = assign_to_sym
+        "Semantic information for assignation nodes: assignation AST node -> assignation symbol."
 
     def print_debug(self):
+        """
+        Prints debug info for all symbols and declared members.
+        """
         print("Global functions:")
         for k, v in self.global_functions.items():
             left = k.ljust(45)
@@ -112,7 +217,12 @@ class ProgramSemanticInfo:
         for k, v in self.expr_to_sym.items():
             left = f" {repr(k.text[:25])[1:-1]} @ {k.span}".ljust(45)
             print(f"  {left} -> {v}")
+        print("")
 
+        print("Assignation symbols:")
+        for k, v in self.assign_to_sym.items():
+            left = f" {repr(k.text[:25])[1:-1]} @ {k.span}".ljust(45)
+            print(f"  {left} -> {v}")
 
 builtin_funcs = {
     "circle": FunctionSym(
@@ -147,11 +257,13 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     global_funcs: dict[str, FunctionSym] = dict(builtin_funcs)
     global_vars: dict[str, VariableSym] = dict(builtin_vars)
 
-    # All functions node to their symbols
+    # All maps linking nodes (of different kinds) to their symbols
     function_to_sym: dict[FunctionDeclarationStmt, FunctionSym] = {}
     variable_to_sym: dict[VariableDeclarationStmt, VariableSym] = {}
     expr_to_sym: dict[Expression, ExpressionSym] = {}
+    assign_to_sym: dict[AssignStmt, AssignSym] = {}
 
+    # Adds an error regarding the given node. (We may change error systems later)
     def register_error(node: InnerNode, message: str, slot=None):
         node.add_problem(InnerNodeProblem(message, slot=slot))
 
@@ -179,7 +291,13 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         if n is None:
             return dict()
 
-        # If this statement is a "root" statement, use the global value
+        # If this statement is a function, we can't see declared global variables, only local ones
+        # and built-in variables. Stop there.
+        if isinstance(n, FunctionDeclarationStmt):
+            return builtin_vars
+
+        # Else, if this statement is a "root" statement, use the global variables value,
+        # it already contains all variables registered until now.
         if n.parent is program:
             return global_vars
 
@@ -218,25 +336,32 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         # Arguments take precedence over variables.
         return visible_variables_within(n) | visible_arguments_within(n)
 
+    # Finds a function with the given name. None if not found.
     def find_function(f: str | None) -> FunctionSym | None:
-        if f is None:
-            return None
+        return global_funcs.get(f, None)
 
-        if f in global_funcs:
-            return global_funcs[f]
-        elif f in builtin_funcs:
-            return builtin_funcs[f]
-
+    # Finds a visible variable of name v, from the node's point of view.
     def find_visible_variable(v: str | None, pov: Node) -> VariableSym | None:
         if v is None:
             return None
 
-        visible_vars = visible_values_within(pov)
+        visible_vars = visible_variables_within(pov)
         return visible_vars.get(v, None)
 
+    # Finds a visible argument of name a, from the node's point of view.
+    def find_visible_argument(a: str | None, pov: Node) -> ParameterSym | None:
+        if a is None:
+            return None
+
+        visible_args = visible_arguments_within(pov)
+        return visible_args.get(a, None)
+
+    # Returns True when the type is INT or FLOAT.
     def is_numeric_type(k: BuiltInTypeKind):
         return k == BuiltInTypeKind.INT or k == BuiltInTypeKind.FLOAT
 
+    # Does type inference and checking for an expression — and its children — recursively.
+    # Registers a symbol (ExpressionSym) for this expression, including its children, even if errored.
     def register_expression(e: Expression) -> ExpressionSym:
         # If we have already registered this expression, just return it.
         if e in expr_to_sym:
@@ -260,7 +385,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             match e.op_token.kind:
                 case TokenKind.SYM_MINUS:
                     # Minus -> The operand must be numeric. If not, this will be of error type.
-                    if operand_sym.type == BuiltInTypeKind.INT or operand_sym.type == BuiltInTypeKind.FLOAT:
+                    if is_numeric_type(operand_sym.type):
                         expr_to_sym[e] = ExpressionSym(operand_sym.type)
                     else:
                         register_error(e, "L'opérateur « − » ne peut être utilisé que sur des nombres.")
@@ -294,16 +419,19 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                     if left_sym.type == BuiltInTypeKind.BOOL and right_sym.type == BuiltInTypeKind.BOOL:
                         expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.BOOL)
                     else:
-                        register_error(e, "Les opérateurs « or » et « and » ne peuvent être utilisés que sur des booléens.")
+                        register_error(e,
+                                       "Les opérateurs « or » et « and » ne peuvent être utilisés que sur des booléens.")
                         expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
                 case TokenKind.SYM_EQ | TokenKind.SYM_NEQ:
                     # EQ and NEQ -> Both operands must be the same type
                     #               OR they're both numeric, in which case we're going to convert to float.
-                    if left_sym.type == right_sym.type or (is_numeric_type(left_sym.type) and is_numeric_type(right_sym.type)):
+                    if left_sym.type == right_sym.type or (
+                            is_numeric_type(left_sym.type) and is_numeric_type(right_sym.type)):
                         expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.BOOL)
                     else:
                         op_name = "==" if e.operator_token.kind == TokenKind.SYM_EQ else "!="
-                        register_error(e, f"Impossible d'utiliser l'opérateur « {op_name} » avec les types {left_sym.type} et {right_sym.type}.")
+                        register_error(e,
+                                       f"Impossible d'utiliser l'opérateur « {op_name} » avec les types {left_sym.type} et {right_sym.type}.")
                         expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
                 case TokenKind.SYM_LT | TokenKind.SYM_LEQ | TokenKind.SYM_GT | TokenKind.SYM_GEQ:
                     # Numerical comparison -> both numeric
@@ -330,10 +458,16 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                         expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
         elif isinstance(e, VariableExpr):
             # Variable expression. Make sure the variable/value actually exists.
-
             value_syms = visible_values_within(e)
             if e.name_token_str not in value_syms:
-                register_error(e, f"La variable {e.name_token_str} n'est pas encore définie.")
+                # It doesn't exist! Well, exactly, we can't *see* it.
+                # Let's write a well-suited error message.
+                if e.name_token_str not in global_vars or e.ancestor(FunctionDeclarationStmt) is None:
+                    # We just can't see that variable. It likely doesn't exist yet.
+                    register_error(e, f"La variable {e.name_token_str} n'est pas encore définie.")
+                else:
+                    # We're a child of a function declaration, and we're trying to access a global variable.
+                    register_error(e, "Impossible d'utiliser une variable globale dans une fonction.")
                 expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
             else:
                 # Take the type of the variable!
@@ -356,22 +490,24 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
                 # If we have too much or too few, complain!
                 if len(params) > len(given_args):
-                    register_error(e, f"Trop peu d'arguments ont été donnés à la fonction {func.name} : {len(given_args)} donnés, {len(params)} attendus.")
+                    register_error(e,
+                                   f"Trop peu d'arguments ont été donnés à la fonction {func.name} : {len(given_args)} donnés, {len(params)} attendus.")
                 elif len(params) < len(given_args):
-                    register_error(e, f"Trop d'arguments ont été donnés à la fonction {func.name} : {len(given_args)} donnés, {len(params)} attendus.")
+                    register_error(e,
+                                   f"Trop d'arguments ont été donnés à la fonction {func.name} : {len(given_args)} donnés, {len(params)} attendus.")
 
                 # Register all the argument expressions, and register some errors if the types don't match.
                 for i in range(0, len(given_args)):
                     arg = given_args[i]
                     if arg.expr is not None:
                         arg_sym = register_expression(arg.expr)
-                        if i < common and arg_sym.type != BuiltInTypeKind.ERROR and arg_sym.type != params[i].type:
-                            register_error(e, f"L'argument {i + 1} de l'appel à « {func.name} » est du mauvais type : {arg_sym.type} donné, {params[i].type} attendu.")
+                        if i < common and arg_sym.type != BuiltInTypeKind.ERROR and not is_subtype(arg_sym.type, params[i].type):
+                            register_error(e,
+                                           f"L'argument {i + 1} de l'appel à « {func.name} » est du mauvais type : {arg_sym.type} donné, {params[i].type} attendu.")
         else:
             raise NotImplementedError(f"Expression type {type(e)} not implemented yet.")
 
         return expr_to_sym[e]
-
 
     # Transforms a literal/type token (bool, int, float, "hell", 81, etc.) into the BuiltInTypeKind enum.
     # Returns the "default" arg if there's no token, or if it's invalid.
@@ -394,13 +530,28 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             case TokenKind.LITERAL_NUM:
                 # Integer -> int
                 # Float -> float
-                if trunc(t.value) == t.value:
+                if isinstance(t.value, int):
                     return BuiltInTypeKind.INT
                 else:
                     return BuiltInTypeKind.FLOAT
+            case TokenKind.KW_CURSOR:
+                return BuiltInTypeKind.CURSOR
             case _:
                 return default
 
+    # Returns True when a <: b, meaning that a is a subtype of b OR both are same type.
+    # In other words, whenever this assignment is valid:
+    #    b = a;
+    #
+    # Usage example: My variable of type T wants to know if it can accept a value of type V:
+    #     => is_subtype(V, T)
+    def is_subtype(a: BuiltInTypeKind, b: BuiltInTypeKind) -> bool:
+        if a == b:
+            return True
+        if a == BuiltInTypeKind.INT and b == BuiltInTypeKind.FLOAT:
+            # Currently, we have automatic float -> int conversion
+            return True
+        return False
 
     def register_variable(v: VariableDeclarationStmt):
         if v in variable_to_sym:
@@ -411,11 +562,12 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             # Invalid name, already reported by the parser
             return
 
-        # Make the variable symbol.
+        # Make the variable symbol, with the name and type.
         name = v.name_token_str
         ty = to_builtin_type(v.type)
         symbol = VariableSym(name, ty, v)
 
+        # I wonder how that is possible...
         if ty == BuiltInTypeKind.ERROR:
             register_error(v, "Type de variable inconnu.")
 
@@ -432,13 +584,19 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             if name in args:
                 # TODO: Better err message
                 register_error(v, f"La variable {name} est déjà définie comme paramètre.")
-            pass
 
         if v.value is not None and ty != BuiltInTypeKind.ERROR:
             # If there's a default value, check that it's of the correct type.
             value_sym = register_expression(v.value)
-            if value_sym.type != ty and value_sym != BuiltInTypeKind.ERROR:
-                register_error(v.value, f"La valeur donnée pour la variable {name} est du mauvais type : {value_sym.type} donné, {ty} attendu.")
+            if not is_subtype(value_sym.type, ty) and value_sym != BuiltInTypeKind.ERROR:
+                register_error(v.value,
+                               f"La valeur donnée pour la variable {name} est du mauvais type : {value_sym.type} donné, {ty} attendu.")
+
+        # Cursor variables are special. They're always initialised with a cursor by default,
+        # and they can't be changed afterward.
+        if v.value is not None and ty == BuiltInTypeKind.CURSOR:
+            register_error(v, "Impossible d'initialiser un curseur avec une valeur : "
+                              "les curseurs sont déjà initialisés lorsqu'ils sont déclarés.")
 
         variable_to_sym[v] = symbol
 
@@ -471,7 +629,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
         global_funcs[f.name_token_str] = FunctionSym(
             name=f.name_token_str,
-            return_type=BuiltInTypeKind.NOTHING, # TODO: Consider adding support for return types?
+            return_type=BuiltInTypeKind.NOTHING,  # TODO: Consider adding support for return types?
             parameters=params,
             node=f
         )
@@ -481,36 +639,69 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         analyse_children = True
 
         if isinstance(n, VariableDeclarationStmt):
+            # We have a variable decl: register it, and don't re-read children further down.
             register_variable(n)
             analyse_children = False
         elif isinstance(n, FunctionDeclarationStmt):
-            # Functions are already declared at the beginning of the analysis.
+            # We have a function decl: functions are already declared at the beginning of the analysis,
+            # so let's not read it again.
+            # However, we will still analyse its children, as registering a function does NOT analyse its block.
+
+            # Oh, and, if we're trying to declare a function within a function/if/while/etc., don't.
             if n.parent is not program:
                 register_error(n, "Les fonctions ne peuvent être déclarées que globalement.")
         elif isinstance(n, IfStmt) or isinstance(n, WhileStmt) or isinstance(n, ElseStmt):
-            cond_type = register_expression(n.condition)
-            if cond_type != BuiltInTypeKind.BOOL and cond_type != BuiltInTypeKind.ERROR:
-                register_error(n.condition, "La condition doit être un booléen.")
+            # We have a branching statement (if/while/else/else if): make sure that the condition
+            # is a boolean.
+            # Condition might be None for else statements.
+            if n.condition is not None:
+                cond_sym = register_expression(n.condition)
+                if cond_sym.type != BuiltInTypeKind.BOOL and cond_sym.type != BuiltInTypeKind.ERROR:
+                    register_error(n.condition, "La condition doit être un booléen.")
         elif isinstance(n, AssignStmt):
+            # We have an assignation statement: check that its variable exists, and that the assigned value
+            # is of the right type. Also register a symbol for it.
+
             # Ensure that the variable (not a parameter!) exist.
-            var = find_visible_variable(n.name_token_str, n)
+            var_sym = find_visible_variable(n.name_token_str, n)
 
             # It doesn't? Report it.
-            if var is None:
+            if var_sym is None:
                 register_error(n, f"La variable {n.name_token_str} n'est pas définie.",
+                               slot=AssignStmt.name_token_slot)
+            elif find_visible_argument(n.name_token_str, n) is not None:
+                # It's a parameter. We don't allow assigning to parameters right now, so report it to the user!
+                register_error(n, f"Impossible de modifier la valeur du paramètre {n.name_token_str}.",
                                slot=AssignStmt.name_token_slot)
 
             if n.value is not None:
                 val_sym = register_expression(n.value)
                 # Check that the assign value is of the correct type, only if we have a variable found.
-                if var and val_sym.type != BuiltInTypeKind.ERROR and val_sym.type != var.type:
-                    register_error(n.value, f"La valeur assignée à la variable {n.name_token_str} est du mauvais type : {val_sym.type} donné, {var.type} attendu.")
+                if var_sym and val_sym.type != BuiltInTypeKind.ERROR and not is_subtype(val_sym.type, var_sym.type):
+                    register_error(n.value,
+                                   f"La valeur assignée à la variable {n.name_token_str} est du mauvais type : {val_sym.type} donné, {var_sym.type} attendu.")
+            else:
+                val_sym = None
 
+            # Cursor variables are special. They're always initialised with a cursor by default,
+            # and they can't be changed afterward.
+            if var_sym.type == BuiltInTypeKind.CURSOR:
+                register_error(n, "Impossible d'assigner une valeur à un curseur.")
+
+            # Register a symbol for this assignation. (var_sym & val_sym can be None)
+            assign_to_sym[n] = AssignSym(var_sym, val_sym, n)
+
+            # No need to analyse children, we've already done the work.
             analyse_children = False
         elif isinstance(n, Expression):
+            # We have an expression... Just register it. Although this part of the code might be called
+            # rarely since expression are already registered by function calls/variable assignation, etc.
             register_expression(n)
+
+            # No need to analyse children, register_expression does that for us.
             analyse_children = False
 
+        # Traverse all children — if necessary — to in turn analyse them, in depth-first order.
         if analyse_children:
             for child in n.child_inner_nodes:
                 analyse_node(child)
@@ -525,11 +716,12 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     for ch in program.child_inner_nodes:
         analyse_node(ch)
 
+    # Make up the final semantic info structure with all the symbols we've gathered!
     return ProgramSemanticInfo(
         global_functions=global_funcs,
         global_variables=global_vars,
         function_to_sym=function_to_sym,
         variable_to_sym=variable_to_sym,
-        expr_to_sym=expr_to_sym
+        expr_to_sym=expr_to_sym,
+        assign_to_sym=assign_to_sym
     )
-    # raise NotImplementedError("Not done yet... :(")

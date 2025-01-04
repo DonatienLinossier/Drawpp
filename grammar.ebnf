@@ -61,7 +61,10 @@ variable_declaration_stmt = type, identifier, {'=', expression}, statement_end;
 *)
 function_call_stmt = function_exp, statement_end;
 (*
-    An
+    An assign statement, modifies the value of a variable.
+    Examples:
+        my_var = 75;
+        other_var = "hello_world";
 *)
 assign_stmt = identifier, '=', expression, statement_end;
 (*

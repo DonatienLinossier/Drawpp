@@ -8,6 +8,8 @@ import __main__
 
 from .position import TextSpan
 from .syntax import InnerNodeProblem
+import tempfile
+import os
 
 if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file__.endswith("codegen.py"):
     # ======================
@@ -17,7 +19,7 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
     #
     # This means that the IDE module will be able to import those types easily, for example this works:
     #   from pydpp.compiler import ProblemSet, FileSpan
-    from .problem import Problem, ProblemSeverity, ProblemSet
+    from .problem import Problem, ProblemSeverity, ProblemSet, ProblemCode
     from .tokenizer import tokenize, TokenProblem
     from .parser import parse
     from .semantic import analyse
@@ -25,7 +27,7 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
     from .syntax import Node
 
     # Make all submodules available when importing the compiler module
-    from . import problem, position, tokenizer, semantic, syntax, transpiler, types, transpiler, CTranslater
+    from . import problem, position, tokenizer, semantic, syntax, transpiler, transpiler, CTranslater
 
 
     # ======================
@@ -33,31 +35,38 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
     # ======================
     # Functions that the IDE module will be able to use to do various stuff with code.
 
-    # Draft version of the compilation pipeline, returns the path to the exe, or None if there was an error
-    def compile_code(code) -> tuple[str | None, ProblemSet]:
-        problems = ProblemSet()
-
+    # Draft version of the compilation pipeline, returns True when everything went fine, or False if not.
+    # - out_exe_path must contain the path for the generated executable
+    # - out_c_path can be filled to set where the temporary C file will be generated, by default, the
+    #   system temp directory is used
+    def compile_code(code: str, out_exe_path: str, out_c_path: str | None = None) -> tuple[bool, ProblemSet]:
         # Tokenize the code, and get a list of tokens
         tokens = tokenize(code)
         # Take that list of tokens, and parse it to make a syntax tree
         program = parse(tokens)
-
-        # Gather all problems from the parsing stage, and the tokenization stage as well
-        collect_errors(program, problems)
-
         # Do some semantic analysis on the tree, to check/compute types and references
         semantic_info = analyse(program)
 
-        # If we have an error, we can't transpile and compile, so return no path
+        # Gather all problems from the parsing, tokenization and semantic stages.
+        problems = collect_errors_2(program)
+
+        # If we have an error, we can't transpile and compile, so return False
         if len(problems.grouped[ProblemSeverity.ERROR]) > 0:
-            return None, problems
+            return False, problems
+
+        if out_c_path is None:
+            # No C path was given, use the system's temp directory
+            c_file, out_c_path = tempfile.mkstemp(prefix="dpp", suffix=".c")
+            # Close the file, the CTranslater will open it again.
+            os.close(c_file)
 
         # Generate the C code that will run the program's instructions
-        c_code = transpile(program, semantic_info)
+        transpile(program, semantic_info, out_c_path)
 
         # And then...? We need to compile an EXE, and call CMake/gcc whatever!
         problems.append("Not implemented yet!", ProblemSeverity.ERROR)
-        return None, problems
+        return False, problems
+
 
     def collect_errors(tree: Node, problems: ProblemSet):
         """
@@ -66,21 +75,42 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
         :param problems: the problem set to add the errors to
         """
         if tree.has_problems:
+            # Traverse the tree using DFS with a stack. All nodes marked "has_problems" has at least
+            # one descendant with a problem.
             stack = [tree]
             while stack:
                 node = stack.pop()
 
                 for p in node.problems:
                     if isinstance(p, InnerNodeProblem):
-                        # TODO: Be more precise with the span (slots)
-                        span = node.span
+                        # The problem is located on an inner node: use the compute_span function
+                        # to get the precise span (since we can specify the *slot* location of the problem)
+                        span = p.compute_span(node)
+                        code = p.code
                     elif isinstance(p, TokenProblem):
+                        # The problem is located on a token: use the token's span + the problem span.
                         span = TextSpan(node.full_span_start + p.span.start, node.full_span_start + p.span.end)
+                        code = ProblemCode.OTHER
                     else:
                         raise ValueError(f"Unknown problem type: {p}")
 
-                    problems.append(p.message, p.severity, span)
+                    # Add the problem to the problem set.
+                    problems.append(p.message, p.severity, span, code)
 
+                # Continue traversing the tree for nodes that are interesting to us
+                # (by interesting I mean absolutely BROKEN.)
                 for c in node.children:
                     if c.has_problems:
                         stack.append(c)
+
+
+    def collect_errors_2(tree: Node) -> ProblemSet:
+        """
+        Collects all errors (node/tokens) from a given syntax tree, into a problem set.
+        :param tree: the tree with errors
+        :param problems: the problem set to add the errors to
+        """
+
+        ps = ProblemSet()
+        collect_errors(tree, ps)
+        return ps

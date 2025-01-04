@@ -19,24 +19,45 @@ class ProblemSeverity(Enum):
     "A critical issue that prevents the code from being compiled."
 
 
+class ProblemCode(Enum):
+    """
+    A code associated with a particular type of problem.
+
+    Not all problems have their own error code, it would be very annoying.
+    Instead, they're used to mark up common error that can be fixed by an automated
+    algorithm, or at least give some suggestions down the line.
+    """
+
+    MISSING_SEMICOLON = "missing_semicolon"
+    "A semicolon is missing at the end of a statement."
+
+    OTHER = "other"
+    "A generic error code, used when no other code fits the problem."
+
+
 class Problem:
     """
     Represents a problem during the entire compilation pipeline.
-    Consists of a message, a severity and an optional position value: where the problem occurred.
+    Consists of a message, a severity, an error code, and an optional position value: where the problem occurred.
     """
 
-    __slots__ = ("message", "severity", "pos")
+    __slots__ = ("message", "severity", "pos", "code")
 
-    def __init__(self, message: str, severity: ProblemSeverity, pos: Optional[TextSpan] = None):
+    def __init__(self, message: str,
+                 severity: ProblemSeverity,
+                 pos: Optional[TextSpan] = None,
+                 code: ProblemCode = ProblemCode.OTHER):
         self.message = message
         "The message of the problem, localized to the user's language."
         self.severity = severity
         "The severity of the problem."
         self.pos = pos
         "Where exactly the problem occurred in the file, can be null (preferably not though)."
+        self.code = code
+        "The code associated with the problem."
 
     def __repr__(self):
-        return f"Problem({self.message!r}, {self.severity!r}, {self.pos!r})"
+        return f"Problem({self.message!r}, {self.severity!r}, {self.pos!r}, {self.code!r})"
 
     def __str__(self):
         return f"{self.severity.value.capitalize()}: {self.message} (à {self.pos})"
@@ -77,7 +98,8 @@ class ProblemSet:
     def append(self,
                problem: Problem | str,
                severity: ProblemSeverity = ProblemSeverity.ERROR,
-               pos: Optional[TextSpan] = None):
+               pos: Optional[TextSpan] = None,
+               code: ProblemCode = ProblemCode.OTHER):
         """
         Adds a problem to the list. Each problem has a message, a severity, and a position.
 
@@ -90,7 +112,7 @@ class ProblemSet:
 
         # When we're given a string inside the first argument, we need to construct a new Problem.
         if isinstance(problem, str):
-            problem = Problem(problem, severity, pos)
+            problem = Problem(problem, severity, pos, code)
 
         # Add the problem to the list and to the grouped dictionary.
         self.problems.append(problem)

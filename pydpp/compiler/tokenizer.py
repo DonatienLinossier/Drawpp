@@ -68,6 +68,8 @@ class TokenKind(Enum):
     "Keyword for boolean type: bool"
     KW_STRING = auto()
     "Keyword for string type: string"
+    KW_CURSOR = auto()
+    "Keyword for cursor type: cursor"
     KW_FCT = auto()
     "Keyword for function: fct"
     KW_NOT = auto()
@@ -259,6 +261,7 @@ _kw_map = {
     "float": TokenKind.KW_FLOAT,
     "bool": TokenKind.KW_BOOL,
     "string": TokenKind.KW_STRING,
+    "cursor": TokenKind.KW_CURSOR,
     "fct": TokenKind.KW_FCT,
     "not": TokenKind.KW_NOT,
     "and": TokenKind.KW_AND,

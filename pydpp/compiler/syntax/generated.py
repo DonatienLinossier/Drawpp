@@ -9,7 +9,7 @@ from pydpp.compiler.tokenizer import Token, TokenKind
 import pydpp.compiler.syntax.genext as genext
 from typing import Iterable
 
-class BuiltInType(Statement):
+class BuiltInType(InnerNode):
     """
     A built-in type specified using a keyword like int, bool...
     """

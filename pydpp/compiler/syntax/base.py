@@ -2,7 +2,7 @@ import typing
 from typing import Optional, Iterable, TypeVar, Any, Generic, Literal
 import sys
 
-from pydpp.compiler.problem import ProblemSeverity
+from pydpp.compiler.problem import ProblemSeverity, ProblemCode
 from pydpp.compiler.position import TextSpan
 
 if sys.version_info[1] <= 10:
@@ -75,11 +75,12 @@ class InnerNodeProblem:
     """
     An issue related to an inner node during parsing.
     """
-    __slots__ = ("message", "severity", "slot")
+    __slots__ = ("message", "severity", "slot", "code")
 
     def __init__(self, message: str,
                  severity: ProblemSeverity = ProblemSeverity.ERROR,
-                 slot: NodeSlot["InnerNode", "Node"] | None = None):
+                 slot: NodeSlot["InnerNode", "Node"] | None = None,
+                 code: ProblemCode = ProblemCode.OTHER):
         self.message = message
         self.severity = severity
         self.slot = slot
@@ -90,6 +91,9 @@ class InnerNodeProblem:
         If the slot is empty, the problems spans a 0-length node on the left of the slot.
         """
 
+        self.code = code
+        "The error code of the problem."
+
     def compute_span(self, node: "InnerNode") -> TextSpan:
         # TODO: Optimize with a span cache
 
@@ -98,22 +102,30 @@ class InnerNodeProblem:
 
         assert hasattr(node, self.slot.attr)
 
+        # Increase the number of preceding characters (inner_start) until we reach our slot.
         node_start = node.full_span_start
         inner_start = 0
         for s in node.element_slots:
             if s == self.slot:
                 break
             if s.multi:
+                # Many nodes: sum their length
                 inner_start += sum(len(x.full_text) for x in getattr(node, s.attr))
             else:
+                # Zero or one node: add its length
                 el = getattr(node, s.attr)
                 if el is not None:
                     inner_start += len(el.full_text)
 
+        # Find the node in the slot. It's very likely that the node just doesn't exist, because
+        # that's why we have slot support in the first place.
         slot_value = node.get(self.slot)
+        # Find the first element of the slot, or None if it's empty.
         first_child = (slot_value[0] if slot_value else None) if self.slot.multi else slot_value
+        # Find end of the inner span by adding the length of our slotted node.
         inner_end = inner_start + (len(first_child.full_text) if first_child is not None else 0)
 
+        # Make up the span.
         return TextSpan(node_start + inner_start, node_start + inner_end)
 
     def __repr__(self):
