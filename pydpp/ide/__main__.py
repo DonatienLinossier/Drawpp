@@ -208,6 +208,7 @@ class App(ctk.CTk):
             self.run_button.grid(row=0, column=0, sticky="ne")
             showtext = ctk.CTkTextbox(self.tabview.tab(name))
             showtext.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+            showtext.focus_set()
 
             # --- SYNTAX HIGHILIGHTING ---
             # Initialize color tags
@@ -262,7 +263,7 @@ class App(ctk.CTk):
             if not self.tt:
                 # Gather all error messages, separated with a newline, by looking at err_indices
                 msg = "\n".join([txt.drawpp_error_infos[i].message for i in err_indices])
-                self.tt = createToolTip(txt, msg, int(txt.index("current").split(".")[0]), int(txt.index("current").split(".")[1]))
+                self.tt = createToolTip(txt, msg, self.winfo_pointerx() - self.winfo_rootx(), self.winfo_pointery() - self.winfo_rooty())
 
         def err_exit(er):
             # print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
@@ -279,7 +280,7 @@ class App(ctk.CTk):
         # This attribute is used to register additional info for each problem underlined in the text,
         # so we can show it in the tooltip.
         # ==> drawpp_error_infos[i] = problem data for text with tag "err_info_{i}"
-        setattr(txt, "drawpp_error_infos", [])
+        setatCtr(txt, "drawpp_error_infos", [])
 
     def update_highlighting(self, txt: ctk.CTkTextbox):
         # Converts a string index into tkinter coordinates
@@ -361,20 +362,17 @@ class ToolTip(object):
         self.tipwindow = None
         self.id = None
         self.x = self.y = 0
-        self.x_offset = x_offset*20
-        self.y_offset = y_offset*20
+        self.x_offset = x_offset + 20
+        self.y_offset = y_offset + 30
 
     def showtip(self, text):
         "Display text in tooltip window"
         self.text = text
         if self.tipwindow or not self.text:
             return
-        x, y, cx, cy = self.widget.bbox("insert")
-        x = x + self.widget.winfo_rootx() + self.x_offset
-        y = y + cy + self.widget.winfo_rooty() + self.y_offset
         self.tipwindow = tw = ctk.CTkToplevel(self.widget)
         tw.wm_overrideredirect(1)
-        tw.wm_geometry("+%d+%d" % (x, y))
+        tw.wm_geometry("+%d+%d" % (self.x_offset, self.y_offset))
         label = ctk.CTkLabel(tw, text=self.text, justify=ctk.LEFT)
         label.pack(ipadx=1)
 
