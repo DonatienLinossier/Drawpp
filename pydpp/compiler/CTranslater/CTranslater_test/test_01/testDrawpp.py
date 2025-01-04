@@ -1,5 +1,12 @@
 from pydpp.compiler.CTranslater import *
+import os
 
+# Create the folder if it doesn't exist yet.
+try:
+    os.mkdir(".drawppTmp")
+except:
+    # "Oh no it already exists!" Yeah well we don't really care.
+    pass
 test = CTranslater(".drawppTmp/tmp.c")
 #Main
 
@@ -47,5 +54,7 @@ test.endBlock()
 # } //end TestFunction
 
 test.add_instruction("TestFunction", VarCall("bool"), VarCall("cmpt"))
+test.add_instruction("createVar", "cmpt", 5)
+test.add_instruction("drawCircle", VarCall("cmpt"), VarCall("cmpt"), VarCall("cmpt"))
 
 test.run()

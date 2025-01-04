@@ -50,6 +50,18 @@ class _ConditionalInstr:
         self.actualSteps += 1
         #Todo: Add verif that condition returns a bool value before changing step
 
+    def getActualSubBlock(self):
+        match self.actualSteps:
+            case 0:
+                return self.condition
+            case 1:
+                return self.ifFunction
+            case 2:
+                return self.elseFunction
+            case _:
+                print("Error !!")
+                #todo: handle error
+
     def isFinished(self):
         if self.actualSteps > 2:
             return True

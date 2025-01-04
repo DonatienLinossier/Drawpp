@@ -20,7 +20,7 @@ class _subBlock:
         # Some functions must be overridden when entering a function.
         # For exemple, variable manipulation within a function should only modify the variable in the function
         self.overrideInstr = {
-            "_storeReturnedValueFromFoncInVar": self.storeReturnedValueFromFuncInVar,  #Long.. mais explicite !
+            "_storeReturnedValueFromFuncInVar": self.storeReturnedValueFromFuncInVar,  #Long.. mais explicite !
             "_getVar": self.functGetVar,
             "_addToVar": self.functAddToVar,
             "_createVar": self.functCreateVar,

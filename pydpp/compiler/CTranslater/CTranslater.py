@@ -31,7 +31,12 @@ class CTranslater:
             "lowerThan": self._lowerThan,
             "lowerThanOrEquals": self._lowerThanOrEquals,
             "equals": self._equals,
+            "notEquals": self._notEquals,
             "isNot": self._isNot,
+            "add": self._add,
+            "subtract": self._subtract,
+            "multiply": self._multiply,
+            "divide": self._divide,
             "storeReturnedValueFromFuncInVar": self._storeReturnedValueFromFuncInVar,
             "createVar": self._createVar, #also works for assignation
             "assignateValueToVar": self._createVar,
@@ -152,7 +157,7 @@ class CTranslater:
         elif frame.__class__.__name__ == "_WhileLoop":
             self._tmpInstr[newConditionalInstr.__name__] = frame.getActualSubBlock().instr[-1][0]
         else:
-            self._tmpInstr[newConditionalInstr.__name__] = frame.subBlock.instr[-1][0]
+            self._tmpInstr[newConditionalInstr.__name__] = frame.getActualSubBlock().instr[-1][0]
 
         self.constructionStack.append(newConditionalInstr.__name__)
 
@@ -243,6 +248,9 @@ class CTranslater:
     def _equals(self, a, b) -> bool:
         return a == b
 
+    def _notEquals(self, a, b) -> bool:
+        return a != b
+
     def _isNot(self, a: bool) -> bool:
         return not a
     def _and(self, a, b) -> bool:
@@ -251,6 +259,20 @@ class CTranslater:
     def _or(self, a, b) -> bool:
         return a or b
 
+    #########################
+    # Arithmetic functions
+    #########################
+    def _add(self, a, b):
+        return a + b
+
+    def _subtract(self, a, b):
+        return a - b
+
+    def _multiply(self, a, b):
+        return a * b
+
+    def _divide(self, a, b):
+        return a / b
 
     ##############################################
     #Draw functions
