@@ -3,6 +3,7 @@
 //
 
 #include "sdlEncapsulation.h"
+#include <stdio.h>
 
 
 int initSDL(SDL_Window **window, SDL_Renderer **renderer) {

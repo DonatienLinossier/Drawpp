@@ -11,7 +11,7 @@ def definitions() -> list[type]:
     # ----------
 
     @node_def
-    class BuiltInType(Statement):
+    class BuiltInType:
         """
         A built-in type specified using a keyword like int, bool...
         """

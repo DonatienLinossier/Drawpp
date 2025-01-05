@@ -3,8 +3,9 @@ from ._Function import _Function
 from ._subBlock import _subBlock
 from ._WhileLoop import _WhileLoop
 from ._ConditionalInstr import _ConditionalInstr
+from ._Cursor import _Cursor
 
-
+# To use CTranslater, preferably put it in a "with" statement.
 class CTranslater:
 
     #################################
@@ -16,6 +17,7 @@ class CTranslater:
             self.file = open(self.filename, "w")
         except IOError as err:
             raise IOError(f"Error opening file '{self.filename}': {err}")
+        self.closed = False
 
         self._header()
         self.conditionalFuncCpt = 0
@@ -30,7 +32,12 @@ class CTranslater:
             "lowerThan": self._lowerThan,
             "lowerThanOrEquals": self._lowerThanOrEquals,
             "equals": self._equals,
+            "notEquals": self._notEquals,
             "isNot": self._isNot,
+            "add": self._add,
+            "subtract": self._subtract,
+            "multiply": self._multiply,
+            "divide": self._divide,
             "storeReturnedValueFromFuncInVar": self._storeReturnedValueFromFuncInVar,
             "createVar": self._createVar, #also works for assignation
             "assignateValueToVar": self._createVar,
@@ -42,16 +49,35 @@ class CTranslater:
             "setColor": self._setColor,
             "deb": self._deb,
             "sleep": self._sleep,
-            "functReturnStatement": self._functReturnStatement
+            "functReturnStatement": self._functReturnStatement,
+            "createCursor": self._createCursor,
+            "cursorJump": self._cursorJump,
+            "cursorDrawCircle": self._cursorDrawCircle,
+            "cursorDrawFilledCircle": self._cursorDrawFilledCircle,
+            "cursorRotate": self._cursorRotate,
+            "_cursorPrintData": self._cursorPrintData,
+            "cursorChangeColor": self._cursorChangeColor,
+            "cursorChangeThickness": self._cursorChangeThickness,
         }
         self.constructionStack = ["main"]
 
     def _header(self):
         self.file.write(header)
 
+    def close(self):
+        if not self.closed:
+            self.file.write(footer)
+            self.file.close()
+            self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def __del__(self):
-        self.file.write(footer)
-        self.file.close()
+        self.close()
 
     def _getActualStackFrame(self):
         if len(self.constructionStack) == 0:
@@ -143,7 +169,7 @@ class CTranslater:
         elif frame.__class__.__name__ == "_WhileLoop":
             self._tmpInstr[newConditionalInstr.__name__] = frame.getActualSubBlock().instr[-1][0]
         else:
-            self._tmpInstr[newConditionalInstr.__name__] = frame.subBlock.instr[-1][0]
+            self._tmpInstr[newConditionalInstr.__name__] = frame.getActualSubBlock().instr[-1][0]
 
         self.constructionStack.append(newConditionalInstr.__name__)
 
@@ -189,6 +215,32 @@ class CTranslater:
     def _addToVar(self, name, value) -> None:
         pass
 
+    def _createCursor(self, name, x, y, angle, r, g, b, a):
+        pass
+
+    def _cursorJump(self, circle, x, y):
+        self._drawRect(circle.x, circle.y, circle.x+x, circle.y+y)
+
+    def _cursorDrawCircle(self, circle, r):
+        self._setColor(circle.color[0], circle.color[1], circle.color[2], circle.color[3])
+        self._drawCircle(circle.x, circle.y, r)
+
+    def _cursorDrawFilledCircle(self, circle, r):
+        self._setColor(circle.color[0], circle.color[1], circle.color[2], circle.color[3])
+        self._drawCircleFill(circle.x, circle.y, r)
+
+    def _cursorRotate(self, cursor, angle):
+        pass
+
+    def _cursorPrintData(self, cursor):
+        pass
+
+    def _cursorChangeThickness(self, cursor, thickness):
+        pass
+
+    def _cursorChangeColor(self, cursor, r, g, b, a):
+        pass
+
     #########################
     # Logic & operation functions
     #########################
@@ -208,6 +260,9 @@ class CTranslater:
     def _equals(self, a, b) -> bool:
         return a == b
 
+    def _notEquals(self, a, b) -> bool:
+        return a != b
+
     def _isNot(self, a: bool) -> bool:
         return not a
     def _and(self, a, b) -> bool:
@@ -216,6 +271,20 @@ class CTranslater:
     def _or(self, a, b) -> bool:
         return a or b
 
+    #########################
+    # Arithmetic functions
+    #########################
+    def _add(self, a, b):
+        return a + b
+
+    def _subtract(self, a, b):
+        return a - b
+
+    def _multiply(self, a, b):
+        return a * b
+
+    def _divide(self, a, b):
+        return a / b
 
     ##############################################
     #Draw functions
