@@ -267,7 +267,7 @@ class App(ctk.CTk):
             if not self.tt:
                 # Gather all error messages, separated with a newline, by looking at err_indices
                 msg = "\n".join([txt.drawpp_error_infos[i].message for i in err_indices])
-                self.tt = createToolTip(txt, msg, self.winfo_pointerx() - self.winfo_rootx(), self.winfo_pointery() - self.winfo_rooty())
+                self.tt = createToolTip(self, msg, self.winfo_pointerx(), self.winfo_pointery())
 
         def err_exit(er):
             # print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
@@ -366,8 +366,8 @@ class ToolTip(object):
         self.tipwindow = None
         self.id = None
         self.x = self.y = 0
-        self.x_offset = x_offset + 20
-        self.y_offset = y_offset + 30
+        self.x_offset = x_offset + 10
+        self.y_offset = y_offset + 15
 
     def showtip(self, text):
         "Display text in tooltip window"
