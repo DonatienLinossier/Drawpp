@@ -280,7 +280,7 @@ class App(ctk.CTk):
         # This attribute is used to register additional info for each problem underlined in the text,
         # so we can show it in the tooltip.
         # ==> drawpp_error_infos[i] = problem data for text with tag "err_info_{i}"
-        setatCtr(txt, "drawpp_error_infos", [])
+        setattr(txt, "drawpp_error_infos", [])
 
     def update_highlighting(self, txt: ctk.CTkTextbox):
         # Converts a string index into tkinter coordinates
