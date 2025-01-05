@@ -29,7 +29,7 @@ def info_node():
     """
 
     # On prend un nœud au pif (la première instruction)
-    node = tree.statements[0]
+    node = tree
 
     # On print plein d'infos
     print("Type du nœud", type(node).__name__)

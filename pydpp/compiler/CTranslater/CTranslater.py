@@ -5,7 +5,7 @@ from ._WhileLoop import _WhileLoop
 from ._ConditionalInstr import _ConditionalInstr
 from ._Cursor import _Cursor
 
-
+# To use CTranslater, preferably put it in a "with" statement.
 class CTranslater:
 
     #################################
@@ -17,6 +17,7 @@ class CTranslater:
             self.file = open(self.filename, "w")
         except IOError as err:
             raise IOError(f"Error opening file '{self.filename}': {err}")
+        self.closed = False
 
         self._header()
         self.conditionalFuncCpt = 0
@@ -63,9 +64,20 @@ class CTranslater:
     def _header(self):
         self.file.write(header)
 
+    def close(self):
+        if not self.closed:
+            self.file.write(footer)
+            self.file.close()
+            self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def __del__(self):
-        self.file.write(footer)
-        self.file.close()
+        self.close()
 
     def _getActualStackFrame(self):
         if len(self.constructionStack) == 0:

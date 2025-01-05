@@ -388,8 +388,12 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
         else:
             raise NotImplementedError(f"Transpiling of {s.__class__.__name__} statements is not implemented.")
 
+    # Use a "with" block to close the file when we're done.
+    with ct:
+        # Transpile every statement of the program. This function will also transpile
+        # children statements, so no need to worry.
+        for statement in program.statements:
+            transpile_statement(statement)
 
-    for statement in program.statements:
-        transpile_statement(statement)
-
-    ct.run()
+        # Run the interpreter code we've emitted to write the final C file.
+        ct.run()

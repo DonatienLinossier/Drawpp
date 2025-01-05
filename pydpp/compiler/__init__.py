@@ -11,6 +11,8 @@ from .syntax import InnerNodeProblem
 import tempfile
 import os
 
+from .toolchain import link
+
 if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file__.endswith("codegen.py"):
     # ======================
     # IMPORTS
@@ -63,9 +65,13 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
         # Generate the C code that will run the program's instructions
         transpile(program, semantic_info, out_c_path)
 
-        # And then...? We need to compile an EXE, and call CMake/gcc whatever!
-        problems.append("Not implemented yet!", ProblemSeverity.ERROR)
-        return False, problems
+        # Compile the C code to an executable
+        success, err = link(out_c_path, out_exe_path)
+        if success:
+            return True, problems
+        else:
+            problems.append(err, ProblemSeverity.ERROR)
+            return False, problems
 
 
     def collect_errors(tree: Node, problems: ProblemSet):
