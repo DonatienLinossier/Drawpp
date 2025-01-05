@@ -13,6 +13,3 @@
 
 build/
 libs/sdlEncapsulation/bin
-
-# Keep the one on Windows because it's painful to compile.
-!libs/sdlEncapsulation/bin/libsdlEncapsulation.dll
