@@ -91,7 +91,8 @@ class App(ctk.CTk):
         okay, problems = compile_code(code_to_exe, "./fun.exe")
         self.write_to_terminal(problems)
         if okay:
-            subprocess.run("./fun.exe")
+            # Run the app in the background
+            subprocess.Popen("./fun.exe")
 
         # POC for error at execution and redirect in code
         '''index_err = "5.7"
@@ -332,8 +333,13 @@ class App(ctk.CTk):
         collect_errors(tree, ps)
         i = 0
         for e in ps.grouped[ProblemSeverity.ERROR]:
+            # When the span is of zero-length, extend it on the right by one character to indicate something
+            # that is "missing".
+            ps, pe = e.pos.start, e.pos.end
+            if ps == pe: pe = pe + 1
+
             # Convert coordinates to tkinter coordinates
-            start, end = tidx_to_tkidx(e.pos.start), tidx_to_tkidx(e.pos.end)
+            start, end = tidx_to_tkidx(ps), tidx_to_tkidx(pe)
 
             # Add the "err" tag for red underlining
             txt.tag_add("err", start, end)
