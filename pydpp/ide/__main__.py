@@ -5,6 +5,7 @@ from pydpp.compiler import ProblemSet, ProblemSeverity, collect_errors
 from pydpp.compiler.parser import parse
 from pydpp.compiler.tokenizer import tokenize, TokenKind
 from pydpp.compiler import compile_code
+import subprocess
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme(os.path.join(os.path.dirname(__file__), 'Metadata/style.json'))
@@ -83,19 +84,22 @@ class App(ctk.CTk):
         Return coords of error if detected, maybe add a link to point directly in the file (the correct one)
         """
         self.delete_terminal()
-        self.write_to_terminal(f"{self.tabview.get()} is compiling... I don't if it works though")
+        self.write_to_terminal(f"{self.tabview.get()} is compiling...")
         # Call function and return something
         code_to_exe = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
         # Not implemented yet
-        # self.write_to_terminal(compile_code(code_to_exe))
+        okay, problems = compile_code(code_to_exe, "./fun.exe")
+        self.write_to_terminal(problems)
+        if okay:
+            subprocess.run("./fun.exe")
 
         # POC for error at execution and redirect in code
-        index_err = "5.7"
+        '''index_err = "5.7"
         self.write_to_terminal(f"test at {index_err} (double click to access)")
         textbx = self.textboxes[self.tabview.get()]
         self.terminal.tag_config("err", underline=True, foreground="blue")
         self.terminal.tag_bind("err", "<Button-1>", lambda event: self.get_to_text(textbx, index_err))
-        self.terminal.tag_add("err", "3.8", "3.11")
+        self.terminal.tag_add("err", "3.8", "3.11")'''
 
 
     def get_to_text(self, txt, index, event=None):
