@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from tkinter import filedialog, font
 import os
-from pydpp.compiler import ProblemSet, ProblemSeverity, collect_errors
+from pydpp.compiler import ProblemSet, ProblemSeverity, collect_errors, analyse
 from pydpp.compiler.parser import parse
 from pydpp.compiler.tokenizer import tokenize, TokenKind
 from pydpp.compiler import compile_code
@@ -325,6 +325,7 @@ class App(ctk.CTk):
 
         # Now, let's parse the tree to find any errors
         tree = profile("parse", lambda: parse(tkn_list))
+        semantic = profile("semantic", lambda: analyse(tree))
 
         # Highlight every error (not warnings for now)
         s = profile_start("error finding")

@@ -327,7 +327,7 @@ def generate_code(definition_classes: list[type], doc_str_indentation=0) -> str:
                 out.newline()
                 out.inc_indent()
                 print_slot_doc_string(s, True)
-                out.writeln(f"return self.{s.storage_attr_name}.text")
+                out.writeln(f"return self.{s.storage_attr_name}.text if self.{s.storage_attr_name} is not None else \"\"")
                 out.dec_indent()
 
 

@@ -287,7 +287,7 @@ class FunctionParameter(InnerNode):
         """
         The name of the parameter.
         """
-        return self._name_token.text
+        return self._name_token.text if self._name_token is not None else ""
 
     @property
     def comma(self) -> LeafNode | None:
@@ -689,7 +689,7 @@ class FunctionExpr(Expression):
         """
         The identifier of the function.
         """
-        return self._identifier_token.text
+        return self._identifier_token.text if self._identifier_token is not None else ""
 
     @property
     def arg_list(self) -> ArgumentList | None:
@@ -756,7 +756,7 @@ class VariableExpr(Expression):
         """
         The name of the variable.
         """
-        return self._name_token.text
+        return self._name_token.text if self._name_token is not None else ""
 
     @property
     def children(self):
@@ -999,7 +999,7 @@ class FunctionDeclarationStmt(Statement):
         """
         The name of the function.
         """
-        return self._name_token.text
+        return self._name_token.text if self._name_token is not None else ""
 
     @property
     def lparen_token(self) -> LeafNode | None:
@@ -1160,7 +1160,7 @@ class VariableDeclarationStmt(Statement):
         """
         The name of the variable.
         """
-        return self._name_token.text
+        return self._name_token.text if self._name_token is not None else ""
 
     @property
     def assign_token(self) -> LeafNode | None:
@@ -1697,7 +1697,7 @@ class AssignStmt(Statement):
         """
         The name of the variable.
         """
-        return self._name_token.text
+        return self._name_token.text if self._name_token is not None else ""
 
     @property
     def assign_token(self) -> LeafNode | None:

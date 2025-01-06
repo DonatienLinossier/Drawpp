@@ -362,7 +362,11 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
     # Does type inference and checking for an expression — and its children — recursively.
     # Registers a symbol (ExpressionSym) for this expression, including its children, even if errored.
-    def register_expression(e: Expression) -> ExpressionSym:
+    def register_expression(e: Expression | None) -> ExpressionSym:
+        # Make up an error type for non-existing expressions.
+        if e is None:
+            return ExpressionSym(BuiltInTypeKind.ERROR)
+
         # If we have already registered this expression, just return it.
         if e in expr_to_sym:
             return expr_to_sym[e]
@@ -401,6 +405,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                         expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
         elif isinstance(e, ParenthesizedExpr):
             # A parenthesized one, just need to use the type of the child.
+            # Will be an ERROR if e.expr is None
             expr_to_sym[e] = register_expression(e.expr)
         elif isinstance(e, BinaryOperationExpr):
             # Binary operation. Oh boy. Lots of stuff to cover!
@@ -502,7 +507,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                     if arg.expr is not None:
                         arg_sym = register_expression(arg.expr)
                         if i < common and arg_sym.type != BuiltInTypeKind.ERROR and not is_subtype(arg_sym.type, params[i].type):
-                            register_error(e,
+                            register_error(arg,
                                            f"L'argument {i + 1} de l'appel à « {func.name} » est du mauvais type : {arg_sym.type} donné, {params[i].type} attendu.")
         else:
             raise NotImplementedError(f"Expression type {type(e)} not implemented yet.")
@@ -711,6 +716,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         if isinstance(ch, FunctionDeclarationStmt):
             register_function(ch)
 
+    program.print_fancy()
     # Register anything else step by step, in a depth-first fashion, so we don't get variables we shouldn't
     # have known about.
     for ch in program.child_inner_nodes:

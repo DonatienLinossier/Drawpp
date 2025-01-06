@@ -415,7 +415,7 @@ class _Tokenizer:
         else:
             # Not alphanumeric, perhaps it's a symbol?
             last_ok = None
-            for i in range(1, _sym_longest):
+            for i in range(1, _sym_longest + 1):
                 s = self.peek(i)
                 m = _sym_map.get(s)
                 if m:

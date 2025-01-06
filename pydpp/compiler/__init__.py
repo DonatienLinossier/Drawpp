@@ -10,7 +10,6 @@ from .position import TextSpan
 from .syntax import InnerNodeProblem
 import tempfile
 import os
-import collections
 
 from .toolchain import link
 
@@ -84,9 +83,9 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
         if tree.has_problems:
             # Traverse the tree using DFS with a stack. All nodes marked "has_problems" has at least
             # one descendant with a problem.
-            queue = collections.deque([tree])
-            while queue:
-                node = queue.popleft()
+            stack = [tree]
+            while stack:
+                node = stack.pop()
 
                 for p in node.problems:
                     if isinstance(p, InnerNodeProblem):
@@ -106,9 +105,10 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
 
                 # Continue traversing the tree for nodes that are interesting to us
                 # (by interesting I mean absolutely BROKEN.)
-                for c in node.children:
+                # We traverse them in reverse so we get them stacked correctly (i.e. the first child is stacked last)
+                for c in node.children_reverse:
                     if c.has_problems:
-                        queue.append(c)
+                        stack.append(c)
 
 
     def collect_errors_2(tree: Node) -> ProblemSet:
