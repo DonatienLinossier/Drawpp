@@ -716,7 +716,6 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         if isinstance(ch, FunctionDeclarationStmt):
             register_function(ch)
 
-    program.print_fancy()
     # Register anything else step by step, in a depth-first fashion, so we don't get variables we shouldn't
     # have known about.
     for ch in program.child_inner_nodes:
