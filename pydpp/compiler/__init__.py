@@ -10,6 +10,7 @@ from .position import TextSpan
 from .syntax import InnerNodeProblem
 import tempfile
 import os
+import collections
 
 from .toolchain import link
 
@@ -83,10 +84,11 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
         if tree.has_problems:
             # Traverse the tree using DFS with a stack. All nodes marked "has_problems" has at least
             # one descendant with a problem.
-            stack = [tree]
-            while stack:
-                node = stack.pop()
+            queue = collections.deque([tree])
+            while queue:
+                node = queue.popleft()
 
+                node.print_fancy()
                 for p in node.problems:
                     if isinstance(p, InnerNodeProblem):
                         # The problem is located on an inner node: use the compute_span function
@@ -101,13 +103,14 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
                         raise ValueError(f"Unknown problem type: {p}")
 
                     # Add the problem to the problem set.
+                    print(p.message, node.full_text)
                     problems.append(p.message, p.severity, span, code)
 
                 # Continue traversing the tree for nodes that are interesting to us
                 # (by interesting I mean absolutely BROKEN.)
                 for c in node.children:
                     if c.has_problems:
-                        stack.append(c)
+                        queue.append(c)
 
 
     def collect_errors_2(tree: Node) -> ProblemSet:
