@@ -1,6 +1,7 @@
 from pydpp.compiler.semantic import *
 from pydpp.compiler.syntax import *
-from pydpp.compiler.CTranslater import CTranslater, VarCall
+# TODO: _Cursor seems to be internal, maybe rework this a little bit so I don't feel like an outright criminal?
+from pydpp.compiler.CTranslater import CTranslater, VarCall, _Cursor
 
 
 # ======================================================
@@ -22,17 +23,27 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
 
     # Exit the function if we have any errors, or if we don't have semantic info
     if program.has_problems:
-        raise RuntimeError("Cannot transpile a program with parsing errors.")
+        raise RuntimeError("Cannot transpile a program with parsing or semantic errors.")
     elif semantic_info is None:
         raise RuntimeError("Cannot transpile a program without complete semantic analysis.")
 
     # Create the translator that serves as the basis for actually outputting C code :o
     ct = CTranslater(file_name)
 
-    # Name guide:
+    # Variable naming guide:
     # - Intermediary variables: ${n}: $1, $2, $3, ...
     # - Function names: @{name}
     # - Variable names: %{name}
+    # - Internal names: !{name}
+
+    # Create the default cursor, used when there's no active "wield" going on.
+    default_cursor_var = "!default_cursor"
+    ct.add_instruction("createCursor", default_cursor_var, 0, 0, 0, 0, 0, 0, 255)
+
+    # The stack of all cursors. When we encounter a "wield" statement, we push the cursor it uses
+    # (into an intermediate variable if necessary), and once it's done, we pop the stack.
+    # Of course, this stack shouldn't be empty at any case!
+    cursor_stack = [default_cursor_var]
 
     var_i = 0
     # Creates a brand-new intermediate variable name, by incrementing a counter.
@@ -65,6 +76,25 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
         ct.add_instruction("storeReturnedValueFromFuncInVar", itd)
         return VarCall(itd)
 
+    # Pushes a cursor onto the cursor stack. Can be either a temporary cursor or a variable.
+    def push_cursor(cursor_expr: VarCall | _Cursor._Cursor) -> VarCall:
+        if not isinstance(cursor_expr, VarCall):
+            # In case we're using a temporary cursor, let's put it in a temporary variable.
+            var = translater_store_temp("createVar", cursor_expr)
+        else:
+            # Just reuse the variable already present in the code.
+            var = cursor_expr
+
+        cursor_stack.append(var.name)
+        return VarCall(var)
+
+    # Pops a cursor from the cursor stack. Won't let you pop the default cursor.
+    def pop_cursor():
+        if len(cursor_stack) == 1:
+            raise RuntimeError("Cannot pop the default cursor from the stack.")
+
+        cursor_stack.pop()
+
     # Evaluates an expression, and emits all instructions necessary to compute it.
     # When the expression can be evaluated at compile-time, (like in "5+8", "not true") returns the constant result.
     #
@@ -76,16 +106,6 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
     # - None:
     #       the expression is a function call returning nothing.
     def evaluate_expression(e: Expression) -> VarCall | int | float | str | bool | None:
-
-        # # Upgrades a constant value to an intermediate variable. Returns the variable if it's already one.
-        # def upgrade_to_temp(v: VarCall | int | float | str | bool) -> VarCall:
-        #     if not isinstance(v, VarCall):
-        #         intermediate = next_intermediate_var()
-        #         ct.add_instruction("createVar", intermediate, v)
-        #         return VarCall(intermediate)
-        #     else:
-        #         return v
-
         if isinstance(e, LiteralExpr):
             # Just a literal, return this constant value
             return e.token.value
@@ -189,12 +209,30 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
             for i in range(len(sym.parameters)):
                 args.append(evaluate_expression_type_conv(ast_args[i], sym.parameters[i].type))
 
+            # Find our current cursor for this function.
+            if e.wielded_expr is not None:
+                # We have a wield expression, let's use that given cursor.
+                current_cursor = evaluate_expression(e.wielded_expr)
+            else:
+                # We don't have one, use the one on the top of the stack.
+                current_cursor = VarCall(cursor_stack[-1])
+
+            if sym.node is not None:
+                # User defined functions: also add the current cursor as the function's default cursor.
+                # The function runs under its own cursor stack, so there's no need to do anything about it.
+                args.append(current_cursor)
+            else:
+                # That will depend on the built-in function. Some use cursors, some don't. See the
+                # match case below.
+                pass
+
+            result = None
             if sym.node is None:
                 # Built-in function, run instructions based on the function name.
                 match sym.c_func_name:
-                    case "drawpp_circle":
-                        ct.add_instruction("drawCircle", *args)
-                        return None
+                    case "cursorDrawCircle" | "cursorDrawFilledCircle" | "cursorJump" | "cursorChangeColor":
+                        ct.add_instruction(sym.c_func_name, current_cursor, *args)
+                        result = None
 
                 # TODO: More functions!
             else:
@@ -202,9 +240,11 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
                 # (only if the return type isn't nothing).
                 if sym.return_type == BuiltInTypeKind.NOTHING:
                     ct.add_instruction(func_sym_to_translater(sym), *args)
-                    return None
+                    result = None
                 else:
-                    return translater_store_temp(func_sym_to_translater(sym), *args)
+                    result = translater_store_temp(func_sym_to_translater(sym), *args)
+
+            return result
 
     # Same as evaluate_expression, but also applies type conversion if necessary.
     def evaluate_expression_type_conv(expr: Expression, target_type: BuiltInTypeKind) \
@@ -247,6 +287,9 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
 
     # Transforms a statement into translater instructions, to output C code.
     def transpile_statement(s: Statement):
+        # Allow us to change the cursor stack entirely
+        nonlocal cursor_stack
+
         if isinstance(s, AssignStmt):
             # Grab the symbol for this assignment
             sym = semantic_info.assign_to_sym[s]
@@ -290,8 +333,19 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
             sym = semantic_info.function_to_sym[s]
             assert sym.node is not None
 
+            # Configure the parameters to also have a "cursor" as an input.
+            # The cursor will be called !default_cursor, so we can easily use the same variable name over and over,
+            # and will be set to the current cursor when calling the function.
+            params = [val_sym_to_translater(p) for p in sym.parameters]
+            params.append(default_cursor_var)
+
             # Create the function using the translater.
-            ct.createFunc(func_sym_to_translater(sym), [val_sym_to_translater(p) for p in sym.parameters])
+            ct.createFunc(func_sym_to_translater(sym), params)
+
+            # Now that we're inside another scope/block, we have a whole new cursor stack for this function.
+            # So, let's replace the cursor stack with the "default" one.
+            prev_stack = cursor_stack
+            cursor_stack = [default_cursor_var]
 
             # Transpile all statements inside the body.
             for st in s.body.statements:
@@ -299,6 +353,9 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
 
             # Exit the block.
             ct.endBlock()
+
+            # Restore the previous cursor stack.
+            cursor_stack = prev_stack
         elif isinstance(s, IfStmt):
             # Let's create the if block. The translater expects us to write all branches (cond eval, if, else).
 
@@ -385,15 +442,26 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
 
             # End the block
             ct.endBlock()
+        elif isinstance(s, WieldStmt):
+            # Push the cursor, run the statements, and pop it.
+            push_cursor(evaluate_expression(s.expr))
+            transpile_statement(s.block)
+            pop_cursor()
         else:
             raise NotImplementedError(f"Transpiling of {s.__class__.__name__} statements is not implemented.")
 
     # Use a "with" block to close the file when we're done.
     with ct:
-        # Transpile every statement of the program. This function will also transpile
-        # children statements, so no need to worry.
+        # Before transpiling anything, transpile all functions first.
         for statement in program.statements:
-            transpile_statement(statement)
+            if isinstance(statement, FunctionDeclarationStmt):
+                transpile_statement(statement)
+
+        # Transpile every statement of the program, except functions.
+        # This function will also transpile children statements, so no need to worry.
+        for statement in program.statements:
+            if not isinstance(statement, FunctionDeclarationStmt):
+                transpile_statement(statement)
 
         # Run the interpreter code we've emitted to write the final C file.
         ct.run()

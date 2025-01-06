@@ -218,8 +218,9 @@ class CTranslater:
     def _createCursor(self, name, x, y, angle, r, g, b, a):
         pass
 
-    def _cursorJump(self, circle, x, y):
-        self._drawRect(circle.x, circle.y, circle.x+x, circle.y+y)
+    def _cursorJump(self, cursor, x, y):
+        assert isinstance(cursor, _Cursor)
+        cursor.x, cursor.y = cursor.x + x, cursor.y + y
 
     def _cursorDrawCircle(self, circle, r):
         self._setColor(circle.color[0], circle.color[1], circle.color[2], circle.color[3])
@@ -236,10 +237,12 @@ class CTranslater:
         pass
 
     def _cursorChangeThickness(self, cursor, thickness):
-        pass
+        assert isinstance(cursor, _Cursor)
+        cursor.thickness = thickness
 
     def _cursorChangeColor(self, cursor, r, g, b, a):
-        pass
+        assert isinstance(cursor, _Cursor)
+        cursor.color = [r, g, b, a]
 
     #########################
     # Logic & operation functions
@@ -320,8 +323,8 @@ class CTranslater:
             print(f"Error: Blue value must be between 0 and 255. Received: {b}")
             return  # Return early if blue value is out of range
 
-        # Check that alpha value is in the range [0, 1]
-        if not (0 <= a <= 1):
+        # Check that alpha value is in the range [0, 255]
+        if not (0 <= a <= 255):
             print(f"Error: Alpha value must be between 0 and 1. Received: {a}")
             return  # Return early if alpha value is out of range
 

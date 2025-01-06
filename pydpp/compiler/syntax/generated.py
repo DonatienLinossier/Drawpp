@@ -648,14 +648,18 @@ class FunctionExpr(Expression):
     A function call expression, which calls a function with a list of arguments, and gives
     the return value of the function.
     """
-    __slots__ = ('_identifier_token', '_arg_list', )
+    __slots__ = ('_identifier_token', '_arg_list', '_wield_token', '_wielded_expr', )
 
     identifier_token_slot: SingleNodeSlot["FunctionExpr", LeafNode] = SingleNodeSlot('_identifier_token', LeafNode, check_func=lambda x: x.kind == TokenKind.IDENTIFIER)
     "The identifier of the function."
     arg_list_slot: SingleNodeSlot["FunctionExpr", ArgumentList] = SingleNodeSlot('_arg_list', ArgumentList)
     "The arguments to the function."
+    wield_token_slot: SingleNodeSlot["FunctionExpr", LeafNode] = SingleNodeSlot('_wield_token', LeafNode, check_func=lambda x: x.kind == TokenKind.KW_WIELD)
+    "The 'wield' token, indicating a cursor expression."
+    wielded_expr_slot: SingleNodeSlot["FunctionExpr", Expression] = SingleNodeSlot('_wielded_expr', Expression)
+    "The cursor expression this function should wield."
 
-    def __init__(self, identifier_token: LeafNode | None, arg_list: ArgumentList | None):
+    def __init__(self, identifier_token: LeafNode | None, arg_list: ArgumentList | None, wield_token: LeafNode | None, wielded_expr: Expression | None):
         super().__init__()
         assert identifier_token is None or FunctionExpr.identifier_token_slot.accepts(identifier_token)
         self._identifier_token = identifier_token
@@ -668,6 +672,18 @@ class FunctionExpr(Expression):
         if arg_list is not None: 
             arg_list.register_attachment(self, FunctionExpr.arg_list_slot)
             if arg_list.has_problems: self._update_has_problems(True)
+
+        assert wield_token is None or FunctionExpr.wield_token_slot.accepts(wield_token)
+        self._wield_token = wield_token
+        if wield_token is not None: 
+            wield_token.register_attachment(self, FunctionExpr.wield_token_slot)
+            if wield_token.has_problems: self._update_has_problems(True)
+
+        assert wielded_expr is None or FunctionExpr.wielded_expr_slot.accepts(wielded_expr)
+        self._wielded_expr = wielded_expr
+        if wielded_expr is not None: 
+            wielded_expr.register_attachment(self, FunctionExpr.wielded_expr_slot)
+            if wielded_expr.has_problems: self._update_has_problems(True)
 
 
     @property
@@ -706,21 +722,54 @@ class FunctionExpr(Expression):
             self.detach_child(self.arg_list_slot)
 
     @property
+    def wield_token(self) -> LeafNode | None:
+        """
+        The 'wield' token, indicating a cursor expression.
+        """
+        return self._wield_token
+
+    @wield_token.setter
+    def wield_token(self, value: LeafNode | None):
+        if value is not None: 
+            self._wield_token = self.attach_child(self.wield_token_slot, value)
+        else:
+            self.detach_child(self.wield_token_slot)
+
+    @property
+    def wielded_expr(self) -> Expression | None:
+        """
+        The cursor expression this function should wield.
+        """
+        return self._wielded_expr
+
+    @wielded_expr.setter
+    def wielded_expr(self, value: Expression | None):
+        if value is not None: 
+            self._wielded_expr = self.attach_child(self.wielded_expr_slot, value)
+        else:
+            self.detach_child(self.wielded_expr_slot)
+
+    @property
     def children(self):
         if self._identifier_token is not None: yield self._identifier_token
         if self._arg_list is not None: yield self._arg_list
+        if self._wield_token is not None: yield self._wield_token
+        if self._wielded_expr is not None: yield self._wielded_expr
 
     @property
     def children_reversed(self):
+        if self._wielded_expr is not None: yield self._wielded_expr
+        if self._wield_token is not None: yield self._wield_token
         if self._arg_list is not None: yield self._arg_list
         if self._identifier_token is not None: yield self._identifier_token
 
     @property
     def child_inner_nodes(self):
         if self._arg_list is not None: yield self._arg_list
+        if self._wielded_expr is not None: yield self._wielded_expr
 
-FunctionExpr.element_slots = (FunctionExpr.identifier_token_slot, FunctionExpr.arg_list_slot, )
-FunctionExpr.inner_node_slots = (FunctionExpr.arg_list_slot, )
+FunctionExpr.element_slots = (FunctionExpr.identifier_token_slot, FunctionExpr.arg_list_slot, FunctionExpr.wield_token_slot, FunctionExpr.wielded_expr_slot, )
+FunctionExpr.inner_node_slots = (FunctionExpr.arg_list_slot, FunctionExpr.wielded_expr_slot, )
 
 
 class VariableExpr(Expression):
@@ -1761,6 +1810,103 @@ class AssignStmt(Statement):
 
 AssignStmt.element_slots = (AssignStmt.name_token_slot, AssignStmt.assign_token_slot, AssignStmt.value_slot, AssignStmt.semi_colon_slot, )
 AssignStmt.inner_node_slots = (AssignStmt.value_slot, )
+
+
+class WieldStmt(Statement):
+    """
+    A wield statement, using the cursor during a block of code.
+    """
+    __slots__ = ('_wield_token', '_expr', '_block', )
+
+    wield_token_slot: SingleNodeSlot["WieldStmt", LeafNode] = SingleNodeSlot('_wield_token', LeafNode, check_func=lambda x: x.kind == TokenKind.KW_WIELD)
+    "The 'wield' token."
+    expr_slot: SingleNodeSlot["WieldStmt", Expression] = SingleNodeSlot('_expr', Expression)
+    "The cursor expression to wield."
+    block_slot: SingleNodeSlot["WieldStmt", BlockStmt] = SingleNodeSlot('_block', BlockStmt)
+    "The block of statements to run while the cursor is"
+
+    def __init__(self, wield_token: LeafNode | None, expr: Expression | None, block: BlockStmt | None):
+        super().__init__()
+        assert wield_token is None or WieldStmt.wield_token_slot.accepts(wield_token)
+        self._wield_token = wield_token
+        if wield_token is not None: 
+            wield_token.register_attachment(self, WieldStmt.wield_token_slot)
+            if wield_token.has_problems: self._update_has_problems(True)
+
+        assert expr is None or WieldStmt.expr_slot.accepts(expr)
+        self._expr = expr
+        if expr is not None: 
+            expr.register_attachment(self, WieldStmt.expr_slot)
+            if expr.has_problems: self._update_has_problems(True)
+
+        assert block is None or WieldStmt.block_slot.accepts(block)
+        self._block = block
+        if block is not None: 
+            block.register_attachment(self, WieldStmt.block_slot)
+            if block.has_problems: self._update_has_problems(True)
+
+
+    @property
+    def wield_token(self) -> LeafNode | None:
+        """
+        The 'wield' token.
+        """
+        return self._wield_token
+
+    @wield_token.setter
+    def wield_token(self, value: LeafNode | None):
+        if value is not None: 
+            self._wield_token = self.attach_child(self.wield_token_slot, value)
+        else:
+            self.detach_child(self.wield_token_slot)
+
+    @property
+    def expr(self) -> Expression | None:
+        """
+        The cursor expression to wield.
+        """
+        return self._expr
+
+    @expr.setter
+    def expr(self, value: Expression | None):
+        if value is not None: 
+            self._expr = self.attach_child(self.expr_slot, value)
+        else:
+            self.detach_child(self.expr_slot)
+
+    @property
+    def block(self) -> BlockStmt | None:
+        """
+        The block of statements to run while the cursor is
+        """
+        return self._block
+
+    @block.setter
+    def block(self, value: BlockStmt | None):
+        if value is not None: 
+            self._block = self.attach_child(self.block_slot, value)
+        else:
+            self.detach_child(self.block_slot)
+
+    @property
+    def children(self):
+        if self._wield_token is not None: yield self._wield_token
+        if self._expr is not None: yield self._expr
+        if self._block is not None: yield self._block
+
+    @property
+    def children_reversed(self):
+        if self._block is not None: yield self._block
+        if self._expr is not None: yield self._expr
+        if self._wield_token is not None: yield self._wield_token
+
+    @property
+    def child_inner_nodes(self):
+        if self._expr is not None: yield self._expr
+        if self._block is not None: yield self._block
+
+WieldStmt.element_slots = (WieldStmt.wield_token_slot, WieldStmt.expr_slot, WieldStmt.block_slot, )
+WieldStmt.inner_node_slots = (WieldStmt.expr_slot, WieldStmt.block_slot, )
 
 
 class ErrorStmt(Statement):

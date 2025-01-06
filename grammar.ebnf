@@ -45,7 +45,8 @@ statement =   variable_declaration_stmt
             | if_stmt
             | while_stmt
             | function_call_stmt
-            | assign_stmt;
+            | assign_stmt
+            | wield_stmt;
 
 (* 
     A variable declaration, with a type and optional value.
@@ -112,6 +113,17 @@ if_stmt = 'if', expression, block_stmt, {'else', 'if', expression, block_stmt}, 
         }
 *)
 while_stmt = 'while', expression, block_stmt;
+
+(*
+    A wield statement that uses a cursor for an entire block of code.
+    Example:
+        cursor my_cursor;
+        wield my_cursor {
+            Line(5, 8);
+            Circle(5, 5, 10);
+        }
+*)
+wield_stmt = 'wield', expression, block_stmt;
 
 (* The delimiter that marks the end of a statement (except if/while/fct blocks)
    Later we may decide to use newlines instead, so that's why it's defined.
@@ -228,9 +240,10 @@ multiplicative_exp = multiplicative_exp, "*"|"/", unary_exp | unary_exp;
 unary_exp = ["-"|"not"], unary_exp | function_exp;
 (*
     A function call expression, defined by an identifier followed by parentheses with a list of expressions.
+    Can optionally be followed with a "wield" keyword to use a specific cursor.
     Example: my_func(5, 8)
 *)
-function_exp = identifier, "(", comma_sep_expression_list, ")" | parens_exp;
+function_exp = identifier, "(", comma_sep_expression_list, ")", ["wield", expression] | parens_exp;
 (*
     An expression surrounded by parentheses.
     Example: (5+8)

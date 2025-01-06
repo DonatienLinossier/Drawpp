@@ -100,6 +100,8 @@ class _Parser:
             return stmt
         elif stmt := self.parse_while_statement():
             return stmt
+        elif stmt := self.parse_wield_statement():
+            return stmt
 
         return None
 
@@ -120,10 +122,10 @@ class _Parser:
                 issues = []
                 if param_type is None:
                     issues.append(InnerNodeProblem(message=f"Type du paramètre « {param_name.text} » manquant.",
-                                                     slot=FunctionParameter.type_slot))
+                                                   slot=FunctionParameter.type_slot))
                 if param_name is None:
                     issues.append(InnerNodeProblem(message="Nom du paramètre manquant.",
-                                                     slot=FunctionParameter.name_token_slot))
+                                                   slot=FunctionParameter.name_token_slot))
                 # Comma checking is done later
 
                 return FunctionParameter(param_type, leaf(param_name), leaf(comma)).with_problems(*issues)
@@ -167,18 +169,19 @@ class _Parser:
             # CHeck for commas missing between arguments
             for a in args:
                 if a != args[-1] and a.comma is None:
-                    a.add_problem(InnerNodeProblem(message=f"Virgule manquante après le paramètre « {a.name_token_str} »",
-                                                   slot=FunctionParameter.comma_slot))
+                    a.add_problem(
+                        InnerNodeProblem(message=f"Virgule manquante après le paramètre « {a.name_token_str} »",
+                                         slot=FunctionParameter.comma_slot))
 
             # Finally parse the { } block.
             block = self.parse_block_statement()
             if block is None:
-                problems.append(InnerNodeProblem(message="Bloc d'instructions manquant après la déclaration de la fonction.",
-                                                 slot=FunctionDeclarationStmt.body_slot))
+                problems.append(
+                    InnerNodeProblem(message="Bloc d'instructions manquant après la déclaration de la fonction.",
+                                     slot=FunctionDeclarationStmt.body_slot))
 
             return (FunctionDeclarationStmt(leaf(fct), leaf(name), leaf(lparen), args, leaf(rparen), block)
                     .with_problems(*problems))
-
 
     def parse_if_statement(self) -> Optional[IfStmt]:
         """
@@ -275,8 +278,8 @@ class _Parser:
         # Keep reading statements until we stumble upon a right brace.
         while (nxt := self.peek()) and nxt.kind != TokenKind.SYM_RBRACE:
             if stmt := self.parse_statement():
-                statements.append(stmt)
                 flush_invalid_tokens()
+                statements.append(stmt)
             else:
                 tkn = self.consume()
                 if tkn:
@@ -384,6 +387,22 @@ class _Parser:
                                                  slot=WhileStmt.block_slot))
 
             return WhileStmt(leaf(while_kw), condition, block).with_problems(*problems)
+        else:
+            return None
+
+    def parse_wield_statement(self) -> Optional[WieldStmt]:
+        if w := self.consume_exact(TokenKind.KW_WIELD):
+            problems = []
+            ex = self.parse_expression()
+            if ex is None:
+                problems.append(InnerNodeProblem("Curseur manquant après un « wield ».", slot=WieldStmt.expr_slot))
+
+            block = self.parse_block_statement()
+            if block is None:
+                problems.append(
+                    InnerNodeProblem("Bloc d'instructions manquant après un « wield ».", slot=WieldStmt.block_slot))
+
+            return WieldStmt(leaf(w), ex, block).with_problems(*problems)
         else:
             return None
 
@@ -522,7 +541,7 @@ class _Parser:
             # Continue reading operators until we find one of lower precedence, in that is the case,
             # the parent function call will take over reading expressions of lower precedence.
             while (operator := self.peek()) and (
-            prec := _Parser.op_to_prec.get(operator.kind)) is not None and prec >= min_prec:
+                    prec := _Parser.op_to_prec.get(operator.kind)) is not None and prec >= min_prec:
                 # Consume the operator we've just read
                 self.consume()
 
@@ -648,12 +667,23 @@ class _Parser:
     def parse_function_expression(self) -> Optional[FunctionExpr]:
         if (ident := self.peek()) and ident.kind == TokenKind.IDENTIFIER \
                 and ((lparen := self.peek(skip=1)) and lparen.kind == TokenKind.SYM_LPAREN):
+            problems = []
+
             ident = self.consume()
             arg_list = self.parse_arg_list()
 
-            # TODO: Err if arg list empty
+            # Parse the "wield <expr>" part if we do have a wield keyword coming up.
+            wield_kw = self.consume_exact(TokenKind.KW_WIELD)
+            wield_expr = None
+            if wield_kw is not None:
+                wield_expr = self.parse_expression()
+                if wield_expr is None:
+                    problems.append(InnerNodeProblem("Curseur manquant après un « wield ».",
+                                                     slot=FunctionExpr.wielded_expr_slot))
 
-            return FunctionExpr(leaf(ident), arg_list)
+            return FunctionExpr(leaf(ident), arg_list, leaf(wield_kw), wield_expr).with_problems(*problems)
+        else:
+            return None
 
     def parse_arg_list(self) -> Optional[ArgumentList]:
         # Find the (possibly) identifier token and opening parenthesis "(" token
@@ -686,7 +716,7 @@ class _Parser:
                 # The previous argument didn't have a comma! Report the problem now, so we don't forget!
                 if prev_comma_missing:
                     args[-1].add_problem(InnerNodeProblem("Virgule manquante entre les arguments.",
-                                                     slot=Argument.comma_token_slot))
+                                                          slot=Argument.comma_token_slot))
 
                 # Read the comma, and fill out the prev_comma_missing.
                 comma = self.consume_exact(TokenKind.SYM_COMMA)

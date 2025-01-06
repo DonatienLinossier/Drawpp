@@ -127,6 +127,8 @@ def definitions() -> list[type]:
 
         identifier_token = single(TK.IDENTIFIER, doc="The identifier of the function.")
         arg_list = single(ArgumentList, doc="The arguments to the function.")
+        wield_token = single(TK.KW_WIELD, doc="The 'wield' token, indicating a cursor expression.")
+        wielded_expr = single(Expression, doc="The cursor expression this function should wield.")
 
     @node_def
     class VariableExpr(Expression):
@@ -240,6 +242,16 @@ def definitions() -> list[type]:
         assign_token = single(TK.SYM_ASSIGN, doc="The '=' token.")
         value = single(Expression, doc="The value to assign to the variable.")
         semi_colon = single(TK.SYM_SEMICOLON, doc="The ';' token.")
+
+    @node_def
+    class WieldStmt(Statement):
+        """
+        A wield statement, using the cursor during a block of code.
+        """
+
+        wield_token = single(TK.KW_WIELD, doc="The 'wield' token.")
+        expr = single(Expression, doc="The cursor expression to wield.")
+        block = single(BlockStmt, doc="The block of statements to run while the cursor is")
 
     @node_def
     class ErrorStmt(Statement):

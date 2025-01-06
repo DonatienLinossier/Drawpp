@@ -349,6 +349,36 @@ class Node:
 
         return None
 
+    def find(self, filter: typing.Callable[[N], bool] | type[N], span: TextSpan) -> N | None:
+        """
+        Finds the smallest node that covers this span, with the given filter applied.
+        :param filter: the filter to use while searching
+        :param span: the span to search for
+        :return: a node. or not. who knows?
+        """
+
+        # Convert the filter to a function
+        if isinstance(filter, type):
+            func = lambda n: isinstance(n, filter)
+        else:
+            func = filter
+
+        # If we're in the span and fulfilling the filter, we can be a good candidate.
+        last_good = self if func(self) and span in self.full_span else None
+
+        # We could do a binary search but I'm lazy
+        for c in self.children:
+            if span in c.full_span:
+                # Do some recursive search.
+                if deeper := c.find(filter, span):
+                    return deeper
+                else:
+                    return last_good
+
+        # No child matches the span. It's game over.
+        return last_good
+
+
     # =========================
     # PROBLEM PROPERTIES
     # =========================
@@ -912,6 +942,9 @@ class LeafNode(Node):
 
 
 def leaf(t: Token | None):
+    """
+    Converts a token to a LeafNode. If the token is None, returns None.
+    """
     return LeafNode(t) if t is not None else None
 
 # ----------

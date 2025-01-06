@@ -4,6 +4,7 @@ from math import trunc
 
 from pydpp.compiler.syntax import *
 
+
 # ======================================================
 # semantic.py: The semantic analyser
 # ======================================================
@@ -34,7 +35,7 @@ class BuiltInTypeKind(Enum):
     STRING = "string"
     BOOL = "bool"
     CURSOR = "cursor"
-    NOTHING = "nothing" # like void in C? but a little bit more original?
+    NOTHING = "nothing"  # like void in C? but a little bit more original?
     ERROR = "error"
 
     def __str__(self):
@@ -48,7 +49,7 @@ class FunctionSym:
     """
 
     def __init__(self, name: str, return_type: BuiltInTypeKind, parameters: list["ParameterSym"],
-                 node: FunctionDeclarationStmt | None, c_func_name: str = None):
+                 node: FunctionDeclarationStmt | None, c_func_name: str = None, doc: str | None = None):
         self.name = name
         "The name of the function."
         self.return_type = return_type
@@ -59,6 +60,8 @@ class FunctionSym:
         "The AST node this symbol is attached to. Can be None for built-in functions."
         self.c_func_name = c_func_name
         "For built-in functions only: the name of the C/CTranslater function/instruction to call."
+        self.doc = doc
+        "Some documentation to guide users to use this function properly."
 
     def find_param(self, name: str) -> typing.Optional["ParameterSym"]:
         """
@@ -139,6 +142,7 @@ class ExpressionSym:
         else:
             return f"ExpressionSym({self.type})"
 
+
 class AssignSym:
     """
     Semantic information for an assignment statement.
@@ -152,6 +156,7 @@ class AssignSym:
         "The expression symbol being assigned to the variable. Can be None when there's no expression (invalid node)."
         self.node = node
         "The assignation node this symbol describes."
+
 
 # Declare useful union types.
 ValueSym = ParameterSym | VariableSym  # A value symbol, for VariableExpr
@@ -224,17 +229,52 @@ class ProgramSemanticInfo:
             left = f" {repr(k.text[:25])[1:-1]} @ {k.span}".ljust(45)
             print(f"  {left} -> {v}")
 
+
 builtin_funcs = {
     "circle": FunctionSym(
         name="circle",
         return_type=BuiltInTypeKind.NOTHING,
         parameters=[
-            ParameterSym("x", BuiltInTypeKind.FLOAT, None),
-            ParameterSym("y", BuiltInTypeKind.FLOAT, None),
             ParameterSym("r", BuiltInTypeKind.FLOAT, None),
         ],
-        c_func_name="drawpp_circle",
-        node=None
+        c_func_name="cursorDrawCircle",
+        node=None,
+        doc="Dessine un cercle creux de rayon r autour du curseur."
+    ),
+    "circleFill": FunctionSym(
+        name="circleFill",
+        return_type=BuiltInTypeKind.NOTHING,
+        parameters=[
+            ParameterSym("r", BuiltInTypeKind.FLOAT, None),
+        ],
+        c_func_name="cursorDrawFilledCircle",
+        node=None,
+        doc="Dessine un cercle plein de rayon r autour du curseur."
+    ),
+    "jump": FunctionSym(
+        name="jump",
+        return_type=BuiltInTypeKind.NOTHING,
+        parameters=[
+            ParameterSym("x", BuiltInTypeKind.FLOAT, None),
+            ParameterSym("y", BuiltInTypeKind.FLOAT, None),
+        ],
+        c_func_name="cursorJump",
+        node=None,
+        doc="Déplace le curseur aux coordonnées (x, y)."
+    ),
+    "changeColor": FunctionSym(
+        name="changeColor",
+        return_type=BuiltInTypeKind.NOTHING,
+        parameters=[
+            ParameterSym("r", BuiltInTypeKind.INT, None),
+            ParameterSym("g", BuiltInTypeKind.INT, None),
+            ParameterSym("b", BuiltInTypeKind.INT, None),
+            ParameterSym("a", BuiltInTypeKind.INT, None),
+        ],
+        c_func_name="cursorChangeColor",
+        node=None,
+        doc="Change la couleur du curseur en utilisant les valeurs RGBA.\n"
+            "r, g, b et a sont des entiers allant de 0 à 255, pour le rouge, vert, bleu et l'opacité."
     )
 }
 
@@ -379,7 +419,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
         elif isinstance(e, UnaryExpr):
             # We have either a +EXPR or not EXPR.
-            operand_sym = register_expression(e)
+            operand_sym = register_expression(e.expr)
 
             # When our operand is an error, just give up.
             if operand_sym.type == BuiltInTypeKind.ERROR:
@@ -506,9 +546,17 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                     arg = given_args[i]
                     if arg.expr is not None:
                         arg_sym = register_expression(arg.expr)
-                        if i < common and arg_sym.type != BuiltInTypeKind.ERROR and not is_subtype(arg_sym.type, params[i].type):
+                        if i < common and arg_sym.type != BuiltInTypeKind.ERROR and not is_subtype(arg_sym.type,
+                                                                                                   params[i].type):
                             register_error(arg,
                                            f"L'argument {i + 1} de l'appel à « {func.name} » est du mauvais type : {arg_sym.type} donné, {params[i].type} attendu.")
+
+                # See if the wield expression is correct. Expression missing is already taken care of by the parser.
+                if e.wield_token is not None and e.wielded_expr is not None:
+                    we_sym = register_expression(e.wielded_expr)
+                    if we_sym.type != BuiltInTypeKind.CURSOR and we_sym.type != BuiltInTypeKind.ERROR:
+                        register_error(e.wielded_expr,
+                                       f"La valeur donnée à « wield » doit être un curseur ({we_sym.type} donné).")
         else:
             raise NotImplementedError(f"Expression type {type(e)} not implemented yet.")
 
@@ -606,14 +654,11 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         variable_to_sym[v] = symbol
 
     def register_function(f: FunctionDeclarationStmt):
-        if f.name_token is None or not f.name_token_str:
-            # Invalid name, already reported by the parser
-            return
+        name_valid = f.name_token is not None
 
         pre_existing = find_function(f.name_token_str)
         if pre_existing:
             register_error(f, f"La fonction {f.name_token_str} est déjà définie.")
-            return
 
         params: list[ParameterSym] = []
         for p in f.parameters:
@@ -632,13 +677,16 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             else:
                 register_error(p, f"Le paramètre {p.name_token_str} est déjà défini.")
 
-        global_funcs[f.name_token_str] = FunctionSym(
+        function_to_sym[f] = FunctionSym(
             name=f.name_token_str,
             return_type=BuiltInTypeKind.NOTHING,  # TODO: Consider adding support for return types?
             parameters=params,
             node=f
         )
-        function_to_sym[f] = global_funcs[f.name_token_str]
+
+        # Register it to the map of all functions if we got a valid name and no duplicates.
+        if name_valid and pre_existing is None:
+            global_funcs[f.name_token_str] = function_to_sym[f]
 
     def analyse_node(n: InnerNode):
         analyse_children = True
@@ -678,6 +726,10 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                 # It's a parameter. We don't allow assigning to parameters right now, so report it to the user!
                 register_error(n, f"Impossible de modifier la valeur du paramètre {n.name_token_str}.",
                                slot=AssignStmt.name_token_slot)
+            elif var_sym.built_in_val is not None:
+                # It's a built-in variable, we can't change its value.
+                register_error(n, f"Impossible de modifier la valeur de la constante {n.name_token_str}.",
+                               slot=AssignStmt.name_token_slot)
 
             if n.value is not None:
                 val_sym = register_expression(n.value)
@@ -690,7 +742,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
             # Cursor variables are special. They're always initialised with a cursor by default,
             # and they can't be changed afterward.
-            if var_sym.type == BuiltInTypeKind.CURSOR:
+            if var_sym is not None and var_sym.type == BuiltInTypeKind.CURSOR:
                 register_error(n, "Impossible d'assigner une valeur à un curseur.")
 
             # Register a symbol for this assignation. (var_sym & val_sym can be None)
@@ -698,6 +750,14 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
             # No need to analyse children, we've already done the work.
             analyse_children = False
+        elif isinstance(n, WieldStmt):
+            # Within a wield statement, we just need to check that the wielded value is in fact a cursor.
+            if n.expr is not None:
+                we_sym = register_expression(n.expr)
+                if we_sym.type != BuiltInTypeKind.CURSOR and we_sym.type != BuiltInTypeKind.ERROR:
+                    register_error(n.expr, f"La valeur d'un bloc « wield » doit être un curseur ({we_sym.type} donné).")
+
+            # Do analyse other children though.
         elif isinstance(n, Expression):
             # We have an expression... Just register it. Although this part of the code might be called
             # rarely since expression are already registered by function calls/variable assignation, etc.

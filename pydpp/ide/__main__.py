@@ -300,10 +300,10 @@ class App(ctk.CTk):
         txt.drawpp_error_infos = []
 
         # Get the entire text of the textbox
-        t = txt.get("1.0", "end")
+        code_text = txt.get("1.0", "end")
 
         # Run the tokenizer (for primary syntax highlighting)
-        tkn_list = profile("tokenize", lambda: tokenize(t))
+        tkn_list = profile("tokenize", lambda: tokenize(code_text))
 
         # Highlight every portion of the text that matches with a token
         s = profile_start("highlighting")
@@ -323,7 +323,7 @@ class App(ctk.CTk):
             start += l
         profile_end(s)
 
-        # Now, let's parse the tree to find any errors
+        # Now, let's parse the tree to find any errors; and do semantic analysis for bonus errors
         tree = profile("parse", lambda: parse(tkn_list))
         semantic = profile("semantic", lambda: analyse(tree))
 
@@ -337,7 +337,13 @@ class App(ctk.CTk):
             # When the span is of zero-length, extend it on the right by one character to indicate something
             # that is "missing".
             ps, pe = e.pos.start, e.pos.end
-            if ps == pe: pe = pe + 1
+            if ps == pe:
+                if pe != len(code_text) and code_text[pe] != "\n":
+                    pe = pe + 1
+                else:
+                    # Tkinter doesn't support highlighting at the very end of line.
+                    # So, in this case, let's just extend to the left.
+                    ps = ps - 1
 
             # Convert coordinates to tkinter coordinates
             start, end = tidx_to_tkidx(ps), tidx_to_tkidx(pe)
