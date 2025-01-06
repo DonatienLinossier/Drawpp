@@ -88,7 +88,6 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
             while queue:
                 node = queue.popleft()
 
-                node.print_fancy()
                 for p in node.problems:
                     if isinstance(p, InnerNodeProblem):
                         # The problem is located on an inner node: use the compute_span function
@@ -103,7 +102,6 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
                         raise ValueError(f"Unknown problem type: {p}")
 
                     # Add the problem to the problem set.
-                    print(p.message, node.full_text)
                     problems.append(p.message, p.severity, span, code)
 
                 # Continue traversing the tree for nodes that are interesting to us
