@@ -71,10 +71,7 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
     # Runs an instruction and stores its return value in an intermediate variable.
     # Returns the newly made intermediate variable as a VarCall object.
     def translater_store_temp(instr: str, *args) -> VarCall:
-        itd = next_intermediate_var()
-        ct.add_instruction(instr, *args)
-        ct.add_instruction("storeReturnedValueFromFuncInVar", itd)
-        return VarCall(itd)
+        return translater_store(next_intermediate_var(), instr, *args)
 
     # Pushes a cursor onto the cursor stack. Can be either a temporary cursor or a variable.
     def push_cursor(cursor_expr: VarCall | _Cursor._Cursor) -> VarCall:
@@ -447,11 +444,19 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
             push_cursor(evaluate_expression(s.expr))
             transpile_statement(s.block)
             pop_cursor()
+        elif isinstance(s, CanvasStmt):
+            # Nothing special to do, it's handled at the beginning of the transpilation since
+            # the relevant data is in ProgramSemanticInfo anyway.
+            pass
         else:
             raise NotImplementedError(f"Transpiling of {s.__class__.__name__} statements is not implemented.")
 
     # Use a "with" block to close the file when we're done.
     with ct:
+        # Set the canvas width and height if we have some defined.
+        if semantic_info.canvas_width is not None and semantic_info.canvas_height is not None:
+            ct.configure_canvas(semantic_info.canvas_width, semantic_info.canvas_height)
+
         # Before transpiling anything, transpile all functions first.
         for statement in program.statements:
             if isinstance(statement, FunctionDeclarationStmt):

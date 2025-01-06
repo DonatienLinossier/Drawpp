@@ -17,11 +17,16 @@ _encap_bin_path = os.path.join(_encap_path, "bin")  # libs/sdlEncapsulation/bin/
 _linux_encap_lib_path = os.path.join(_encap_bin_path, "libSdlEncapsulation.a")
 _windows_encap_lib_path = os.path.join(_encap_bin_path, "sdlEncapsulation.lib")
 
+# Seconds (Python Epoch) since last update of the sdlEncapsulation library, so people
+# running an older version of the library will get their library updated.
+# Now this is PEAK versioning!
+_last_encap_update = 1736203773.3464878
 
 def link(c_path: str, exe_path: str) -> tuple[bool, str]:
     # Compiles the sdlEncapsulation library if it's not already compiled.
     def init_encap_lib(path: str) -> tuple[bool, str]:
-        if not os.path.exists(path):
+        # Check if the library exists AND if it's not out of date
+        if not os.path.exists(path) or os.path.getmtime(path) < _last_encap_update:
             # We didn't find the library. Let's try to compile it with the libs/build_sdlEncapsulation.py script!
             res = subprocess.run([
                 sys.executable,  # Path to the Python interpreter this script is running
@@ -66,7 +71,13 @@ def _linux_link(c_path: str, exe_path: str) -> tuple[bool, str]:
         return False, "SDL Encapsulation library not found at path: " + encap_a_lib_file
 
     # Compile the C code to an executable
-    result = subprocess.run([cc, c_path, encap_a_lib_file, "-o", exe_path, "-I", _encap_incl_path, "-lm", "-lSDL2"],
+    result = subprocess.run([cc, # C compiler
+                             c_path, # Compile our C file
+                             encap_a_lib_file, # Link to the SDL encapsulation static library
+                             "-o", exe_path, # Output to the executable path
+                             "-I", _encap_incl_path, # Configure the include path to include the encapsulation's headers
+                             "-lm", "-lSDL2" # Add relevant libraries.
+                             ],
                             capture_output=True)
 
     # Check the result of that command and we're done! That was so simple!
@@ -101,6 +112,12 @@ def _windows_link(c_path: str, exe_path: str) -> tuple[bool, str]:
 
             return vs_env_res.stdout
 
+    # Clear the environment data cache if we encounter an issue.
+    def _clear_env_data():
+        temp_loc = os.path.join(os.getenv("TEMP"), "drawpp_env_vars.txt")
+        if os.path.exists(temp_loc):
+            os.remove(temp_loc)
+
     # Let's find visual studio! This will be fun, trust me!
 
     # The batch script outputs environment variables in KEY=VALUE format. Let's parse that.
@@ -133,6 +150,7 @@ def _windows_link(c_path: str, exe_path: str) -> tuple[bool, str]:
     # Find the path of the C compiler.
     cl = shutil.which("cl", path=path_env)
     if cl is None:
+        _clear_env_data() # Just in case we have outdated environment vars
         return False, "Visual Studio C compiler not found in the PATH given by vsenv.bat: " + path_env
 
     # Define some paths for the C compiler beforehand. Mainly just paths to SDL2 and encapsulation libraries.

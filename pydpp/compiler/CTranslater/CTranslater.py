@@ -61,6 +61,10 @@ class CTranslater:
         }
         self.constructionStack = ["main"]
 
+        # Width and height of the canvas. And yes, this is where the default values reside.
+        self.canvas_width = 1200
+        self.canvas_height = 640
+
     def _header(self):
         self.file.write(header)
 
@@ -117,6 +121,14 @@ class CTranslater:
 
         frame = self._getActualStackFrame()
         frame.add_instruction(self.instr[instructionName], *args)
+
+    def configure_canvas(self, w, h):
+        """
+        Configures the width and height of the canvas.
+        """
+        assert w > 0 and h > 0
+        self.canvas_width = w
+        self.canvas_height = h
 
     def createFunc(self, functionName: str, args) -> None:
 
@@ -186,6 +198,9 @@ class CTranslater:
             self.constructionStack.pop()
 
     def run(self):
+        # First begin the canvas with the width/height dimensions.
+        self.file.write(f"beginCanvas(renderer, {self.canvas_width}, {self.canvas_height}, &drawCanvas);\n");
+
         scope = {}
         scope, returnedValue = self.main(scope)
 

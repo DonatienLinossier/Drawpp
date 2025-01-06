@@ -254,6 +254,17 @@ def definitions() -> list[type]:
         block = single(BlockStmt, doc="The block of statements to run while the cursor is")
 
     @node_def
+    class CanvasStmt(Statement):
+        """
+        The canvas statement describes the width and height of the canvas at the start of the program.
+        """
+
+        canvas_token = single(TK.KW_CANVAS, doc="The 'canvas' token.")
+        width = single(Expression, doc="The width of the canvas.")
+        height = single(Expression, doc="The height of the canvas.")
+        semi_colon = single(TK.SYM_SEMICOLON, doc="The ';' token.")
+
+    @node_def
     class ErrorStmt(Statement):
         """
         An invalid/unrecognized statement. Prevents compilation.

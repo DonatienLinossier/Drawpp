@@ -176,7 +176,9 @@ class ProgramSemanticInfo:
                  function_to_sym: dict[FunctionDeclarationStmt, FunctionSym],
                  variable_to_sym: dict[VariableDeclarationStmt, VariableSym],
                  expr_to_sym: dict[Expression, ExpressionSym],
-                 assign_to_sym: dict[AssignStmt, AssignSym]):
+                 assign_to_sym: dict[AssignStmt, AssignSym],
+                 canvas_width: int | None,
+                 canvas_height: int | None):
         self.global_functions = global_functions
         "All declared global functions, including built-in ones."
         self.global_variables = global_variables
@@ -189,6 +191,10 @@ class ProgramSemanticInfo:
         "Semantic information for expression nodes: expression AST node -> expression symbol."
         self.assign_to_sym = assign_to_sym
         "Semantic information for assignation nodes: assignation AST node -> assignation symbol."
+        self.canvas_width = canvas_width
+        "The width of the canvas, as set with the 'canvas' statement. Can be None."
+        self.canvas_height = canvas_height
+        "The height of the canvas, as set with the 'canvas' statement. Can be None."
 
     def print_debug(self):
         """
@@ -302,6 +308,9 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     variable_to_sym: dict[VariableDeclarationStmt, VariableSym] = {}
     expr_to_sym: dict[Expression, ExpressionSym] = {}
     assign_to_sym: dict[AssignStmt, AssignSym] = {}
+
+    # The canvas size, if set.
+    canvas_width, canvas_height = None, None
 
     # Adds an error regarding the given node. (We may change error systems later)
     def register_error(node: InnerNode, message: str, slot=None):
@@ -758,6 +767,38 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                     register_error(n.expr, f"La valeur d'un bloc « wield » doit être un curseur ({we_sym.type} donné).")
 
             # Do analyse other children though.
+        elif isinstance(n, CanvasStmt):
+            # The canvas statement is a bit special.
+
+            # It must be at the very start of the program, and we can't have more than one.
+            if n.parent is None or n.parent_slot_idx != 0:
+                # But, do we have duplicate canvas statements? Let's see...
+                is_duplicate = False
+                for s in program.statements:
+                    if s is n:
+                        break
+                    elif isinstance(s, CanvasStmt):
+                        is_duplicate = True
+                        break
+
+                if is_duplicate:
+                    register_error(n, "La directive « canvas » a déjà été déclarée précédemment.")
+                else:
+                    register_error(n, "La directive « canvas » doit être placé au début du programme.")
+            else:
+                # The parser already tells error messages if the width/height is invalid.
+                # So we'll just change the variables accordingly
+                nonlocal canvas_width, canvas_height
+
+                # Only set the dimensions if they're valid.
+                def evaluate(e: Expression):
+                    return e.token.value if e is not None \
+                                            and isinstance(e, LiteralExpr) \
+                                            and isinstance(e.token.value, int) \
+                                            and e.token.value > 0 else None
+
+                canvas_width = evaluate(n.width)
+                canvas_height = evaluate(n.height)
         elif isinstance(n, Expression):
             # We have an expression... Just register it. Although this part of the code might be called
             # rarely since expression are already registered by function calls/variable assignation, etc.
@@ -788,5 +829,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         function_to_sym=function_to_sym,
         variable_to_sym=variable_to_sym,
         expr_to_sym=expr_to_sym,
-        assign_to_sym=assign_to_sym
+        assign_to_sym=assign_to_sym,
+        canvas_width=canvas_width,
+        canvas_height=canvas_height
     )

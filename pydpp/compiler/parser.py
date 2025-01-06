@@ -102,6 +102,8 @@ class _Parser:
             return stmt
         elif stmt := self.parse_wield_statement():
             return stmt
+        elif stmt := self.parse_canvas_statement():
+            return stmt
 
         return None
 
@@ -405,6 +407,38 @@ class _Parser:
             return WieldStmt(leaf(w), ex, block).with_problems(*problems)
         else:
             return None
+
+    def parse_canvas_statement(self) -> Optional[CanvasStmt]:
+        if c := self.consume_exact(TokenKind.KW_CANVAS):
+            problems = []
+
+            def validate_dimension(e: Expression):
+                return isinstance(e, LiteralExpr) and isinstance(e.token.value, int) and e.token.value > 0
+
+            # Try to read the width first, and validate its constant value.
+            e1 = self.parse_expression()
+            if e1 is None:
+                problems.append(InnerNodeProblem("Largeur du canevas manquant.",
+                                                 slot=CanvasStmt.width_slot))
+            elif not validate_dimension(e1):
+                problems.append(
+                    InnerNodeProblem("La largeur du canevas doit être un entier strictement positif constant.",
+                                     slot=CanvasStmt.width_slot))
+
+            # Do the same for the height, only if we have read a width (even if invalid).
+            e2 = None
+            if e1:
+                e2 = self.parse_expression()
+                if e2 is None:
+                    problems.append(InnerNodeProblem("Hauteur du canevas manquant.", slot=CanvasStmt.height_slot))
+                elif not validate_dimension(e2):
+                    problems.append(
+                        InnerNodeProblem("La hauteur du canevas doit être un entier strictement positif constant.",
+                                         slot=CanvasStmt.height_slot))
+
+            sm = self.expect_semicolon_2(problems, CanvasStmt.semi_colon_slot)
+
+            return CanvasStmt(leaf(c), e1, e2, leaf(sm)).with_problems(*problems)
 
     def expect_semicolon_2(self, problems: list[InnerNodeProblem],
                            sm_slot: SingleNodeSlot[InnerNode, LeafNode]) -> Token | None:

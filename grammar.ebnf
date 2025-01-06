@@ -46,7 +46,8 @@ statement =   variable_declaration_stmt
             | while_stmt
             | function_call_stmt
             | assign_stmt
-            | wield_stmt;
+            | wield_stmt
+            | canvas_stmt;
 
 (* 
     A variable declaration, with a type and optional value.
@@ -124,6 +125,12 @@ while_stmt = 'while', expression, block_stmt;
         }
 *)
 wield_stmt = 'wield', expression, block_stmt;
+
+(*
+    The canvas statement describes the width and height of the canvas at the start of the program.
+    Example: canvas 800, 600;
+*)
+canvas_stmt = 'canvas', number_literal, number_literal, statement_end;
 
 (* The delimiter that marks the end of a statement (except if/while/fct blocks)
    Later we may decide to use newlines instead, so that's why it's defined.

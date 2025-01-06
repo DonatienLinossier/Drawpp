@@ -1909,6 +1909,127 @@ WieldStmt.element_slots = (WieldStmt.wield_token_slot, WieldStmt.expr_slot, Wiel
 WieldStmt.inner_node_slots = (WieldStmt.expr_slot, WieldStmt.block_slot, )
 
 
+class CanvasStmt(Statement):
+    """
+    The canvas statement describes the width and height of the canvas at the start of the program.
+    """
+    __slots__ = ('_canvas_token', '_width', '_height', '_semi_colon', )
+
+    canvas_token_slot: SingleNodeSlot["CanvasStmt", LeafNode] = SingleNodeSlot('_canvas_token', LeafNode, check_func=lambda x: x.kind == TokenKind.KW_CANVAS)
+    "The 'canvas' token."
+    width_slot: SingleNodeSlot["CanvasStmt", Expression] = SingleNodeSlot('_width', Expression)
+    "The width of the canvas."
+    height_slot: SingleNodeSlot["CanvasStmt", Expression] = SingleNodeSlot('_height', Expression)
+    "The height of the canvas."
+    semi_colon_slot: SingleNodeSlot["CanvasStmt", LeafNode] = SingleNodeSlot('_semi_colon', LeafNode, check_func=lambda x: x.kind == TokenKind.SYM_SEMICOLON)
+    "The ';' token."
+
+    def __init__(self, canvas_token: LeafNode | None, width: Expression | None, height: Expression | None, semi_colon: LeafNode | None):
+        super().__init__()
+        assert canvas_token is None or CanvasStmt.canvas_token_slot.accepts(canvas_token)
+        self._canvas_token = canvas_token
+        if canvas_token is not None: 
+            canvas_token.register_attachment(self, CanvasStmt.canvas_token_slot)
+            if canvas_token.has_problems: self._update_has_problems(True)
+
+        assert width is None or CanvasStmt.width_slot.accepts(width)
+        self._width = width
+        if width is not None: 
+            width.register_attachment(self, CanvasStmt.width_slot)
+            if width.has_problems: self._update_has_problems(True)
+
+        assert height is None or CanvasStmt.height_slot.accepts(height)
+        self._height = height
+        if height is not None: 
+            height.register_attachment(self, CanvasStmt.height_slot)
+            if height.has_problems: self._update_has_problems(True)
+
+        assert semi_colon is None or CanvasStmt.semi_colon_slot.accepts(semi_colon)
+        self._semi_colon = semi_colon
+        if semi_colon is not None: 
+            semi_colon.register_attachment(self, CanvasStmt.semi_colon_slot)
+            if semi_colon.has_problems: self._update_has_problems(True)
+
+
+    @property
+    def canvas_token(self) -> LeafNode | None:
+        """
+        The 'canvas' token.
+        """
+        return self._canvas_token
+
+    @canvas_token.setter
+    def canvas_token(self, value: LeafNode | None):
+        if value is not None: 
+            self._canvas_token = self.attach_child(self.canvas_token_slot, value)
+        else:
+            self.detach_child(self.canvas_token_slot)
+
+    @property
+    def width(self) -> Expression | None:
+        """
+        The width of the canvas.
+        """
+        return self._width
+
+    @width.setter
+    def width(self, value: Expression | None):
+        if value is not None: 
+            self._width = self.attach_child(self.width_slot, value)
+        else:
+            self.detach_child(self.width_slot)
+
+    @property
+    def height(self) -> Expression | None:
+        """
+        The height of the canvas.
+        """
+        return self._height
+
+    @height.setter
+    def height(self, value: Expression | None):
+        if value is not None: 
+            self._height = self.attach_child(self.height_slot, value)
+        else:
+            self.detach_child(self.height_slot)
+
+    @property
+    def semi_colon(self) -> LeafNode | None:
+        """
+        The ';' token.
+        """
+        return self._semi_colon
+
+    @semi_colon.setter
+    def semi_colon(self, value: LeafNode | None):
+        if value is not None: 
+            self._semi_colon = self.attach_child(self.semi_colon_slot, value)
+        else:
+            self.detach_child(self.semi_colon_slot)
+
+    @property
+    def children(self):
+        if self._canvas_token is not None: yield self._canvas_token
+        if self._width is not None: yield self._width
+        if self._height is not None: yield self._height
+        if self._semi_colon is not None: yield self._semi_colon
+
+    @property
+    def children_reversed(self):
+        if self._semi_colon is not None: yield self._semi_colon
+        if self._height is not None: yield self._height
+        if self._width is not None: yield self._width
+        if self._canvas_token is not None: yield self._canvas_token
+
+    @property
+    def child_inner_nodes(self):
+        if self._width is not None: yield self._width
+        if self._height is not None: yield self._height
+
+CanvasStmt.element_slots = (CanvasStmt.canvas_token_slot, CanvasStmt.width_slot, CanvasStmt.height_slot, CanvasStmt.semi_colon_slot, )
+CanvasStmt.inner_node_slots = (CanvasStmt.width_slot, CanvasStmt.height_slot, )
+
+
 class ErrorStmt(Statement):
     """
     An invalid/unrecognized statement. Prevents compilation.
