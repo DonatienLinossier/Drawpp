@@ -338,7 +338,7 @@ class App(ctk.CTk):
             # that is "missing".
             ps, pe = e.pos.start, e.pos.end
             if ps == pe:
-                if pe != len(code_text) and code_text[pe] != "\n":
+                if pe < len(code_text) and code_text[pe] != "\n":
                     pe = pe + 1
                 else:
                     # Tkinter doesn't support highlighting at the very end of line.

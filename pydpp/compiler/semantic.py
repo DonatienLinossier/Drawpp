@@ -650,7 +650,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         if v.value is not None and ty != BuiltInTypeKind.ERROR:
             # If there's a default value, check that it's of the correct type.
             value_sym = register_expression(v.value)
-            if not is_subtype(value_sym.type, ty) and value_sym != BuiltInTypeKind.ERROR:
+            if not is_subtype(value_sym.type, ty) and value_sym.type != BuiltInTypeKind.ERROR:
                 register_error(v.value,
                                f"La valeur donnée pour la variable {name} est du mauvais type : {value_sym.type} donné, {ty} attendu.")
 

@@ -129,7 +129,7 @@ class ProblemSet:
 
     def __str__(self):
         # Print a simple summary of all problems in the set.
-        print("Summary:", " | ".join([f"{k.name}: {len(v)}" for k, v in self.grouped.items()]))
+        # print("Summary:", " | ".join([f"{k.name}: {len(v)}" for k, v in self.grouped.items()]))
         return "\n".join([str(x) for x in self.problems])
 
     def __repr__(self):

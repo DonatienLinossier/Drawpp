@@ -122,11 +122,13 @@ class InnerNodeProblem:
         slot_value = node.get(self.slot)
         # Find the first element of the slot, or None if it's empty.
         first_child = (slot_value[0] if slot_value else None) if self.slot.multi else slot_value
-        # Find end of the inner span by adding the length of our slotted node.
-        inner_end = inner_start + (len(first_child.full_text) if first_child is not None else 0)
 
-        # Make up the span.
-        return TextSpan(node_start + inner_start, node_start + inner_end)
+        if first_child is not None:
+            # We already have a child. Just use its span.
+            return first_child.span
+        else:
+            # We don't have a child. Take the closest location we can find.
+            return TextSpan(node_start + inner_start, node_start + inner_start)
 
     def __repr__(self):
         return f"NodeProblem({self.message!r}, {self.severity!r})"
