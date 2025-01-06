@@ -40,12 +40,14 @@ def link(c_path: str, exe_path: str) -> tuple[bool, str]:
     match sys.platform:
         case "linux":
             # Compile libSdlEncapsulation.a if it doesn't exist
-            init_encap_lib(_linux_encap_lib_path)
+            ok, msg = init_encap_lib(_linux_encap_lib_path)
+            if not ok: return False, msg
             # Run GCC and the like
             return _linux_link(c_path, exe_path)
         case "win32":
             # Compile sdlEncapsulation.lib if it doesn't exist
-            init_encap_lib(_windows_encap_lib_path)
+            ok, msg = init_encap_lib(_windows_encap_lib_path)
+            if not ok: return False, msg
             # Do the Windows busywork to compile the code
             return _windows_link(c_path, exe_path)
         case _:
