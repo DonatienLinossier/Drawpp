@@ -101,21 +101,26 @@ class App(ctk.CTk):
         for p in (problems):
 
             # Retrieves info about the error
-            s = p.pos.start
-            e = p.pos.end
-            start, end = self.tidx_to_tkidx(str(s)), self.tidx_to_tkidx(str(e))
-            t = str(s)+"."+str(e)
+            if p.pos is not None:
+                # We do have position info, let's make a clickable link to see the where the error is.
+                s = p.pos.start
+                e = p.pos.end
+                start, end = self.tidx_to_tkidx(str(s)), self.tidx_to_tkidx(str(e))
+                t = str(s)+"."+str(e)
 
-            # Creates a new tag with a pointer to the error in the code
-            self.terminal.tag_config(str(t), underline=True, foreground="blue")
-            self.terminal.tag_bind(str(t), "<Button-1>", lambda event, pos=end: self.get_to_text(textbx, pos))
+                # Creates a new tag with a pointer to the error in the code
+                self.terminal.tag_config(str(t), underline=True, foreground="blue")
+                self.terminal.tag_bind(str(t), "<Button-1>", lambda event, pos=end: self.get_to_text(textbx, pos))
 
-            # Writes to the terminal the error message
-            self.write_to_terminal(f"{p} (double clique pour acceder)")
-            textbx = self.textboxes[self.tabview.get()]
+                # Writes to the terminal the error message
+                self.write_to_terminal(f"{p} (double clique pour acceder)")
+                textbx = self.textboxes[self.tabview.get()]
 
-            # Sets the tag to highlight the location of the value
-            self.terminal.tag_add(str(t), "end-35c", "end-27c")
+                # Sets the tag to highlight the location of the value
+                self.terminal.tag_add(str(t), "end-35c", "end-27c")
+            else:
+                # No position information! (Must be a compile/toolchain error).
+                self.write_to_terminal(f"{p}")
         
         # The code can be compiled
         if okay:
