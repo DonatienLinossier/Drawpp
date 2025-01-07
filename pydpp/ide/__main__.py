@@ -78,6 +78,9 @@ class App(ctk.CTk):
         self.newfilecount = 1
         self.tt = None
 
+    def tidx_to_tkidx(self, idx):
+            return f"1.0+{idx}c"
+
     def run_program(self, event=None):
         """
         get code compile it and return good or bad execution.
@@ -88,18 +91,17 @@ class App(ctk.CTk):
         # Call function and return something
         code_to_exe = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
         # Not implemented yet
-        okay, problems = compile_code(code_to_exe, "./fun.exe")
+        okay, problems = compile_code(code_to_exe, "./fun.exe") 
         for p in (problems):
-            s= str(p.pos.start)
-            e=str(p.pos.end)
-            t=s+"."+e
-            index_err = t
-            self.write_to_terminal(f"{p} {index_err} (double click to access)")
+            s= p.pos.start
+            e=p.pos.end
+            start, end = self.tidx_to_tkidx(str(s)), self.tidx_to_tkidx(str(e))
+            t=str(s)+"."+str(e)
+            self.terminal.tag_config(str(t), underline=True, foreground="blue")
+            self.terminal.tag_bind(str(t), "<Button-1>", lambda event, pos=end: self.get_to_text(textbx, pos))
+            self.write_to_terminal(f"{p} (double click to access)")
             textbx = self.textboxes[self.tabview.get()]
-            self.terminal.tag_config("err", underline=True, foreground="blue")
-            self.terminal.tag_bind("err", "<Button-1>", lambda event: self.get_to_text(textbx, index_err))
-            self.terminal.tag_add("err", "3.8", "3.11")
-        self.write_to_terminal(problems)
+            self.terminal.tag_add(str(t), "end-35c", "end-27c")
         if okay:
             # Run the app in the background
             subprocess.Popen("./fun.exe")
