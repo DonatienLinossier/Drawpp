@@ -14,7 +14,7 @@ _encap_incl_path = os.path.join(_encap_path, "include")  # libs/sdlEncapsulation
 _encap_bin_path = os.path.join(_encap_path, "bin")  # libs/sdlEncapsulation/bin/
 
 # OS-specific paths for the sdlEncapsulation library
-_linux_encap_lib_path = os.path.join(_encap_bin_path, "libSdlEncapsulation.a")
+_linux_encap_lib_path = os.path.join(_encap_bin_path, "libsdlEncapsulation.a")
 _windows_encap_lib_path = os.path.join(_encap_bin_path, "sdlEncapsulation.lib")
 
 # Seconds (Python Epoch) since last update of the sdlEncapsulation library, so people
