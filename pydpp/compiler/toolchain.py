@@ -65,15 +65,14 @@ def _linux_link(c_path: str, exe_path: str) -> tuple[bool, str]:
     if cc is None:
         return False, "No C compiler found"
 
-    # Find the libSdlEncapsulation.a file.
-    encap_a_lib_file = os.path.join(_encap_bin_path, "libSdlEncapsulation.a")
-    if not os.path.exists(encap_a_lib_file):
-        return False, "SDL Encapsulation library not found at path: " + encap_a_lib_file
+    # Find the libsdlEncapsulation.a file.
+    if not os.path.exists(_linux_encap_lib_path):
+        return False, "SDL Encapsulation library not found at path: " + _linux_encap_lib_path
 
     # Compile the C code to an executable
     result = subprocess.run([cc, # C compiler
                              c_path, # Compile our C file
-                             encap_a_lib_file, # Link to the SDL encapsulation static library
+                             _linux_encap_lib_path, # Link to the SDL encapsulation static library
                              "-o", exe_path, # Output to the executable path
                              "-I", _encap_incl_path, # Configure the include path to include the encapsulation's headers
                              "-lm", "-lSDL2" # Add relevant libraries.
