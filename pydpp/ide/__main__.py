@@ -1,3 +1,5 @@
+import typing
+
 import customtkinter as ctk
 from tkinter import filedialog, font
 import os
@@ -76,7 +78,7 @@ class App(ctk.CTk):
         self.appearance_mode_menu.set("System")
         self.scaling_optionemenu.set("100%")
         self.newfilecount = 1
-        self.tt = None
+        self.tt = ToolTip(self)
 
     def tidx_to_tkidx(self, idx):
             return f"1.0+{idx}c"
@@ -266,18 +268,65 @@ class App(ctk.CTk):
                     # Yep, skip the "err_info" part and get the index.
                     err_indices.append(int(tag[len("err_info_"):]))
 
+            self.tt.destroy()
+
             # Then use that coordinate to find where the error is and show a tooltip... somehow.
             # It's there !!
-            if not self.tt:
-                # Gather all error messages, separated with a newline, by looking at err_indices
-                msg = "\n".join([txt.drawpp_error_infos[i].message for i in err_indices])
-                self.tt = createToolTip(self, msg, self.winfo_pointerx(), self.winfo_pointery())
+
+            # Gather all error messages, separated with a newline, by looking at err_indices
+            msg = "\n".join([txt.drawpp_error_infos[i].message for i in err_indices])
+
+            # Gather all suggestions, by adding them in a list of tuples:
+            #     (suggestion title, function to apply the suggestion)
+            sug = []
+            for i in err_indices:
+                # Find the Problem object
+                pb = txt.drawpp_error_infos[i]
+                if pb.suggestion is not None:
+                    # We do have a suggestion for this!
+                    # Make up an apply function specifically for this problem.
+                    def apply(e, real_problem=pb, pb_sug=pb.suggestion):
+                        # Destroy the tooltip first.
+                        self.tt.destroy()
+
+                        # Find the root node (the Program)
+                        root = real_problem.node
+                        while root.parent is not None:
+                            root = root.parent
+
+                        # Apply the suggestion
+                        pb_sug.apply(real_problem.node)
+
+                        # Replace the ENTIRETY of the code with the one modified by the suggestion.
+                        # Keep the cursor as it was before.
+                        cursor = txt.index("insert")
+                        txt.delete("1.0", "end")
+                        txt.insert("1.0", root.full_text)
+                        txt.mark_set("insert", cursor)
+
+                        # Make sure the file is reparsed correctly.
+                        txt.edit_modified(True)
+
+                    # Append it to the list of suggestions
+                    sug.append(("Appliquer la suggestion : " + pb.suggestion.title, apply))
+
+            # Find where to place the textbox. We're going to place it below the character.
+            box = txt.bbox("current")
+            if box is None:
+                # We can't find it??? Use the pointer coordinates instead.
+                x, y = txt.winfo_pointerxy()
+            else:
+                # box is a tuple of (glyph_x, glyph_y, glyph_width, glyph_height)
+                # Calculate the coordinates so we get the textbox below the character.
+                # Also add a bit of constant offsets so it looks nicer.
+                x, y = box[0] + txt.winfo_rootx() + box[2] + 5, box[1] + txt.winfo_rooty() + box[3] + 10
+
+            # Show the tooltip with the message and the suggestions
+            self.tt.showtip(msg, x, y, sug)
 
         def err_exit(er):
             # print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
-            if self.tt:
-                self.tt.destroy()
-                self.tt = None
+             self.tt.become_independent()
 
         # Bind some functions to run when the cursor enters or leaves an error in the text.
         # We can use that to show tooltips!
@@ -301,6 +350,9 @@ class App(ctk.CTk):
 
         # Reset errors we've saved before
         txt.drawpp_error_infos = []
+
+        # Close the textbox if it's opened.
+        self.tt.destroy()
 
         # Get the entire text of the textbox
         code_text = txt.get("1.0", "end")
@@ -334,7 +386,7 @@ class App(ctk.CTk):
         s = profile_start("error finding")
         ps = ProblemSet()
         # Collect all errors from the tree, and put them all in the problem set
-        collect_errors(tree, ps)
+        collect_errors(tree, ps, True)
         i = 0
         for e in ps.grouped[ProblemSeverity.ERROR]:
             # When the span is of zero-length, extend it on the right by one character to indicate something
@@ -377,39 +429,86 @@ class App(ctk.CTk):
 
 class ToolTip(object):
 
-    def __init__(self, widget, x_offset: int, y_offset: int):
+    def __init__(self, widget):
         self.widget = widget
+        "The window root widget."
         self.tipwindow = None
-        self.id = None
-        self.x = self.y = 0
-        self.x_offset = x_offset + 10
-        self.y_offset = y_offset + 15
+        "The currently shown window tooltip frame."
+        self.independent = False
+        "When the tooltip should be on its own (i.e. the span is not hovered anymore). When it is"
+        self.x = 0
+        "X offset (window coordinates)"
+        self.y = 0
+        "Y offset (window coordinates)"
 
-    def showtip(self, text):
+        self.stay_open_range = 25
+        "How much pixels the cursor can move away from the tooltip before it closes, when it's independent."
+
+        # Bind the motion event to close the tooltip if the cursor is too far away
+        self.widget.bind("<Motion>", self.motion, add="+")
+
+    def showtip(self, text,  x: int, y: int, sug: list[tuple[str, typing.Callable]]=[]):
         "Display text in tooltip window"
-        self.text = text
-        if self.tipwindow or not self.text:
+        if self.tipwindow:
+            # Already shown!
             return
-        self.tipwindow = tw = ctk.CTkToplevel(self.widget)
-        tw.wm_overrideredirect(1)
-        tw.wm_geometry("+%d+%d" % (self.x_offset, self.y_offset))
-        label = ctk.CTkLabel(tw, text=self.text, justify=ctk.LEFT)
-        label.pack(ipadx=1)
 
-    def hidetip(self):
-        tw = self.tipwindow
-        self.tipwindow = None
-        if tw:
-            tw.destroy()
+        self.tipwindow = tw = ctk.CTkToplevel(self.widget, fg_color=ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
+        self.x = x
+        self.y = y
+        tw.wm_overrideredirect(1)
+        tw.wm_geometry("+%d+%d" % (x, y))
+
+        # Create an inner frame so we can add padding
+        inner_frame = ctk.CTkFrame(tw)
+
+        # Make the label for the problem messages
+        label = ctk.CTkLabel(inner_frame, text=text, justify=ctk.LEFT)
+        label.pack(ipadx=1, fill=ctk.X) # Pack it -> https://python-course.eu/tkinter/layout-management-in-tkinter.php
+
+        # Add "apply suggestion" links for each suggestion
+        for sug, action in sug:
+            sug_label = ctk.CTkLabel(inner_frame, text=sug, justify=ctk.LEFT, text_color="#23AFE9",
+                                     font=ctk.CTkFont(weight="bold", underline=True))
+            sug_label.bind("<Button-1>", action)
+            sug_label.pack(ipadx=1, fill=ctk.X)
+
+        # Add some padding to the inner frame.
+        inner_frame.pack(padx=5, pady=5)
 
     def destroy(self):
+        # Destroys the tooltip window. Also resets independence.
         if self.tipwindow:
             self.tipwindow.destroy()
+            self.tipwindow = None
+        self.independent = False
 
-def createToolTip(widget, text, x: int, y: int):
-    toolTip = ToolTip(widget, x, y)
-    toolTip.showtip(text)
-    return toolTip
+    def motion(self, event):
+        # The cursor has moved, see if we should close the tool tip
+        if self.independent and self.tipwindow:
+            self.close_if_cursor_too_far()
+
+    def become_independent(self):
+        # The cursor has left the error span, we're now independent!
+        # From now on, we'll check if the cursor is inside the tooltip (or near it), and if it's not
+        # we'll close it.
+        if self.tipwindow:
+            self.independent = True
+            self.close_if_cursor_too_far()
+
+    def close_if_cursor_too_far(self):
+        # Do some boring math to calculate the local coordinates of the cursor on the tooltip's space.
+        ptr_x, ptr_y = self.widget.winfo_pointerxy()
+
+        my_x, my_y = self.x, self.y
+        my_width, my_height = self.tipwindow.winfo_width(), self.tipwindow.winfo_height()
+
+        local_x, local_y = ptr_x - my_x, ptr_y - my_y
+
+        b = self.stay_open_range
+        # See if we're B pixels too far on the horizontal or vertical axis (not Euclidean distance)
+        if local_x < -b or local_x > my_width + b or local_y < -b or local_y > my_height + b:
+            self.destroy()
 
 # Temporary functions to profile the perf of highlighting updates
 import time

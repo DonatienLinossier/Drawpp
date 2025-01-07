@@ -7,6 +7,7 @@
 import __main__
 
 from .position import TextSpan
+from .suggestion import find_suggestion
 from .syntax import InnerNodeProblem
 import tempfile
 import os
@@ -74,11 +75,12 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
             return False, problems
 
 
-    def collect_errors(tree: Node, problems: ProblemSet):
+    def collect_errors(tree: Node, problems: ProblemSet, enable_suggestions=False):
         """
         Collects all errors (node/tokens) from a given syntax tree, into a problem set.
         :param tree: the tree with errors
         :param problems: the problem set to add the errors to
+        :param enable_suggestions: whether to enable suggestions, attached to the Problem's suggestions attribute
         """
         if tree.has_problems:
             # Traverse the tree using DFS with a stack. All nodes marked "has_problems" has at least
@@ -93,15 +95,20 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
                         # to get the precise span (since we can specify the *slot* location of the problem)
                         span = p.compute_span(node)
                         code = p.code
+                        if enable_suggestions:
+                            sug = find_suggestion(node, p)
+                        else:
+                            sug = None
                     elif isinstance(p, TokenProblem):
                         # The problem is located on a token: use the token's span + the problem span.
                         span = TextSpan(node.full_span_start + p.span.start, node.full_span_start + p.span.end)
                         code = ProblemCode.OTHER
+                        sug = None # TODO: Suggestion for token problems
                     else:
                         raise ValueError(f"Unknown problem type: {p}")
 
                     # Add the problem to the problem set.
-                    problems.append(p.message, p.severity, span, code)
+                    problems.append(p.message, p.severity, span, code, node, sug)
 
                 # Continue traversing the tree for nodes that are interesting to us
                 # (by interesting I mean absolutely BROKEN.)
@@ -111,7 +118,7 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
                         stack.append(c)
 
 
-    def collect_errors_2(tree: Node) -> ProblemSet:
+    def collect_errors_2(tree: Node, enable_suggestions=False) -> ProblemSet:
         """
         Collects all errors (node/tokens) from a given syntax tree, into a problem set.
         :param tree: the tree with errors
@@ -119,5 +126,5 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
         """
 
         ps = ProblemSet()
-        collect_errors(tree, ps)
+        collect_errors(tree, ps, enable_suggestions)
         return ps

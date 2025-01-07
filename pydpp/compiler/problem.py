@@ -1,8 +1,11 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from pydpp.compiler.position import TextSpan
 
+if TYPE_CHECKING:
+    from pydpp.compiler.suggestion import Suggestion
+    from pydpp.compiler.suggestion import Node
 
 class ProblemSeverity(Enum):
     """
@@ -39,14 +42,17 @@ class Problem:
     """
     Represents a problem during the entire compilation pipeline.
     Consists of a message, a severity, an error code, and an optional position value: where the problem occurred.
+    Also registers the node and some suggestion to fix it.
     """
 
-    __slots__ = ("message", "severity", "pos", "code")
+    __slots__ = ("message", "severity", "pos", "code", "node", "suggestion")
 
     def __init__(self, message: str,
                  severity: ProblemSeverity,
                  pos: Optional[TextSpan] = None,
-                 code: ProblemCode = ProblemCode.OTHER):
+                 code: ProblemCode = ProblemCode.OTHER,
+                 node: Optional["Node"]=None,
+                 suggestion: Optional["Suggestion"] = None):
         self.message = message
         "The message of the problem, localized to the user's language."
         self.severity = severity
@@ -55,12 +61,22 @@ class Problem:
         "Where exactly the problem occurred in the file, can be null (preferably not though)."
         self.code = code
         "The code associated with the problem."
+        self.node = node
+        "The AST node where the problem occurred, if any."
+        self.suggestion = suggestion
+        "A suggestion to fix the problem, if any."
 
     def __repr__(self):
         return f"Problem({self.message!r}, {self.severity!r}, {self.pos!r}, {self.code!r})"
 
     def __str__(self):
-        return f"{self.severity.value.capitalize()}: {self.message} (à {self.pos})"
+        title = f"{self.severity.value.capitalize()}: {self.message} (à {self.pos})"
+        if self.suggestion is not None:
+            assert self.node is not None
+            preview = self.suggestion.preview(self.node)
+            if preview is not None:
+                title += f"\nSuggestion : {self.suggestion.title}\n{preview}"
+        return title
 
 
 class ProblemSet:
@@ -99,7 +115,9 @@ class ProblemSet:
                problem: Problem | str,
                severity: ProblemSeverity = ProblemSeverity.ERROR,
                pos: Optional[TextSpan] = None,
-               code: ProblemCode = ProblemCode.OTHER):
+               code: ProblemCode = ProblemCode.OTHER,
+               node: Optional["Node"] = None,
+               suggestion: Optional["Suggestion"] = None):
         """
         Adds a problem to the list. Each problem has a message, a severity, and a position.
 
@@ -112,7 +130,7 @@ class ProblemSet:
 
         # When we're given a string inside the first argument, we need to construct a new Problem.
         if isinstance(problem, str):
-            problem = Problem(problem, severity, pos, code)
+            problem = Problem(problem, severity, pos, code, node, suggestion)
 
         # Add the problem to the list and to the grouped dictionary.
         self.problems.append(problem)
