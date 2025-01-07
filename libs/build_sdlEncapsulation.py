@@ -14,9 +14,16 @@ sdl_encap_dir = os.path.join(script_dir, "sdlEncapsulation")
 # The build directory for the project.
 build_dir = os.path.join(sdl_encap_dir, "build")
 
+# Where binaries reside
+bin_dir = os.path.join(sdl_encap_dir, "bin")
+
 # Create the build_dir if it doesn't exist
 if not os.path.exists(build_dir):
     os.makedirs(build_dir)
+
+# Same for the bin/ folder
+if not os.path.exists(bin_dir):
+    os.makedirs(bin_dir)
 
 # Check if SDL2 is installed for Linux systems. On Windows we bundled it.
 if os.name == "posix":
@@ -55,7 +62,7 @@ if os.name == "posix" and os.getenv("FORCE_CMAKE") != "1":
     # Create the static library from the only object file produced.
     # (Honestly I don't even know if that's necessary)
     res2 = subprocess.run(
-        [ar, "rcs", f"{sdl_encap_dir}/bin/libsdlEncapsulation.a", f"{build_dir}/sdlEncapsulation.o"],
+        [ar, "rcs", f"{bin_dir}/libsdlEncapsulation.a", f"{build_dir}/sdlEncapsulation.o"],
         encoding="utf-8", capture_output=True)
     if res2.returncode != 0:
         print("Failed to archive the static library:\n" + res2.stderr, file=sys.stderr)
@@ -75,6 +82,7 @@ else:
     res3 = subprocess.run([cmake, ".."], cwd=build_dir, encoding="utf-8", capture_output=True)
     if res3.returncode != 0:
         print("Failed to initialise the CMake cache:\n" + res3.stderr, file=sys.stderr)
+        exit(1)
 
     # Build the project
     res4 = subprocess.run([cmake, "--build", "."], cwd=build_dir, encoding="utf-8", capture_output=True)
