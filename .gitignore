@@ -13,3 +13,9 @@
 
 build/
 libs/sdlEncapsulation/bin
+
+*.obj
+fun.exe
+pydpp/ide/**/SDL2.dll
+
+cmake-build-*/
