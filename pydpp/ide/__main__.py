@@ -83,75 +83,66 @@ class App(ctk.CTk):
 
     def run_program(self, event=None):
         """
-        get code compile it and return good or bad execution.
-        Return coords of error if detected, maybe add a link to point directly in the file (the correct one)
+        Tries to compile the code, and compiles it if no error has been detected.
+        Otherwise prints every error in the terminal and allow the user to access the error with a simple double-click action
         """
+
+        # Cleans terminal
         self.delete_terminal()
         self.write_to_terminal(f"{self.tabview.get()} is compiling...")
-        # Call function and return something
-        code_to_exe = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
-        # Not implemented yet
-        okay, problems = compile_code(code_to_exe, "./fun.exe") 
+
+        # Retrieves code from the file and tries to compiles it
+        code = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
+        okay, problems = compile_code(code, "./fun.exe") 
+
+        # Reads every problem to add a pointer to the error in the code itself
         for p in (problems):
-            s= p.pos.start
-            e=p.pos.end
+
+            # Retrieves info about the error
+            s = p.pos.start
+            e = p.pos.end
             start, end = self.tidx_to_tkidx(str(s)), self.tidx_to_tkidx(str(e))
-            t=str(s)+"."+str(e)
+            t = str(s)+"."+str(e)
+
+            # Creates a new tag with a pointer to the error in the code
             self.terminal.tag_config(str(t), underline=True, foreground="blue")
             self.terminal.tag_bind(str(t), "<Button-1>", lambda event, pos=end: self.get_to_text(textbx, pos))
-            self.write_to_terminal(f"{p} (double click to access)")
+
+            # Writes to the terminal the error message
+            self.write_to_terminal(f"{p} (double clique pour acceder)")
             textbx = self.textboxes[self.tabview.get()]
+
+            # Sets the tag to highlight the location of the value
             self.terminal.tag_add(str(t), "end-35c", "end-27c")
+        
+        # The code can be compiled
         if okay:
             # Run the app in the background
             subprocess.Popen("./fun.exe")
 
-        # POC for error at execution and redirect in code
-        '''index_err = "5.7"
-        self.write_to_terminal(f"test at {index_err} (double click to access)")
-        textbx = self.textboxes[self.tabview.get()]
-        self.terminal.tag_config("err", underline=True, foreground="blue")
-        self.terminal.tag_bind("err", "<Button-1>", lambda event: self.get_to_text(textbx, index_err))
-        self.terminal.tag_add("err", "3.8", "3.11")'''
-
-
     def get_to_text(self, txt, index, event=None):
+        '''
+        Sets cursor at location of the index of the textbox
+        '''
         txt.mark_set("insert", index)
         txt.see(index)
         txt.focus_force()
 
     def write_to_terminal(self, text):
+        '''
+        Simply writes something to ther terminal
+        '''
         self.terminal.configure(state="normal")
         self.terminal.insert(ctk.END, f"\n{str(text)}")
         self.terminal.configure(state="disabled")
 
     def delete_terminal(self):
+        '''
+        Deletes everything written in the terminal
+        '''
         self.terminal.configure(state="normal")
         self.terminal.delete("0.0", ctk.END)
         self.terminal.configure(state="disabled")
-
-    def text_search(self, cont):
-        '''
-        Text research function
-        '''
-        tab = self.tabview.get()
-        text = self.textboxes[tab].get("1.0", "end-1c")
-        if (cont in text):
-            # return coordonnates. Multiple sets for each occurence
-            return True
-        else:
-            return False
-
-    def search(self, tab, cont):
-        if self.textboxes[tab]:
-            textbox = self.textboxes.get(tab)  # Get corresponding Textbox
-            text = textbox.get("1.0", "end-1c")
-            if (text == cont):
-                return False  # False if file exists and True if it doesn't
-            else:
-                return True
-        else:
-            return True
 
     def sup_tab(self, event=None):
         tab = self.tabview.get()  # Get current tab
