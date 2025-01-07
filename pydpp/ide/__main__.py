@@ -89,6 +89,16 @@ class App(ctk.CTk):
         code_to_exe = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
         # Not implemented yet
         okay, problems = compile_code(code_to_exe, "./fun.exe")
+        for p in (problems):
+            s= str(p.pos.start)
+            e=str(p.pos.end)
+            t=s+"."+e
+            index_err = t
+            self.write_to_terminal(f"{p} {index_err} (double click to access)")
+            textbx = self.textboxes[self.tabview.get()]
+            self.terminal.tag_config("err", underline=True, foreground="blue")
+            self.terminal.tag_bind("err", "<Button-1>", lambda event: self.get_to_text(textbx, index_err))
+            self.terminal.tag_add("err", "3.8", "3.11")
         self.write_to_terminal(problems)
         if okay:
             # Run the app in the background
