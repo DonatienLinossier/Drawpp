@@ -158,7 +158,6 @@ class App(ctk.CTk):
             self.tabview.set(list(self.textboxes)[self.tabview.index(tab) + (1 if len(list(self.textboxes)) != self.tabview.index(tab)+1 else -1)])
             self.tabview.delete(tab)
             self.textboxes.pop(tab)
-            self.newfilecount -= 1
         else:
             self.write_to_terminal("impossible")
 
