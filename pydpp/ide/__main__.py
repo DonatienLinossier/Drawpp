@@ -160,16 +160,16 @@ class App(ctk.CTk):
             self.textboxes.pop(tab)
             self.newfilecount -= 1
         else:
-            print("impossible")
+            self.write_to_terminal("impossible")
 
     def sup_reptab(self, tab):
         if tab:
             if tab != "Menu":
                 self.tabview.delete(tab)
             else:
-                print("impossible, nom de l'onglet: 'Menu'")
+                self.write_to_terminal("impossible, nom de l'onglet: 'Menu'")
         else:
-            print("impossible pas d'onglet")
+            self.write_to_terminal("impossible pas d'onglet")
 
     def sauv_event(self, event=None):
         tab = self.tabview.get()  # Get current oppened tab
@@ -177,17 +177,17 @@ class App(ctk.CTk):
             textbox = self.textboxes.get(tab)  # Get corresponding Textbox
             if textbox:
                 text = textbox.get("1.0", "end-1c")  # Get Textbox content
-                file=filedialog.asksaveasfilename(
-                    defaultextension="*.txt",
-                    filetypes=[("txt","*.txt")],
+                file = filedialog.asksaveasfilename(
+                    defaultextension="*.dpp",
+                    filetypes=[("dpp","*.dpp")],
                     initialfile=tab
                     )
-                filename =os.path.basename(file)
+                filename = os.path.basename(file)
                 if file:
                     with open(file, "w") as f:
                         f.write(text)
                     if filename != tab:
-                        if self.textboxes[filename]:
+                        if filename in self.textboxes:
                             self.sup_reptab(filename)
                         self.tabview.rename(tab, filename)
                         self.textboxes[filename] = self.textboxes[tab]
@@ -196,8 +196,8 @@ class App(ctk.CTk):
 
     def imp_event(self, event=None):
         file = filedialog.askopenfilename(title="Importer",
-                                        defaultextension="*.txt",
-                                        filetypes=[("txt","*.txt")],
+                                        defaultextension="*.dpp",
+                                        filetypes=[("dpp","*.dpp")],
                                         initialdir= r"PROJET", # Mettre un r pour faire la diférence entre \ en tant que signe spécial et \ pour un caractère lambda
                                         )   
         if file:    
@@ -260,7 +260,6 @@ class App(ctk.CTk):
         txt.tag_config("err", underline=True, underlinefg="red")
 
         def err_enter(er):
-            # print("ERROR ENTER: cursor is at", txt.index("current"))
 
             # The cursor is on the error. Let's find the err_info_{i} tag, and grab that i value
             # to find the problem data.
@@ -330,7 +329,6 @@ class App(ctk.CTk):
             self.tt.showtip(msg, x, y, sug)
 
         def err_exit(er):
-            # print(f"ERROR EXIT: cursor stepped away ({txt.index("current")} now)")
              self.tt.become_independent()
 
         # Bind some functions to run when the cursor enters or leaves an error in the text.
