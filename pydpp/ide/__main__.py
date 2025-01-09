@@ -5,7 +5,7 @@ from tkinter import filedialog, font
 import os
 from pydpp.compiler import ProblemSet, ProblemSeverity, collect_errors, analyse
 from pydpp.compiler.parser import parse
-from pydpp.compiler.tokenizer import tokenize, TokenKind
+from pydpp.compiler.tokenizer import tokenize, TokenKind, AuxiliaryKind
 from pydpp.compiler import compile_code
 import subprocess
 
@@ -256,6 +256,7 @@ class App(ctk.CTk):
         txt.tag_config("kw", foreground="#268bd2")
         txt.tag_config("str", foreground="#cb4b16")
         txt.tag_config("num", foreground="#859900")
+        txt.tag_config("cmt", foreground="#93a1a1")
         txt.tag_config("err", underline=True, underlinefg="red")
 
         def err_enter(er):
@@ -367,7 +368,15 @@ class App(ctk.CTk):
         start = 0
         keywords = {x for x in TokenKind if x.name.startswith("KW") or x == TokenKind.LITERAL_BOOL}
         for t in tkn_list:
-            l = len(t.full_text)
+            # First look at auxiliary text to highlight comments
+            for a in t.pre_auxiliary:
+                l = len(a.text)
+                if a.kind == AuxiliaryKind.SINGLE_LINE_COMMENT:
+                    # Comment
+                    txt.tag_add("cmt", tidx_to_tkidx(start), tidx_to_tkidx(start + l))
+                start += l
+
+            l = len(t.text)
             if t.kind in keywords:
                 # Keyword
                 txt.tag_add("kw", tidx_to_tkidx(start), tidx_to_tkidx(start + l))
