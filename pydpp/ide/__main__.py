@@ -109,15 +109,19 @@ class App(ctk.CTk):
                 t = str(s)+"."+str(e)
 
                 # Creates a new tag with a pointer to the error in the code
-                self.terminal.tag_config(str(t), underline=True, foreground="blue")
-                self.terminal.tag_bind(str(t), "<Button-1>", lambda event, pos=end: self.get_to_text(textbx, pos))
-
+                self.terminal.tag_config(t, underline=True, foreground="blue")
+                self.terminal.tag_bind(t, "<Button-1>", lambda event, pos=end: self.get_to_text(textbx, pos))
+                x=len(t) +37
+                print(x)
+                x=str(x)+"c"
+                print(x)
+                x="end-"+x
                 # Writes to the terminal the error message
                 self.write_to_terminal(f"{p} (double clique pour acceder)")
                 textbx = self.textboxes[self.tabview.get()]
 
                 # Sets the tag to highlight the location of the value
-                self.terminal.tag_add(str(t), "end-35c", "end-27c")
+                self.terminal.tag_add(str(t), x , "end-30c")
             else:
                 # No position information! (Must be a compile/toolchain error).
                 self.write_to_terminal(f"{p}")
