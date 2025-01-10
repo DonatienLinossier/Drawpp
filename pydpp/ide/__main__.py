@@ -5,7 +5,7 @@ from os import mkdir
 import customtkinter as ctk
 from tkinter import filedialog, font
 import os
-from pydpp.compiler import ProblemSet, ProblemSeverity, collect_errors, analyse
+from pydpp.compiler import ProblemSet, ProblemSeverity, collect_errors, analyse, semantic
 from pydpp.compiler.parser import parse
 from pydpp.compiler.tokenizer import tokenize, TokenKind, AuxiliaryKind
 from pydpp.compiler import compile_code
@@ -70,10 +70,17 @@ class App(ctk.CTk):
 
         self.textboxes = {}  # Dict for tab-textboxes
 
-        menu = ctk.CTkTextbox(self.tabview.tab("Menu"))
+        menu = ctk.CTkTextbox(self.tabview.tab("Menu"), font=ctk.CTkFont(size=20))
         menu.pack(expand=True, fill="both") #let the textbox be visible in "Menu"
         self.textboxes["Menu"] = menu #let the tab be in the dictionnary
-        menu.insert("1.0","test, ceci est un test") #type something in "Menu"'s textbox
+
+        for f in semantic.builtin_funcs.values():
+            func_sig = f.name + "(" + ", ".join([p.type.value + " " + p.name for p in f.parameters ]) + ")"
+            menu.insert("end", func_sig)
+            if f.doc is not None:
+                menu.insert("end", "\nDocumentation : " + f.doc + "\n")
+            menu.insert("end", "\n")
+
         menu.configure(state="disabled")    #disable the access to Menu to anyone (if modification to "Menu", first type meu.config(state="normal") and pls replace this line when you're done) 
         self.terminal = ctk.CTkTextbox(self, state="disabled") #creation of the terminal
         self.terminal.grid(row=1, column=1, padx=10, pady=(10, 0), sticky="nsew")
@@ -207,7 +214,7 @@ class App(ctk.CTk):
                 file = filedialog.asksaveasfilename(
                     defaultextension="*.dpp",
                     filetypes=[("dpp","*.dpp")],
-                    initialfile=tab + ".dpp"
+                    initialfile=((tab + ".dpp") if not tab.endswith(".dpp") else tab)
                     )
                 filename = os.path.basename(file)
                 if file:
