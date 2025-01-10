@@ -54,6 +54,8 @@ class CTranslater:
             "cursorJump": self._cursorJump,
             "cursorDrawCircle": self._cursorDrawCircle,
             "cursorDrawFilledCircle": self._cursorDrawFilledCircle,
+            "cursorDrawFilledRectangle": self._cursorDrawFilledRectangle,
+            "cursorDrawLine": self._cursorDrawLine,
             "cursorRotate": self._cursorRotate,
             "_cursorPrintData": self._cursorPrintData,
             "cursorChangeColor": self._cursorChangeColor,
@@ -237,16 +239,29 @@ class CTranslater:
         assert isinstance(cursor, _Cursor)
         cursor.x, cursor.y = cursor.x + x, cursor.y + y
 
-    def _cursorDrawCircle(self, circle, r):
-        self._setColor(circle.color[0], circle.color[1], circle.color[2], circle.color[3])
-        self._drawCircle(circle.x, circle.y, r)
+    def _cursorDrawCircle(self, cursor, r):
+        assert isinstance(cursor, _Cursor)
+        self._setColor(cursor.color[0], cursor.color[1], cursor.color[2], cursor.color[3])
+        self._drawCircle(cursor.x, cursor.y, r, cursor.thickness)
 
-    def _cursorDrawFilledCircle(self, circle, r):
-        self._setColor(circle.color[0], circle.color[1], circle.color[2], circle.color[3])
-        self._drawCircleFill(circle.x, circle.y, r)
+    def _cursorDrawFilledCircle(self, cursor, r):
+        assert isinstance(cursor, _Cursor)
+        self._setColor(cursor.color[0], cursor.color[1], cursor.color[2], cursor.color[3])
+        self._drawCircleFill(cursor.x, cursor.y, r)
+
+    def _cursorDrawFilledRectangle(self, cursor, width, height):
+        assert isinstance(cursor, _Cursor)
+        self._setColor(cursor.color[0], cursor.color[1], cursor.color[2], cursor.color[3])
+        self._drawFilledRect(cursor.x, cursor.y, width, height, cursor.angle)
+
+    def _cursorDrawLine(self, cursor, x, y):
+        assert isinstance(cursor, _Cursor)
+        self._setColor(cursor.color[0], cursor.color[1], cursor.color[2], cursor.color[3])
+        self._drawLine(cursor.x, cursor.y, x, y, cursor.thickness)
 
     def _cursorRotate(self, cursor, angle):
-        pass
+        assert isinstance(cursor, _Cursor)
+        cursor.angle = angle
 
     def _cursorPrintData(self, cursor):
         pass
@@ -311,9 +326,9 @@ class CTranslater:
     ##############################################
     #Draw functions
     ###############################################
-    def _drawCircle(self, x, y, radius):
+    def _drawCircle(self, x, y, radius, thickness=1):
         #TODO: add type verif for parameters x,y,radius (and range ? yes for radius)
-        self.file.write("drawCircle(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ");\n")
+        self.file.write("drawCircleOutline(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ", " + str(thickness) + ");\n")
 
     def _drawCircleFill(self, x, y, radius):
         #TODO: add type verif for parameters x,y,radius (and range ? yes for radius)
@@ -328,6 +343,12 @@ class CTranslater:
         #TODO: add type verif for parameters x,y,width,height (and range ? probably not)
         self.file.write(
             "drawRectFill(renderer, " + str(x) + ", " + str(y) + ", " + str(width) + ", " + str(height) + ");\n")
+
+    def _drawFilledRect(self, x, y, width, height, angle):
+        self.file.write(f"drawFilledRectangle(renderer, {x}, {y}, {width}, {height}, {angle});\n")
+
+    def _drawLine(self, x1, y1, x2, y2, thickness):
+        self.file.write(f"drawThickLine(renderer, {x1}, {y1}, {x2}, {y2}, {thickness});\n")
 
     def _setColor(self, r, g, b, a):
 

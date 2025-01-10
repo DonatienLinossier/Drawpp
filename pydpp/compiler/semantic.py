@@ -295,6 +295,28 @@ builtin_funcs = {
         node=None,
         doc="Dessine un cercle plein de rayon r autour du curseur."
     ),
+    "rectFill": FunctionSym(
+        name="rectFill",
+        return_type=SemanticType.NOTHING,
+        parameters=[
+            ParameterSym("width", SemanticType.FLOAT, None),
+            ParameterSym("height", SemanticType.FLOAT, None),
+        ],
+        c_func_name="cursorDrawFilledRectangle",
+        node=None,
+        doc="Dessine un rectangle plein de largeur width et de hauteur height autour du curseur. Applique une rotation."
+    ),
+    "line": FunctionSym(
+        name="line",
+        return_type=SemanticType.NOTHING,
+        parameters=[
+            ParameterSym("x", SemanticType.FLOAT, None),
+            ParameterSym("y", SemanticType.FLOAT, None),
+        ],
+        c_func_name="cursorDrawLine",
+        node=None,
+        doc="Dessine une ligne du curseur aux coordonnées (x, y)."
+    ),
     "jump": FunctionSym(
         name="jump",
         return_type=SemanticType.NOTHING,
@@ -305,6 +327,26 @@ builtin_funcs = {
         c_func_name="cursorJump",
         node=None,
         doc="Déplace le curseur aux coordonnées (x, y)."
+    ),
+    "rotate": FunctionSym(
+        name="rotate",
+        return_type=SemanticType.NOTHING,
+        parameters=[
+            ParameterSym("angle", SemanticType.FLOAT, None),
+        ],
+        c_func_name="cursorRotate",
+        node=None,
+        doc="Tourne le curseur de l'angle donné, en degrés."
+    ),
+    "changeThickness": FunctionSym(
+        name="changeThickness",
+        return_type=SemanticType.NOTHING,
+        parameters=[
+            ParameterSym("thickness", SemanticType.FLOAT, None),
+        ],
+        c_func_name="cursorChangeThickness",
+        node=None,
+        doc="Change l'épaisseur du trait du curseur."
     ),
     "changeColor": FunctionSym(
         name="changeColor",
