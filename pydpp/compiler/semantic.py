@@ -344,7 +344,7 @@ builtin_funcs = {
         ],
         c_func_name="cursorRotate",
         node=None,
-        doc="Tourne le curseur de l'angle donné, en degrés."
+        doc="Tourne le curseur de l'angle donné, en radians."
     ),
     "changeThickness": FunctionSym(
         name="changeThickness",
