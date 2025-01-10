@@ -4,10 +4,23 @@ Un langage de programmation pour dessiner procéduralement des images, avec un I
 
 ## Prérequis
 
+**Windows & Linux**
 - Python 3.12
-- Pipenv : `pip install --user pipenv` ou `sudo apt install pipenv` sur Debian/Ubuntu  
-  **Sur Windows :** Si l'installation émet un avertissement car `pipenv.exe` est inacessible depuis le PATH, ajoutez le long chemin contenu dans le message d'erreur (qui commence par `C:\Users\[user]\AppData\Local\Packages\`) dans votre PATH (voir [cet article](https://lecrabeinfo.net/modifier-le-path-de-windows-ajouter-un-dossier-au-path.html)), sinon pipenv ne sera pas accessible depuis le terminal
-- CMake avec un toolchain pour du C (gcc, clang, ou Visual Studio sur Windows)
+- Pipenv : `pip install --user pipenv` ou `sudo apt install pipenv` sur Debian/Ubuntu
+  **Sur Windows :** Si l'installation émet un avertissement car `pipenv.exe` est inaccessible depuis le PATH, ajoutez le long chemin contenu dans le message d'erreur (qui commence par `C:\Users\[user]\AppData\Local\Packages\`) dans votre PATH (voir [cet article](https://lecrabeinfo.net/modifier-le-path-de-windows-ajouter-un-dossier-au-path.html)), sinon pipenv ne sera pas accessible depuis le terminal
+
+**Windows**
+- CMake
+- Visual Studio 2022 avec les modules de développement C/C++
+
+**Linux**
+- Compilateur C (gcc ou clang)
+- SDL2 (bibliothèque de développement)
+
+Sur Debian/Ubuntu, cette commande suffit pour installer tous les prérequis :
+```bash
+sudo apt install python3 pipenv build-essential libsdl2-dev
+```
 
 ## Commencer à développer
 

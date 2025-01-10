@@ -153,7 +153,7 @@ function_parameter = type, identifier;
     A comma separated list of [0..N] function parameters.
     Example: int x, int y, float z
 *)
-comma_sep_function_parameter_list = [expression, {',', expression}];
+comma_sep_function_parameter_list = [function_parameter, {',', function_parameter}];
 
 (*
     EXPRESSIONS
@@ -219,43 +219,43 @@ expression = or_exp;
               ___________
                 or_exp
 *)
-or_exp = or_exp, "or", and_exp | and_exp;
+or_exp = (or_exp, "or", and_exp) | and_exp;
 (* 
     A logical AND expression, with the "and" operator.
     Example: true and false
 *)
-and_exp = and_exp, "and", logic_exp | logic_exp;
+and_exp = (and_exp, "and", logic_exp) | logic_exp;
 (* 
     A numerical comparison expression, with standard equal/less/greater operator.
     Example: 85 >= 20
 *)
-logic_exp = logic_exp, "==" | "!=" | "<" | "<=" | ">" | ">=", additive_exp | additive_exp;
+logic_exp = (logic_exp, "==" | "!=" | "<" | "<=" | ">" | ">=", additive_exp) | additive_exp;
 (* 
     An addition or subtraction expression.
     Example: 32 + 50 - 10
 *)
-additive_exp = additive_exp, "+"|"-", multiplicative_exp | multiplicative_exp;
+additive_exp = (additive_exp, "+"|"-", multiplicative_exp) | multiplicative_exp;
 (* 
     A multipliation or division expression.
     Example: 84*20/4
 *)
-multiplicative_exp = multiplicative_exp, "*"|"/", unary_exp | unary_exp;
+multiplicative_exp = (multiplicative_exp, "*"|"/", unary_exp) | unary_exp;
 (*
     An expression with prefix/suffixes such as numeric negative (-456) or logical negation (not true).
     Example: -5, not false 
 *)
-unary_exp = ["-"|"not"], unary_exp | function_exp;
+unary_exp = (["-"|"not"], unary_exp) | function_exp;
 (*
     A function call expression, defined by an identifier followed by parentheses with a list of expressions.
     Can optionally be followed with a "wield" keyword to use a specific cursor.
     Example: my_func(5, 8)
 *)
-function_exp = identifier, "(", comma_sep_expression_list, ")", ["wield", expression] | parens_exp;
+function_exp = (identifier, "(", comma_sep_expression_list, ")", ["wield", expression]) | parens_exp;
 (*
     An expression surrounded by parentheses.
     Example: (5+8)
 *)
-parens_exp = "(", expression, ")" | value;
+parens_exp = ("(", expression, ")") | value;
 (*
     A value, which can be a constant literal or an identifier (variable/constant).
     Example: 5, true, "hello", my_var

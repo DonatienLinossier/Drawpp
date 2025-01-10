@@ -14,6 +14,8 @@ from pydpp.compiler.syntax import *
 # and does type inference + checking to make sure types are correct (e.g. boolean in an if statement).
 #
 # Some nodes have semantic information attached to them, called Symbols.
+# These Symbols are semantic informations (not syntaxic) of a variable, a function, ...
+# A Symbol returns generally its name and its stype (and other informations).
 # Multiple Symbol types exist, following the [Node]Sym pattern:
 #     - FunctionSym: for function declarations
 #     - ParameterSym: for function parameters
@@ -26,7 +28,7 @@ from pydpp.compiler.syntax import *
 # These symbols can be accessed by using the _to_sym maps (function_to_sym, variable_to_sym, etc.), stored
 # in the final ProgramSemanticInfo. (Except for ParameterSym which can only be accessed from a function.)
 
-class BuiltInTypeKind(Enum):
+class SemanticType(Enum):   # Enum : class allowing to structure groups of constants linked together
     """
     A built-in type in the language.
     """
@@ -39,44 +41,12 @@ class BuiltInTypeKind(Enum):
     ERROR = "error"
 
     def __str__(self):
-        return self.value
-
-
-class FunctionSym:
-    """
-    Semantic information for a function.
-    Includes type information for parameters and return values. Supports built-in functions.
-    """
-
-    def __init__(self, name: str, return_type: BuiltInTypeKind, parameters: list["ParameterSym"],
-                 node: FunctionDeclarationStmt | None, c_func_name: str = None, doc: str | None = None):
-        self.name = name
-        "The name of the function."
-        self.return_type = return_type
-        "The return type of the function. Can be set to NOTHING if this function doesn't return anything."
-        self.parameters = parameters
-        "All parameters of this function, in order, as a list of ParameterSym."
-        self.node = node
-        "The AST node this symbol is attached to. Can be None for built-in functions."
-        self.c_func_name = c_func_name
-        "For built-in functions only: the name of the C/CTranslater function/instruction to call."
-        self.doc = doc
-        "Some documentation to guide users to use this function properly."
-
-    def find_param(self, name: str) -> typing.Optional["ParameterSym"]:
-        """
-        Finds a parameter symbol with the given name. Uses linear search in O(n).
-        :param name: the name of the parameter
-        :return: the parameter symbol
-        """
-        for p in self.parameters:
-            if p.name == name:
-                return p
-        return None
-
-    def __str__(self):
-        params = ", ".join(str(p.type) + " " + p.name for p in self.parameters)
-        return f"FunctionSym({self.name}, {self.return_type}, [{params}])"
+        return self.value  
+        # this method allows to get the real type
+        # ex :  1. without def __str__ :
+        #           print(SemanticType.INT)    ->  return 'SemanticType.INT'
+        #       2. with def __str__ :
+        #           print(SemanticType.INT)    ->  return 'int'
 
 
 class VariableSym:
@@ -86,7 +56,8 @@ class VariableSym:
     Supports built-in variables with constant values.
     """
 
-    def __init__(self, name: str, type: BuiltInTypeKind, node: VariableDeclarationStmt | None, builtin_val=None):
+    def __init__(self, name: str, type: SemanticType, node: VariableDeclarationStmt | None, builtin_val=None):
+        # VariableDeclarationStmt : is the entire node (ex : int x = 5;, not only x or 5)
         self.name = name
         "The name of the variable."
         self.type = type
@@ -98,7 +69,7 @@ class VariableSym:
 
     def __str__(self):
         return f"VariableSym({self.name}, {self.type})"
-
+        # return name and type of the var
 
 class ParameterSym:
     """
@@ -106,7 +77,7 @@ class ParameterSym:
     Contains its type information.
     """
 
-    def __init__(self, name: str, type: BuiltInTypeKind, node: FunctionParameter | None):
+    def __init__(self, name: str, type: SemanticType, node: FunctionParameter | None):
         self.name = name
         "The name of the parameter."
         self.type = type
@@ -116,7 +87,50 @@ class ParameterSym:
 
     def __str__(self):
         return f"ParameterSym({self.name}, {self.type})"
+        # return name and type of the function
 
+class FunctionSym:
+    """
+    Semantic information for a function.
+    Includes type information for parameters and return values. Supports built-in functions.
+    """
+
+    def __init__(self, name: str, return_type: SemanticType, parameters: list["ParameterSym"],
+                 node: FunctionDeclarationStmt | None, c_func_name: str = None, doc: str | None = None):
+        self.name = name
+        "The name of the function."
+        self.return_type = return_type
+        "The return type of the function. Can be set to NOTHING if this function doesn't return anything."
+        self.parameters = parameters
+        "All parameters of this function, in order, as a list of ParameterSym."
+        self.node = node
+        "The AST node this symbol is attached to. Can be None for built-in functions."
+        self.c_func_name = c_func_name 
+        # ??
+        "For built-in functions only: the name of the C/CTranslater function/instruction to call."
+        self.doc = doc
+        "Some documentation to guide users to use this function properly."
+
+    def find_param(self, name: str) -> typing.Optional["ParameterSym"]:
+        # This method can return :
+        #   - a "ParameterSym" object
+        #   - or None
+        # typing.Optional is an alias provided by the typing module to express that a value can be of given type or None.
+        # /!\ typing.Optional["ParameterSym"] is equivalent to Union["ParameterSym", None]
+        """
+        Finds a parameter symbol with the given name. Uses linear search in O(n).
+        :param name: the name of the parameter
+        :return: the parameter symbol
+        """
+        for p in self.parameters:
+            if p.name == name:
+                return p
+        return None
+
+    def __str__(self):
+        params = ", ".join(str(p.type) + " " + p.name for p in self.parameters) # ", ".join(...) : combine all parameters strings separated them with ", "
+        return f"FunctionSym({self.name}, {self.return_type}, [{params}])"
+        # return name, type and parameters of the function
 
 class ExpressionSym:
     """
@@ -124,7 +138,7 @@ class ExpressionSym:
     Contains its inferred type, and the symbol it references (when referencing a variable/parameter).
     """
 
-    def __init__(self, type: BuiltInTypeKind, referenced_symbol: typing.Optional["Sym"] = None):
+    def __init__(self, type: SemanticType, referenced_symbol: typing.Optional["Sym"] = None):
         self.type = type
         "The type of the expression. Can be ERROR if the expression is invalid."
         self.referenced_symbol = referenced_symbol
@@ -142,7 +156,6 @@ class ExpressionSym:
         else:
             return f"ExpressionSym({self.type})"
 
-
 class AssignSym:
     """
     Semantic information for an assignment statement.
@@ -157,10 +170,35 @@ class AssignSym:
         self.node = node
         "The assignation node this symbol describes."
 
-
 # Declare useful union types.
 ValueSym = ParameterSym | VariableSym  # A value symbol, for VariableExpr
 Sym = ParameterSym | VariableSym | FunctionSym | ExpressionSym | AssignSym  # Any symbol
+
+##  # Création des tokens nécessaires
+##  type_token = "int"  # Peut être un objet ou une chaîne selon la définition
+##  name_tokenA = Token(kind="IDENTIFIER", value="x", text="int")  # Exemple de token pour "x"
+##  assign_tokenA = Token(kind="ASSIGN", value="=", text="eq")  # Exemple de token pour "="
+##  semi_colonA = Token(kind="SEMICOLON", value=";", text="semicolon")  # Exemple de token pour ";"
+##  
+##  # Création du nœud de déclaration
+##  noeud = VariableDeclarationStmt(
+##      type= BuiltInType(kind_token=leaf(Token(TokenKind.KW_INT, text="int"))),
+##      name_token=leaf(Token(TokenKind.IDENTIFIER, text="x")),
+##      assign_token=leaf(Token(TokenKind.SYM_ASSIGN, text="=")),
+##      value=LiteralExpr(leaf(Token(TokenKind.LITERAL_NUM, text="50", value=50))),
+##      semi_colon=leaf(Token(TokenKind.SYM_SEMICOLON, text=";"))
+##  )
+##  
+##  symbole = VariableSym(name="x", type=SemanticType.INT, node=noeud)
+##  print(symbole)
+
+## param_1 = FunctionParameter(
+##     type= BuiltInType(kind_token=leaf(Token(TokenKind.KW_INT, text="int"))),
+##     name_token=leaf(Token(TokenKind.IDENTIFIER, text="p")),
+##     comma=leaf(Token(TokenKind.SYM_COMMA, text=","))
+## )
+## symbole = ParameterSym(name="p", type=SemanticType.INT, node=param_1)
+## print(symbole)
 
 
 class ProgramSemanticInfo:
@@ -201,8 +239,8 @@ class ProgramSemanticInfo:
         Prints debug info for all symbols and declared members.
         """
         print("Global functions:")
-        for k, v in self.global_functions.items():
-            left = k.ljust(45)
+        for k, v in self.global_functions.items():  # k=key, v=value
+            left = k.ljust(45)                      # The ljust() method formats the string k by left-justifying it in a space of 45 characters.
             print(f"  {left} -> {v}")
         print("")
 
@@ -214,7 +252,7 @@ class ProgramSemanticInfo:
 
         print("Function symbols:")
         for k, v in self.function_to_sym.items():
-            left = f" {repr(k.text[:25])[1:-1]} @ {k.span}".ljust(45)
+            left = f" {repr(k.text[:25])[1:-1]} @ {k.span}".ljust(45)   # Shows the position range (span) of the AST node in the source text, useful for locating the declaration.
             print(f"  {left} -> {v}")
         print("")
 
@@ -239,9 +277,9 @@ class ProgramSemanticInfo:
 builtin_funcs = {
     "circle": FunctionSym(
         name="circle",
-        return_type=BuiltInTypeKind.NOTHING,
+        return_type=SemanticType.NOTHING,
         parameters=[
-            ParameterSym("r", BuiltInTypeKind.FLOAT, None),
+            ParameterSym("r", SemanticType.FLOAT, None),
         ],
         c_func_name="cursorDrawCircle",
         node=None,
@@ -249,9 +287,9 @@ builtin_funcs = {
     ),
     "circleFill": FunctionSym(
         name="circleFill",
-        return_type=BuiltInTypeKind.NOTHING,
+        return_type=SemanticType.NOTHING,
         parameters=[
-            ParameterSym("r", BuiltInTypeKind.FLOAT, None),
+            ParameterSym("r", SemanticType.FLOAT, None),
         ],
         c_func_name="cursorDrawFilledCircle",
         node=None,
@@ -259,10 +297,10 @@ builtin_funcs = {
     ),
     "jump": FunctionSym(
         name="jump",
-        return_type=BuiltInTypeKind.NOTHING,
+        return_type=SemanticType.NOTHING,
         parameters=[
-            ParameterSym("x", BuiltInTypeKind.FLOAT, None),
-            ParameterSym("y", BuiltInTypeKind.FLOAT, None),
+            ParameterSym("x", SemanticType.FLOAT, None),
+            ParameterSym("y", SemanticType.FLOAT, None),
         ],
         c_func_name="cursorJump",
         node=None,
@@ -270,12 +308,12 @@ builtin_funcs = {
     ),
     "changeColor": FunctionSym(
         name="changeColor",
-        return_type=BuiltInTypeKind.NOTHING,
+        return_type=SemanticType.NOTHING,
         parameters=[
-            ParameterSym("r", BuiltInTypeKind.INT, None),
-            ParameterSym("g", BuiltInTypeKind.INT, None),
-            ParameterSym("b", BuiltInTypeKind.INT, None),
-            ParameterSym("a", BuiltInTypeKind.INT, None),
+            ParameterSym("r", SemanticType.INT, None),
+            ParameterSym("g", SemanticType.INT, None),
+            ParameterSym("b", SemanticType.INT, None),
+            ParameterSym("a", SemanticType.INT, None),
         ],
         c_func_name="cursorChangeColor",
         node=None,
@@ -285,7 +323,7 @@ builtin_funcs = {
 }
 
 builtin_vars = {
-    "PI": VariableSym("PI", BuiltInTypeKind.FLOAT, None, 3.14159265358979323846),
+    "PI": VariableSym("PI", SemanticType.FLOAT, None, 3.14159265358979323846),
 }
 
 
@@ -297,6 +335,64 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     :param program: The root node of the AST
     :param ps: The problem set to report any errors during semantic analysis
     :return: The semantic information of the program, to be given to the transpiler
+
+
+    
+    ============
+    EXAMPLE :
+    ============
+    If the code is :
+            canvas(500, 500);
+            int x = 42;
+            float y = x + 3.14;
+    
+    The current function ("analyse") will return a ProgramSemanticInfo object with :
+            global_funcs :      containing "circle", "circleFill", "jump", "changeColor", "draw"
+            global_vars :       containing PI (float), x (int) and y (float)
+            function_to_sym :   assocy draw with its symbol
+            expr_to_sym :       assocy x + 3.14 to float type
+            canvas_width :      500
+            canvas_height :     500
+
+            
+    Details of the execution :
+
+    1.  1st instruction : "canvas(500, 500);"
+        -> analyse function detects that we have a CanvasStmt
+        -> Verificaion that dimensions of drawing space are "None" at the begining (canvas_width and canvas_height)
+        -> canvas_width and canvas_height updated
+
+    2.  2nd instruction "int x = 42;"
+        -> Use the fonction "analyse_node" :
+            -> Detection of variable declaration (VariableDeclarationStmt)
+            -> call "register_variable" function :
+                - check variable name presence (in variable_to_sym) and if the name is valid
+                - Creation of the symbol for x with its name and value :
+                        symbole = VariableSym(name="x", type_=BuiltInTypeKind.INT, node=stmt, value=42)
+                - check if the variable is global (parent node is a program) or local.
+                - check if the variable name is yet used :
+                    In global case :    it checks presence in global_vars.
+                    In local case :     it checks if an argument (args) has the same name
+                - call "register_expression" function :
+                    aim : check coherence type between the var and its value
+                    --
+                - variable added to dictionnary "variable_to_sym"
+
+    3.  3rd instruction "float y = x + 3.14;"
+        -> Use the fonction "analyse_node" :
+            -> Detection of variable declaration (VariableDeclarationStmt)
+            -> call "register_variable" function :
+                - check variable name presence (in variable_to_sym) and if the name is valid
+                - Creation of the symbol for y with its name and value :
+                        symbole = VariableSym(name="y", type_=BuiltInTypeKind.FLOAT, node=stmt, value=42)
+                - check if the variable is global (parent node is a program) or local.
+                - check if the variable name is yet used :
+                    In global case :    it checks presence in global_vars.
+                    In local case :     it checks if an argument (args) has the same name
+                - call "register_expression" function :
+                    aim : check coherence type between the var and its value
+                    --
+                - variable added to dictionnary "variable_to_sym"
     """
 
     # Includes the builtin functions and variables.
@@ -337,6 +433,11 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         #
         # If the N isn't a Statement, we'll use its ancestor statement — the closest parent statement.
         n = n.ancestor(Statement, include_self=True)
+            # A statement node, which can be an instruction or a declaration in the program.
+            # Examples: - variable declarations (int x = 5)
+            #           - if/else blocks
+            #           - while loops
+            #           - function block
         if n is None:
             return dict()
 
@@ -351,7 +452,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             return global_vars
 
         # List all the values there
-        variables: dict[str, VariableSym] = {}
+        variables: dict[str, VariableSym] = {}      # empty dictionnary of variable : will collect all variables visible in the context of n
 
         # Add all the visible value of the parent. If the parent isn't a statement, we're
         # going to use statement ancestor anyway.
@@ -384,6 +485,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     def visible_values_within(n: Node) -> dict[str, ValueSym]:
         # Arguments take precedence over variables.
         return visible_variables_within(n) | visible_arguments_within(n)
+            # We return a fusion dictionnary containing arguments and variables accessible in the context of n
 
     # Finds a function with the given name. None if not found.
     def find_function(f: str | None) -> FunctionSym | None:
@@ -406,33 +508,42 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         return visible_args.get(a, None)
 
     # Returns True when the type is INT or FLOAT.
-    def is_numeric_type(k: BuiltInTypeKind):
-        return k == BuiltInTypeKind.INT or k == BuiltInTypeKind.FLOAT
+    def is_numeric_type(k: SemanticType):
+        return k == SemanticType.INT or k == SemanticType.FLOAT
 
     # Does type inference and checking for an expression — and its children — recursively.
     # Registers a symbol (ExpressionSym) for this expression, including its children, even if errored.
     def register_expression(e: Expression | None) -> ExpressionSym:
+        """
+            This function is used to analyse a node of the AST and :
+                - Identify the expression type (int, float ...)
+                - verify validity (variables and fonctioons used are defined,  types are compatibles)
+                - assocy expresion  to a semantic symbol, it's to say an instance of ExpressionSym ( ... )
+        """
         # Make up an error type for non-existing expressions.
         if e is None:
-            return ExpressionSym(BuiltInTypeKind.ERROR)
+            return ExpressionSym(SemanticType.ERROR)
 
-        # If we have already registered this expression, just return it.
+        # If we have already registered this expression, just return it. We avoid to do same thing.
         if e in expr_to_sym:
             return expr_to_sym[e]
 
         if isinstance(e, LiteralExpr):
             # The type of a literal is the type of the literal itself.
             expr_to_sym[e] = ExpressionSym(to_builtin_type(e.token))
+                # e.token :                     is a LeafNode (with e a LiteralExpr)
+                # to_builtin_type(e.token) :    returns the type of the node (int, float, char ... because LitteralExpr)
         elif isinstance(e, ErrorExpr):
             # An error expression, is well, of error type.
-            expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+            expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
         elif isinstance(e, UnaryExpr):
-            # We have either a +EXPR or not EXPR.
-            operand_sym = register_expression(e.expr)
+            # A unary expression is an expression with a NOT/- operator before it.
+            # Example: NOT true
+            operand_sym = register_expression(e.expr)   #analyse the sub-expression without the operator before (- or NOT)
 
             # When our operand is an error, just give up.
-            if operand_sym.type == BuiltInTypeKind.ERROR:
-                expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+            if operand_sym.type == SemanticType.ERROR:
+                expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
                 return expr_to_sym[e]
 
             match e.op_token.kind:
@@ -441,75 +552,79 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                     if is_numeric_type(operand_sym.type):
                         expr_to_sym[e] = ExpressionSym(operand_sym.type)
                     else:
-                        register_error(e, "L'opérateur « − » ne peut être utilisé que sur des nombres.")
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+                        register_error(e, "L'opérateur « − » ne peut être utilisé que sur des nombres (entiers ou décimaux).")
+                        expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
 
                 case TokenKind.KW_NOT:
                     # Not -> Can only be a boolean.
-                    if operand_sym.type == BuiltInTypeKind.BOOL:
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+                    if operand_sym.type == SemanticType.BOOL:
+                        expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
                     else:
                         register_error(e, "L'opérateur « not » ne peut être utilisé que sur des booléens.")
                         # The type of not x is always boolean, so we don't need to error out here.
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+                        expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
         elif isinstance(e, ParenthesizedExpr):
             # A parenthesized one, just need to use the type of the child.
             # Will be an ERROR if e.expr is None
-            expr_to_sym[e] = register_expression(e.expr)
+            expr_to_sym[e] = register_expression(e.expr)    # analyse the expression inside parentheses
+                # e.expr : expression inside the parentheses
         elif isinstance(e, BinaryOperationExpr):
-            # Binary operation. Oh boy. Lots of stuff to cover!
+            # A binary operation expression, following this pattern: left [operator] right.
+            # Where [operator] is a binary operator in the ``BinaryOperator`` enum.
+            # Examples:     5 + 8 ; left = 5, operator = ADD, right = 8
+            #               8 * 6 ; left = 8, operator = MUL, right = 6
             left_sym = register_expression(e.left)
             right_sym = register_expression(e.right)
 
             # If one of them is erroneous, I don't want to waste time on what might have
             # 90% chances of being a useless error message.
-            if left_sym.type == BuiltInTypeKind.ERROR or right_sym.type == BuiltInTypeKind.ERROR:
-                expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+            if left_sym.type == SemanticType.ERROR or right_sym.type == SemanticType.ERROR:
+                expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
                 return expr_to_sym[e]
 
-            match e.operator_token.kind:
+            match e.operator_token.kind:        # e.operator_token.kind : is the type of the operator token (e.operator_token is LeafNode)
                 case TokenKind.KW_OR | TokenKind.KW_AND:
                     # OR and AND -> Both operands must be boolean.
-                    if left_sym.type == BuiltInTypeKind.BOOL and right_sym.type == BuiltInTypeKind.BOOL:
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.BOOL)
+                    if left_sym.type == SemanticType.BOOL and right_sym.type == SemanticType.BOOL:
+                        expr_to_sym[e] = ExpressionSym(SemanticType.BOOL)
                     else:
                         register_error(e,
                                        "Les opérateurs « or » et « and » ne peuvent être utilisés que sur des booléens.")
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+                        expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
                 case TokenKind.SYM_EQ | TokenKind.SYM_NEQ:
-                    # EQ and NEQ -> Both operands must be the same type
+                    # EQ (==) and NEQ (!=) -> Both operands must be the same type
                     #               OR they're both numeric, in which case we're going to convert to float.
                     if left_sym.type == right_sym.type or (
                             is_numeric_type(left_sym.type) and is_numeric_type(right_sym.type)):
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.BOOL)
+                        expr_to_sym[e] = ExpressionSym(SemanticType.BOOL)
                     else:
                         op_name = "==" if e.operator_token.kind == TokenKind.SYM_EQ else "!="
                         register_error(e,
                                        f"Impossible d'utiliser l'opérateur « {op_name} » avec les types {left_sym.type} et {right_sym.type}.")
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+                        expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
                 case TokenKind.SYM_LT | TokenKind.SYM_LEQ | TokenKind.SYM_GT | TokenKind.SYM_GEQ:
                     # Numerical comparison -> both numeric
                     if is_numeric_type(left_sym.type) and is_numeric_type(right_sym.type):
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.BOOL)
+                        expr_to_sym[e] = ExpressionSym(SemanticType.BOOL)
                     else:
                         op_name = e.operator_token.text
                         register_error(e,
                                        f"Impossible d'utiliser l'opérateur « {op_name} » avec les types {left_sym.type} et {right_sym.type}.")
                         # Always a boolean, no need to put an error type here.
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.BOOL)
+                        expr_to_sym[e] = ExpressionSym(SemanticType.BOOL)
                 case TokenKind.SYM_PLUS | TokenKind.SYM_MINUS | TokenKind.SYM_STAR | TokenKind.SYM_SLASH:
                     # Arithmetic operation -> both numeric
                     if is_numeric_type(left_sym.type) and is_numeric_type(right_sym.type):
                         # If one of them is a float, the result will be a float.
-                        if left_sym.type == BuiltInTypeKind.FLOAT or right_sym.type == BuiltInTypeKind.FLOAT:
-                            expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.FLOAT)
+                        if left_sym.type == SemanticType.FLOAT or right_sym.type == SemanticType.FLOAT:
+                            expr_to_sym[e] = ExpressionSym(SemanticType.FLOAT)
                         else:
-                            expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.INT)
+                            expr_to_sym[e] = ExpressionSym(SemanticType.INT)
                     else:
                         op_name = e.operator_token.text
                         register_error(e,
                                        f"Impossible d'utiliser l'opérateur « {op_name} » avec les types {left_sym.type} et {right_sym.type}.")
-                        expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+                        expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
         elif isinstance(e, VariableExpr):
             # Variable expression. Make sure the variable/value actually exists.
             value_syms = visible_values_within(e)
@@ -522,7 +637,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                 else:
                     # We're a child of a function declaration, and we're trying to access a global variable.
                     register_error(e, "Impossible d'utiliser une variable globale dans une fonction.")
-                expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR)
+                expr_to_sym[e] = ExpressionSym(SemanticType.ERROR)
             else:
                 # Take the type of the variable!
                 v = value_syms[e.name_token_str]
@@ -532,17 +647,17 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             func = find_function(e.identifier_token_str)
             if not func:
                 register_error(e, f"La fonction {e.identifier_token_str} n'est pas définie.")
-                expr_to_sym[e] = ExpressionSym(BuiltInTypeKind.ERROR, func)
+                expr_to_sym[e] = ExpressionSym(SemanticType.ERROR, func)
             else:
                 # We obviously know the return type.
                 expr_to_sym[e] = ExpressionSym(func.return_type, func)
 
                 # Now, let's gather and check the arguments
-                given_args = list(e.arg_list.arguments)
-                params = func.parameters
+                given_args = list(e.arg_list.arguments) # arguments given to the function
+                params = func.parameters                # parameters of the function
                 common = min(len(params), len(given_args))
 
-                # If we have too much or too few, complain!
+                # Compare if there is too much or too few, complain!
                 if len(params) > len(given_args):
                     register_error(e,
                                    f"Trop peu d'arguments ont été donnés à la fonction {func.name} : {len(given_args)} donnés, {len(params)} attendus.")
@@ -555,7 +670,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                     arg = given_args[i]
                     if arg.expr is not None:
                         arg_sym = register_expression(arg.expr)
-                        if i < common and arg_sym.type != BuiltInTypeKind.ERROR and not is_subtype(arg_sym.type,
+                        if i < common and arg_sym.type != SemanticType.ERROR and not is_subtype(arg_sym.type,
                                                                                                    params[i].type):
                             register_error(arg,
                                            f"L'argument {i + 1} de l'appel à « {func.name} » est du mauvais type : {arg_sym.type} donné, {params[i].type} attendu.")
@@ -563,7 +678,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                 # See if the wield expression is correct. Expression missing is already taken care of by the parser.
                 if e.wield_token is not None and e.wielded_expr is not None:
                     we_sym = register_expression(e.wielded_expr)
-                    if we_sym.type != BuiltInTypeKind.CURSOR and we_sym.type != BuiltInTypeKind.ERROR:
+                    if we_sym.type != SemanticType.CURSOR and we_sym.type != SemanticType.ERROR:
                         register_error(e.wielded_expr,
                                        f"La valeur donnée à « wield » doit être un curseur ({we_sym.type} donné).")
         else:
@@ -571,33 +686,37 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
         return expr_to_sym[e]
 
-    # Transforms a literal/type token (bool, int, float, "hell", 81, etc.) into the BuiltInTypeKind enum.
+    # Transforms a literal/type token (bool, int, float, "hell", 81, etc.) into the SemanticType enum.
     # Returns the "default" arg if there's no token, or if it's invalid.
-    def to_builtin_type(t: LeafNode | BuiltInType | None, default=BuiltInTypeKind.ERROR) -> BuiltInTypeKind:
+    def to_builtin_type(t: LeafNode | BuiltInType | None, default=SemanticType.ERROR) -> SemanticType:
+        """
+            This function returns the type of the LeafNode t in parameter.
+        """
         if t is None:
             return default
 
         if isinstance(t, BuiltInType):
             t = t.kind_token
+        # now t is necessary a LeafNode
 
-        match t.kind:
+        match t.kind:       #t.kind : kind of the token (cf TokenKind class in tokenizer.py)
             case TokenKind.KW_BOOL | TokenKind.LITERAL_BOOL:
-                return BuiltInTypeKind.BOOL
+                return SemanticType.BOOL
             case TokenKind.KW_INT:
-                return BuiltInTypeKind.INT
+                return SemanticType.INT
             case TokenKind.KW_FLOAT:
-                return BuiltInTypeKind.FLOAT
+                return SemanticType.FLOAT
             case TokenKind.KW_STRING | TokenKind.LITERAL_STRING:
-                return BuiltInTypeKind.STRING
+                return SemanticType.STRING
             case TokenKind.LITERAL_NUM:
                 # Integer -> int
                 # Float -> float
                 if isinstance(t.value, int):
-                    return BuiltInTypeKind.INT
+                    return SemanticType.INT
                 else:
-                    return BuiltInTypeKind.FLOAT
+                    return SemanticType.FLOAT
             case TokenKind.KW_CURSOR:
-                return BuiltInTypeKind.CURSOR
+                return SemanticType.CURSOR
             case _:
                 return default
 
@@ -607,10 +726,10 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     #
     # Usage example: My variable of type T wants to know if it can accept a value of type V:
     #     => is_subtype(V, T)
-    def is_subtype(a: BuiltInTypeKind, b: BuiltInTypeKind) -> bool:
+    def is_subtype(a: SemanticType, b: SemanticType) -> bool:
         if a == b:
             return True
-        if a == BuiltInTypeKind.INT and b == BuiltInTypeKind.FLOAT:
+        if a == SemanticType.INT and b == SemanticType.FLOAT:
             # Currently, we have automatic float -> int conversion
             return True
         return False
@@ -630,7 +749,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         symbol = VariableSym(name, ty, v)
 
         # I wonder how that is possible...
-        if ty == BuiltInTypeKind.ERROR:
+        if ty == SemanticType.ERROR:
             register_error(v, "Type de variable inconnu.")
 
         if v.parent is program:
@@ -645,18 +764,22 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             args = visible_arguments_within(v)
             if name in args:
                 # TODO: Better err message
-                register_error(v, f"La variable {name} est déjà définie comme paramètre.")
+                register_error(v, f"La variable locale {name} est déjà définie en tant que paramètre de la fonction ... .")
 
-        if v.value is not None and ty != BuiltInTypeKind.ERROR:
+        if v.value is not None and ty != SemanticType.ERROR:
             # If there's a default value, check that it's of the correct type.
             value_sym = register_expression(v.value)
-            if not is_subtype(value_sym.type, ty) and value_sym.type != BuiltInTypeKind.ERROR:
+            if not is_subtype(value_sym.type, ty) and value_sym.type != SemanticType.ERROR:
+                # exple :
+                #   int x = 5.3;
+                # => x is int, 5.3 is float
+                # => We have is_subtype(float, int) that returns FALSE because float is not a subtype of int (it is the contrary)
                 register_error(v.value,
                                f"La valeur donnée pour la variable {name} est du mauvais type : {value_sym.type} donné, {ty} attendu.")
 
         # Cursor variables are special. They're always initialised with a cursor by default,
         # and they can't be changed afterward.
-        if v.value is not None and ty == BuiltInTypeKind.CURSOR:
+        if v.value is not None and ty == SemanticType.CURSOR:
             register_error(v, "Impossible d'initialiser un curseur avec une valeur : "
                               "les curseurs sont déjà initialisés lorsqu'ils sont déclarés.")
 
@@ -665,6 +788,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     def register_function(f: FunctionDeclarationStmt):
         name_valid = f.name_token is not None
 
+        # Is the function yet declared ?
         pre_existing = find_function(f.name_token_str)
         if pre_existing:
             register_error(f, f"La fonction {f.name_token_str} est déjà définie.")
@@ -675,8 +799,8 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                 register_error(p, "Nom de paramètre invalide.")
                 continue
 
-            ty = to_builtin_type(p.type)
-            if ty == BuiltInTypeKind.ERROR:
+            ty = to_builtin_type(p.type)    # This function returns the type of the parameter.
+            if ty == SemanticType.ERROR:
                 register_error(p, "Type de paramètre inconnu.")
                 # Don't return, it's okay
 
@@ -688,7 +812,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
         function_to_sym[f] = FunctionSym(
             name=f.name_token_str,
-            return_type=BuiltInTypeKind.NOTHING,  # TODO: Consider adding support for return types?
+            return_type=SemanticType.NOTHING,  # TODO: Consider adding support for return types?
             parameters=params,
             node=f
         )
@@ -718,7 +842,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             # Condition might be None for else statements.
             if n.condition is not None:
                 cond_sym = register_expression(n.condition)
-                if cond_sym.type != BuiltInTypeKind.BOOL and cond_sym.type != BuiltInTypeKind.ERROR:
+                if cond_sym.type != SemanticType.BOOL and cond_sym.type != SemanticType.ERROR:
                     register_error(n.condition, "La condition doit être un booléen.")
         elif isinstance(n, AssignStmt):
             # We have an assignation statement: check that its variable exists, and that the assigned value
@@ -726,12 +850,14 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
             # Ensure that the variable (not a parameter!) exist.
             var_sym = find_visible_variable(n.name_token_str, n)
+                # return a VariableSym if the node n is a visible variable (a variable defined),
+                # else return None
 
             # It doesn't? Report it.
             if var_sym is None:
                 register_error(n, f"La variable {n.name_token_str} n'est pas définie.",
                                slot=AssignStmt.name_token_slot)
-            elif find_visible_argument(n.name_token_str, n) is not None:
+            elif find_visible_argument(n.name_token_str, n) is not None:    # return a ParameterSym if the node n is a visible parameter (a parameter defined), else return None
                 # It's a parameter. We don't allow assigning to parameters right now, so report it to the user!
                 register_error(n, f"Impossible de modifier la valeur du paramètre {n.name_token_str}.",
                                slot=AssignStmt.name_token_slot)
@@ -743,7 +869,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             if n.value is not None:
                 val_sym = register_expression(n.value)
                 # Check that the assign value is of the correct type, only if we have a variable found.
-                if var_sym and val_sym.type != BuiltInTypeKind.ERROR and not is_subtype(val_sym.type, var_sym.type):
+                if var_sym and val_sym.type != SemanticType.ERROR and not is_subtype(val_sym.type, var_sym.type):
                     register_error(n.value,
                                    f"La valeur assignée à la variable {n.name_token_str} est du mauvais type : {val_sym.type} donné, {var_sym.type} attendu.")
             else:
@@ -751,7 +877,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
             # Cursor variables are special. They're always initialised with a cursor by default,
             # and they can't be changed afterward.
-            if var_sym is not None and var_sym.type == BuiltInTypeKind.CURSOR:
+            if var_sym is not None and var_sym.type == SemanticType.CURSOR:
                 register_error(n, "Impossible d'assigner une valeur à un curseur.")
 
             # Register a symbol for this assignation. (var_sym & val_sym can be None)
@@ -763,13 +889,12 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             # Within a wield statement, we just need to check that the wielded value is in fact a cursor.
             if n.expr is not None:
                 we_sym = register_expression(n.expr)
-                if we_sym.type != BuiltInTypeKind.CURSOR and we_sym.type != BuiltInTypeKind.ERROR:
+                if we_sym.type != SemanticType.CURSOR and we_sym.type != SemanticType.ERROR:
                     register_error(n.expr, f"La valeur d'un bloc « wield » doit être un curseur ({we_sym.type} donné).")
 
             # Do analyse other children though.
         elif isinstance(n, CanvasStmt):
             # The canvas statement is a bit special.
-
             # It must be at the very start of the program, and we can't have more than one.
             if n.parent is None or n.parent_slot_idx != 0:
                 # But, do we have duplicate canvas statements? Let's see...
