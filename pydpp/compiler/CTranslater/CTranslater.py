@@ -56,6 +56,7 @@ class CTranslater:
             "cursorDrawFilledCircle": self._cursorDrawFilledCircle,
             "cursorDrawFilledRectangle": self._cursorDrawFilledRectangle,
             "cursorDrawLine": self._cursorDrawLine,
+            "cursorDrawPixel": self._cursorDrawPixel,
             "cursorRotate": self._cursorRotate,
             "_cursorPrintData": self._cursorPrintData,
             "cursorChangeColor": self._cursorChangeColor,
@@ -260,6 +261,11 @@ class CTranslater:
         self._setColor(cursor.color[0], cursor.color[1], cursor.color[2], cursor.color[3])
         self._drawLine(cursor.x, cursor.y, x, y, cursor.thickness)
 
+    def _cursorDrawPixel(self, cursor):
+        assert isinstance(cursor, _Cursor)
+        self._setColor(cursor.color[0], cursor.color[1], cursor.color[2], cursor.color[3])
+        self._drawPixel(cursor.x, cursor.y)
+
     def _cursorRotate(self, cursor, angle):
         assert isinstance(cursor, _Cursor)
         cursor.angle = angle
@@ -350,6 +356,9 @@ class CTranslater:
 
     def _drawLine(self, x1, y1, x2, y2, thickness):
         self.file.write(f"drawThickLine(renderer, {x1}, {y1}, {x2}, {y2}, {thickness});\n")
+
+    def _drawPixel(self, x, y):
+        self.file.write(f"drawPixel(renderer, {x}, {y});\n")
 
     def _setColor(self, r, g, b, a):
 

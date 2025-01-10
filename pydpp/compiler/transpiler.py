@@ -228,7 +228,8 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
                 # Built-in function, run instructions based on the function name.
                 match sym.c_func_name:
                     case "cursorDrawCircle" | "cursorDrawFilledCircle" | "cursorJump" | "cursorChangeColor" | \
-                         "cursorRotate" | "cursorChangeThickness" | "cursorDrawFilledRectangle" | "cursorDrawLine":
+                         "cursorRotate" | "cursorChangeThickness" | "cursorDrawFilledRectangle" | "cursorDrawLine" \
+                        | "cursorDrawPixel":
                         ct.add_instruction(sym.c_func_name, current_cursor, *args)
                         result = None
 

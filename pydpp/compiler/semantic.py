@@ -317,6 +317,14 @@ builtin_funcs = {
         node=None,
         doc="Dessine une ligne du curseur aux coordonnées (x, y)."
     ),
+    "pixel": FunctionSym(
+        name="pixel",
+        return_type=SemanticType.NOTHING,
+        parameters=[],
+        c_func_name="cursorDrawPixel",
+        node=None,
+        doc="Dessine un pixel à la position du curseur."
+    ),
     "jump": FunctionSym(
         name="jump",
         return_type=SemanticType.NOTHING,
