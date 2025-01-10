@@ -207,7 +207,7 @@ class App(ctk.CTk):
                 file = filedialog.asksaveasfilename(
                     defaultextension="*.dpp",
                     filetypes=[("dpp","*.dpp")],
-                    initialfile=tab
+                    initialfile=tab + ".dpp"
                     )
                 filename = os.path.basename(file)
                 if file:
