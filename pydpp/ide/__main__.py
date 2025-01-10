@@ -257,7 +257,7 @@ class App(ctk.CTk):
             run_button.pack(side="left")
 
             buttons_frame.grid(row=0, column=0, sticky="ne")
-            showtext = ctk.CTkTextbox(self.tabview.tab(name))
+            showtext = ctk.CTkTextbox(self.tabview.tab(name), undo=True)
             showtext.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
             showtext.focus_set()
 
