@@ -69,8 +69,11 @@ class App(ctk.CTk):
         self.textboxes = {}  # Dict for tab-textboxes
 
         menu = ctk.CTkTextbox(self.tabview.tab("Menu"))
+        menu.pack(expand=True, fill="both")
         self.textboxes["Menu"] = menu
-
+        print(self.tabview.tab("Menu"))
+        menu.insert("1.0","test, ceci est un test")
+        menu.configure(state="disabled")
         self.terminal = ctk.CTkTextbox(self, state="disabled")
         self.terminal.grid(row=1, column=1, padx=10, pady=(10, 0), sticky="nsew")
 
