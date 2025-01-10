@@ -236,8 +236,9 @@ class CTranslater:
         pass
 
     def _cursorJump(self, cursor, x, y):
-        assert isinstance(cursor, _Cursor)
-        cursor.x, cursor.y = cursor.x + x, cursor.y + y
+        pass # TODO: Study the bug.
+        #assert isinstance(cursor, _Cursor)
+        #cursor.x, cursor.y = cursor.x + x, cursor.y + y
 
     def _cursorDrawCircle(self, cursor, r):
         assert isinstance(cursor, _Cursor)
