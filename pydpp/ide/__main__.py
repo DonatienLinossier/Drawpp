@@ -361,6 +361,7 @@ class App(ctk.CTk):
                         txt.delete("1.0", "end")
                         txt.insert("1.0", root.full_text)
                         txt.mark_set("insert", cursor)
+                        txt.see(cursor)
 
                         # Make sure the file is reparsed correctly.
                         txt.edit_modified(True)
