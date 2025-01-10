@@ -1,0 +1,166 @@
+Grammaire de Draw++
+
+Cette partie recense la grammaire du langage Draw++.
+Des commentaires peuvent être ajoutés avec '//' à n'importe quel endroit du code dpp.
+
+I. Grammaire
+// Taille de la fenêtre d'affichage
+Une fois la fenêtre d'affichage ouverte après exécution du code
+canvas x y; :	définis la largeur x (int) et la hauteur y (int) de la fenêtre d'affichage.
+				Ne doit être mis qu'une seule fois en tout début de programme.
+				Le point de coordonnées (0,0) se trouve en haut à gauche de le fenêtre, celui de coordonnées (x,y) se trouve en bas à droite.
+
+// Curseur
+// Le curseur est un peu comme le stylo qui dessine. On peut avoir plusieurs curseurs pour faire des dessins à des endroits différents.
+cursor c;		: définis un curseur appelé c.
+wield c { ... }	: contient les informations que le curseur c doit effectuer (ex : dessiner un cercle, changer la position du curseur, changer la couleur du curseur, refaire un cercle ...)
+
+
+// Déclaration variable
+Les variables déclarées peuvent être de diférents types :
+	- int : pour les entiers
+	- float : pour les décimaux
+	- string : pour les chaînes de caractères (mises obligatoirement entre guillemets)
+	- bool : pour les booléens (vaut 'true' ou 'false')
+Exemple :
+	int x = 5;
+	string chaine = "Hello World !"
+
+Exemple :
+	int x = 12;
+	float y = 6.123;
+	string chaine = "Hello World !"
+	bool var_1= true;
+	bool var_2= false;
+
+
+// Opérateurs
+Les opérateurs sont utilisés sur des int et float :
+	- addition : +
+	- soustraction : -
+	- multiplication : *
+	- division : /
+
+Exemple :
+	int x = 15 + 2; // x vaut 17
+	float y = x / 2;// y vaut 8.5
+
+
+// Symboles de comparaison
+Les symboles de comparaison sont utilisés pour comparer 2 valeurs entre elles.
+Ces valeurs peuvent être contenues dans des variables de même type (ou comparer un int avec un float) ou peuvent être écrites en brut
+(ex : "true" pour une comparaison de booléens ou "5" pour une comparaison numérique).
+La comparaison retourne un booléen : true ou false.
+Elle est le plus souvent utilisée pour l'utilisation de boucles ou de conditions ("if").
+
+Voici les symboles de comparaison :
+	- est égal : ==
+	- est différent : !=
+	- est strictement inférieur à : <
+	- est strictement supérieur à : >
+	- est inférieur ou égale à : <=
+	- est supérieur ou égale à : >=
+
+On peut associer plusieurs comparaisons entre elles :
+	- and : les 2 conditions doivent être vérifiées
+	- or : une des 2 conditions doit être vérifiée
+	- not : inverse la valeur du booléen (true en false, et inversement)
+
+Exemple :
+	bool a = 5==5; // a vaut true
+	bool b = 6<=5; // b vaut false
+
+// Condition
+	if condition { ... }	: if teste si la condition 'condition' est vérifiée. Si elle l'est, le code entre accolades est exécuté. ('condition' est un booléen)
+	else { ... }			: else peut être placé après un bloc if, si la condition du if n'est pas respectée, le code dans les accolades du else sera exécuté à la place.
+
+// Boucle
+while condition_valable { ... } :	le code dans la boucle est exécutée tant que condition_valable est vérifiée.
+									condition_valable peut être un booléen ou une comparaison
+
+// FONCTIONS
+
+// 1. Fonctions natives
+jump(x,y);		: le curseur fait un saut aux coordonnées indiquées  par x (abscisse) et y (ordonnée)(float). Ces coordonnées doivent être positives !
+
+circle();		: prend un float ou int en paramètre, correspondant au diamètre du cercle. Le centre du cercle est à l'emplacement du curseur.
+circleFill(); : comme circle mais le cercle est rempli.
+changeColor(r,g,b,a); : change la couleur du curseur au format (r,g,b,a). r,g,b et a sont des entiers (int).
+
+
+// 2. Création de fonctions
+	/!\ Seules des fonctions globales peuvent être déclarées ! (pas de fonctions dans des fonctions ou dans des if)
+
+	//1. Déclaration
+	fct nom_fonction(int x, bool y, ...) { ... }  : fct permet de déclarer une fonction, de nom nom_fonction et de paramètres définis (x et y ici)
+	A noter : une fonction peut n'avoir aucun paramètre.
+
+	//2. appel
+	Pour appeler un fonction créée, il suffit de taper le nom de la fonction accompagnée de ses paramètres.
+
+	Exemple : 
+		fct cible (int size){		//Déclaration de la fonction
+			float cercle = size;
+			while cercle > 10 {
+					cercle = cercle -8;
+					circle(cercle);
+			}
+			changeColor(255,0,0,255);
+			circleFill(6);
+			changeColor(0,0,0,255);
+			circle(4);
+		}
+		cible(50);					//Appel de la fonction 'cible'
+
+
+
+
+II. Exemple complet
+
+CODE TEST :
+// Définition la fenêtre du programme
+canvas 200 200;
+cursor  c;		// définis un curseur
+cursor d;		// définis un 2eme curseur indépendant du premier.
+
+// Définition de fonction
+fct cible (int size){
+	jump(100,100);
+	float arc = size;
+	while arc > 10 {
+		arc = arc -8;
+		circle(arc);
+	}
+	changeColor(255,0,0,255);
+	circleFill(6);
+	changeColor(0,0,0,255);
+	circle(4);
+}
+cible(50);
+
+
+wield c {		// actions avec le curseur c
+	changeColor(0,0,255,255);
+	circleFill(50);
+}
+
+wield d{		// actions avec le curseur d
+	jump(10,10);		//coordonnées ne peuvent pas etre négatives (ne retourne pas d'erreur à la compilation)
+	changeColor(0,255,0,120);
+	circle(20);
+}
+
+//Déclarations variable
+int x = 12;
+float y = 6.123;
+string chaine_1= "C'est ue chaine de caracteres";
+string chaine_2= "Ceci est ue chaine de caracteres";
+bool bbool_1= true;
+bool bbool_2= false;
+
+if x < 40 {
+	// curseur par défaut
+	jump(80,10);
+	changeColor(0,0,255,255);
+	circleFill(5);
+}
