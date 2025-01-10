@@ -81,7 +81,7 @@ while condition_valable { ... } :	le code dans la boucle est exécutée tant que
 // FONCTIONS
 
 // 1. Fonctions natives
-jump(x,y);		: le curseur fait un saut aux coordonnées indiquées  par x (abscisse) et y (ordonnée)(float). Ces coordonnées doivent être positives !
+jump(x,y);		: le curseur fait un saut (x,y) coordonnées indiquées  par x (abscisse) et y (ordonnée)(float). Ces coordonnées doivent être positives !
 
 circle();		: prend un float ou int en paramètre, correspondant au diamètre du cercle. Le centre du cercle est à l'emplacement du curseur.
 circleFill(); : comme circle mais le cercle est rempli.
