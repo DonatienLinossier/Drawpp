@@ -42,7 +42,9 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
     # - out_exe_path must contain the path for the generated executable
     # - out_c_path can be filled to set where the temporary C file will be generated, by default, the
     #   system temp directory is used
-    def compile_code(code: str, out_exe_path: str, out_c_path: str | None = None) -> tuple[bool, ProblemSet]:
+    # Returns a tuple of [success, problems, c_path]
+    def compile_code(code: str, out_exe_path: str, out_c_path: str | None = None)\
+            -> tuple[bool, ProblemSet, str | None]:
         # Tokenize the code, and get a list of tokens
         tokens = tokenize(code)
         # Take that list of tokens, and parse it to make a syntax tree
@@ -55,7 +57,7 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
 
         # If we have an error, we can't transpile and compile, so return False
         if len(problems.grouped[ProblemSeverity.ERROR]) > 0:
-            return False, problems
+            return False, problems, None
 
         if out_c_path is None:
             # No C path was given, use the system's temp directory
@@ -69,10 +71,10 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
         # Compile the C code to an executable
         success, err = link(out_c_path, out_exe_path)
         if success:
-            return True, problems
+            return True, problems, out_c_path
         else:
             problems.append(err, ProblemSeverity.ERROR)
-            return False, problems
+            return False, problems, out_c_path
 
 
     def collect_errors(tree: Node, problems: ProblemSet,

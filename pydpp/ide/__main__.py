@@ -1,3 +1,4 @@
+import sys
 import typing
 
 import customtkinter as ctk
@@ -85,7 +86,7 @@ class App(ctk.CTk):
     def tidx_to_tkidx(self, idx):
             return f"1.0+{idx}c"
 
-    def run_program(self, event=None):
+    def run_program(self, event=None, preview_c_code=False):
         """
         Tries to compile the code, and compiles it if no error has been detected.
         Otherwise prints every error in the terminal and allow the user to access the error with a simple double-click action
@@ -97,7 +98,7 @@ class App(ctk.CTk):
 
         # Retrieves code from the file and tries to compiles it
         code = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
-        okay, problems = compile_code(code, "./fun.exe") 
+        okay, problems, c_file = compile_code(code, "./fun.exe")
 
         # Reads every problem to add a pointer to the error in the code itself
         for p in (problems):
@@ -129,9 +130,16 @@ class App(ctk.CTk):
                 self.write_to_terminal(f"{p}")
         
         # The code can be compiled
-        if okay:
-            # Run the app in the background
-            subprocess.Popen("./fun.exe")
+        if not preview_c_code:
+            # Run the app only if compilation was a success
+            if okay:
+                # Run the app in the background
+                subprocess.Popen("./fun.exe")
+        else:
+            # Try to show the C code using the system's text editor, if there's a c file to begin with
+            if c_file is not None and os.path.exists(c_file):
+                fallback_editor = "notepad" if sys.platform == "win32" else "gedit"
+                subprocess.Popen([os.getenv("EDITOR", fallback_editor), c_file])
 
     def get_to_text(self, txt, index, event=None):
         '''
@@ -224,8 +232,17 @@ class App(ctk.CTk):
             self.tabview.add(name)
             self.tabview.tab(name).grid_columnconfigure(0, weight=1)
             self.tabview.tab(name).grid_rowconfigure((1), weight=1)
-            self.run_button = ctk.CTkButton(self.tabview.tab(name), text="Run file", command= lambda : self.run_program())
-            self.run_button.grid(row=0, column=0, sticky="ne")
+
+            # Make the compile & run buttons, organized horizontally
+            buttons_frame = ctk.CTkFrame(self.tabview.tab(name))
+            code_button = ctk.CTkButton(buttons_frame, text="Voir le code C",
+                                                       command=lambda: self.run_program(preview_c_code=True))
+            code_button.pack(side="left", padx=10)
+            run_button = ctk.CTkButton(buttons_frame, text="Lancer le programme",
+                                                      command=lambda: self.run_program())
+            run_button.pack(side="left")
+
+            buttons_frame.grid(row=0, column=0, sticky="ne")
             showtext = ctk.CTkTextbox(self.tabview.tab(name))
             showtext.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
             showtext.focus_set()

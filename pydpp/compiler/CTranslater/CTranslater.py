@@ -302,7 +302,11 @@ class CTranslater:
         return a * b
 
     def _divide(self, a, b):
-        return a / b
+        # Make sure that we do integer division when both operands are integers.
+        if type(a) == int and type(b) == int:
+            return a // b
+        else:
+            return a / b
 
     ##############################################
     #Draw functions
