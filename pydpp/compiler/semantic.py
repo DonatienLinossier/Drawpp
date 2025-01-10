@@ -334,7 +334,7 @@ builtin_funcs = {
         ],
         c_func_name="cursorJump",
         node=None,
-        doc="Déplace le curseur aux coordonnées (x, y)."
+        doc="Déplace le curseur de (x, y) pixels."
     ),
     "rotate": FunctionSym(
         name="rotate",
