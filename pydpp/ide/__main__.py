@@ -69,12 +69,11 @@ class App(ctk.CTk):
         self.textboxes = {}  # Dict for tab-textboxes
 
         menu = ctk.CTkTextbox(self.tabview.tab("Menu"))
-        menu.pack(expand=True, fill="both")
-        self.textboxes["Menu"] = menu
-        print(self.tabview.tab("Menu"))
-        menu.insert("1.0","test, ceci est un test")
-        menu.configure(state="disabled")
-        self.terminal = ctk.CTkTextbox(self, state="disabled")
+        menu.pack(expand=True, fill="both") #let the textbox be visible in "Menu"
+        self.textboxes["Menu"] = menu #let the tab be in the dictionnary
+        menu.insert("1.0","test, ceci est un test") #type something in "Menu"'s textbox
+        menu.configure(state="disabled")    #disable the access to Menu to anyone (if modification to "Menu", first type meu.config(state="normal") and pls replace this line when you're done) 
+        self.terminal = ctk.CTkTextbox(self, state="disabled") #creation of the terminal
         self.terminal.grid(row=1, column=1, padx=10, pady=(10, 0), sticky="nsew")
 
         # set default values
