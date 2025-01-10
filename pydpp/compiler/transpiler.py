@@ -235,7 +235,7 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
             else:
                 # User function, run it, and store the result in an intermediate variable
                 # (only if the return type isn't nothing).
-                if sym.return_type == BuiltInTypeKind.NOTHING:
+                if sym.return_type == SemanticType.NOTHING:
                     ct.add_instruction(func_sym_to_translater(sym), *args)
                     result = None
                 else:
@@ -244,7 +244,7 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
             return result
 
     # Same as evaluate_expression, but also applies type conversion if necessary.
-    def evaluate_expression_type_conv(expr: Expression, target_type: BuiltInTypeKind) \
+    def evaluate_expression_type_conv(expr: Expression, target_type: SemanticType) \
         -> VarCall | int | float | str | bool | None:
         # Evaluate the expression and find its associated symbol
         val = evaluate_expression(expr)
@@ -255,7 +255,7 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
             return val
         else:
             # Not the same type! Apply the *only* type conversion we have in the language...
-            if target_type == BuiltInTypeKind.FLOAT and sym.type == BuiltInTypeKind.INT:
+            if target_type == SemanticType.FLOAT and sym.type == SemanticType.INT:
                 # Convert an int to a float
                 if isinstance(val, VarCall):
                     # This is very hacky, but due to the way it works in Python,
@@ -269,15 +269,15 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
                 raise NotImplementedError(f"Type conversion from {sym.type} to {target_type} is not implemented.")
 
     # Returns the default value of the given type
-    def default_value(t: BuiltInTypeKind) -> int | float | str | bool | None:
+    def default_value(t: SemanticType) -> int | float | str | bool | None:
         match t:
-            case BuiltInTypeKind.BOOL:
+            case SemanticType.BOOL:
                 return False
-            case BuiltInTypeKind.INT:
+            case SemanticType.INT:
                 return 0
-            case BuiltInTypeKind.FLOAT:
+            case SemanticType.FLOAT:
                 return 0.0
-            case BuiltInTypeKind.STRING:
+            case SemanticType.STRING:
                 return ""
 
         return None
@@ -299,7 +299,7 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
         elif isinstance(s, VariableDeclarationStmt):
             sym = semantic_info.variable_to_sym[s]
 
-            if sym.type == BuiltInTypeKind.CURSOR:
+            if sym.type == SemanticType.CURSOR:
                 # Special handling for cursors: create a cursor using the createCursor instruction.
                 # They can't have values assign to anyway.
                 ct.add_instruction("createCursor", val_sym_to_translater(sym),

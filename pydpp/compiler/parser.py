@@ -162,25 +162,29 @@ class _Parser:
             any_args = len(args) != 0
             if lparen is None and (any_args or at_least_one_paren):
                 problems.append(InnerNodeProblem(message="Parenthèse ouvrante manquante après le nom de la fonction.",
-                                                 slot=FunctionDeclarationStmt.lparen_token_slot))
+                                                 slot=FunctionDeclarationStmt.lparen_token_slot,
+                                                 code=ProblemCode.MISSING_LPAREN))
 
             if rparen is None and (any_args or at_least_one_paren):
                 problems.append(InnerNodeProblem(message="Parenthèse fermante manquante après la liste des paramètres.",
-                                                 slot=FunctionDeclarationStmt.rparen_token_slot))
+                                                 slot=FunctionDeclarationStmt.rparen_token_slot,
+                                                 code=ProblemCode.MISSING_RPAREN))
 
             # CHeck for commas missing between arguments
             for a in args:
                 if a != args[-1] and a.comma is None:
                     a.add_problem(
                         InnerNodeProblem(message=f"Virgule manquante après le paramètre « {a.name_token_str} »",
-                                         slot=FunctionParameter.comma_slot))
+                                         slot=FunctionParameter.comma_slot,
+                                         code=ProblemCode.MISSING_COMMA))
 
             # Finally parse the { } block.
             block = self.parse_block_statement()
             if block is None:
                 problems.append(
                     InnerNodeProblem(message="Bloc d'instructions manquant après la déclaration de la fonction.",
-                                     slot=FunctionDeclarationStmt.body_slot))
+                                     slot=FunctionDeclarationStmt.body_slot,
+                                     code=ProblemCode.MISSING_BLOCK))
 
             return (FunctionDeclarationStmt(leaf(fct), leaf(name), leaf(lparen), args, leaf(rparen), block)
                     .with_problems(*problems))
@@ -204,7 +208,8 @@ class _Parser:
             if block is None:
                 # No block?? Keep it null
                 if_problems.append(InnerNodeProblem(message="Bloc d'instructions manquant après un « if ».",
-                                                    slot=IfStmt.then_block_slot))
+                                                    slot=IfStmt.then_block_slot,
+                                                    code=ProblemCode.MISSING_BLOCK))
 
             # Read all "else" blocks after the if.
             elses = []
@@ -249,7 +254,8 @@ class _Parser:
                 name = "else if" if condition else "else"
                 problems.append(InnerNodeProblem(message=f"Bloc d'instructions manquant après un « {name} ».",
                                                  severity=ProblemSeverity.ERROR,
-                                                 slot=ElseStmt.block_slot))
+                                                 slot=ElseStmt.block_slot,
+                                                 code=ProblemCode.MISSING_BLOCK))
 
             # Make the node and return it.
             return ElseStmt(leaf(else_kw), leaf(if_kw), condition, block).with_problems(*problems)
@@ -292,7 +298,8 @@ class _Parser:
             rbrace = self.consume()
         else:
             # EOF, no closing brace! Report an error
-            problems.append(InnerNodeProblem("Bloc d'instructions non fermé."))
+            problems.append(InnerNodeProblem("Bloc d'instructions non fermé.",
+                                            code=ProblemCode.MISSING_RBRACE))
 
         flush_invalid_tokens()
 
@@ -386,7 +393,9 @@ class _Parser:
             if block is None:
                 problems.append(InnerNodeProblem(message="Bloc d'instructions manquant après un « while ».",
                                                  severity=ProblemSeverity.ERROR,
-                                                 slot=WhileStmt.block_slot))
+                                                 slot=WhileStmt.block_slot,
+                                                 code=ProblemCode.MISSING_BLOCK))
+
 
             return WhileStmt(leaf(while_kw), condition, block).with_problems(*problems)
         else:
@@ -402,7 +411,9 @@ class _Parser:
             block = self.parse_block_statement()
             if block is None:
                 problems.append(
-                    InnerNodeProblem("Bloc d'instructions manquant après un « wield ».", slot=WieldStmt.block_slot))
+                    InnerNodeProblem("Bloc d'instructions manquant après un « wield ».",
+                                     slot=WieldStmt.block_slot,
+                                     code=ProblemCode.MISSING_BLOCK))
 
             return WieldStmt(leaf(w), ex, block).with_problems(*problems)
         else:
@@ -667,7 +678,8 @@ class _Parser:
                     problems.append(InnerNodeProblem(
                         message="Parenthèse fermante manquante après une expression entre parenthèses.",
                         severity=ProblemSeverity.ERROR,
-                        slot=ParenthesizedExpr.rparen_token_slot))
+                        slot=ParenthesizedExpr.rparen_token_slot,
+                        code=ProblemCode.MISSING_RPAREN))
 
                 return ParenthesizedExpr(leaf(lparen), expr, leaf(rparen)).with_problems(*problems)
             else:
@@ -732,25 +744,27 @@ class _Parser:
             # True when the previous argument didn't have a comma.
             prev_comma_missing = False
 
-            # Continue reading the argument list until we find a closing parenthesis or a semicolon.
-            # NOTE: The semicolon check is a bit of a weird choice, we might just give up reading the list
-            # instead of waiting for an end of statement.
-            while (nxt := self.peek()) and nxt.kind != TokenKind.SYM_RPAREN and nxt.kind != TokenKind.SYM_SEMICOLON:
+            # Continue reading the argument list until we find a closing parenthesis/brace or a semicolon.
+            while (nxt := self.peek()) and nxt.kind != TokenKind.SYM_RPAREN and nxt.kind != TokenKind.SYM_SEMICOLON \
+                    and nxt.kind != TokenKind.SYM_RBRACE:
                 # Then we must have an expression coming next. Try to read it.
                 arg = self.parse_expression()
                 if not arg:
+                    # Not a valid expression! Eat wrong tokens until we reach a comma, parenthesis/brace, or semicolon.
                     erroneous = []
                     while ((nxt := self.peek())
                            and nxt.kind != TokenKind.SYM_RPAREN
                            and nxt.kind != TokenKind.SYM_SEMICOLON
-                           and nxt.kind != TokenKind.SYM_COMMA):
+                           and nxt.kind != TokenKind.SYM_COMMA
+                           and nxt.kind != TokenKind.SYM_RBRACE):
                         erroneous.append(leaf(self.consume()))
                     arg = ErrorExpr(erroneous).with_problems(InnerNodeProblem("Argument invalide."))
 
                 # The previous argument didn't have a comma! Report the problem now, so we don't forget!
                 if prev_comma_missing:
                     args[-1].add_problem(InnerNodeProblem("Virgule manquante entre les arguments.",
-                                                          slot=Argument.comma_token_slot))
+                                                          slot=Argument.comma_token_slot,
+                                                          code=ProblemCode.MISSING_COMMA))
 
                 # Read the comma, and fill out the prev_comma_missing.
                 comma = self.consume_exact(TokenKind.SYM_COMMA)
@@ -765,7 +779,8 @@ class _Parser:
             else:
                 return ArgumentList(leaf(lparen), args, None).with_problems(
                     InnerNodeProblem("Parenthèse fermante manquante après la liste des arguments.",
-                                     slot=ArgumentList.rparen_token_slot))
+                                     slot=ArgumentList.rparen_token_slot,
+                                     code=ProblemCode.MISSING_RPAREN))
 
     def make_error_expr(self, tokens: list[Token]) -> ErrorExpr:
         """

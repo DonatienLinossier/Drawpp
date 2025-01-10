@@ -34,6 +34,30 @@ class ProblemCode(Enum):
     MISSING_SEMICOLON = "missing_semicolon"
     "A semicolon is missing at the end of a statement."
 
+    MISSING_LPAREN = "missing_lparen"
+    "The left parenthesis is missing. (function def args)"
+
+    MISSING_RPAREN = "missing_rparen"
+    "The right parenthesis is missing. (parenthesized expr, function def args, function expr...)"
+
+    MISSING_COMMA = "missing_comma"
+    "A comma is missing between two arguments in a function expression, or between two parameters in a func def."
+
+    MISSING_BLOCK = "missing_block"
+    "A statement block is missing."
+
+    MISSING_RBRACE = "missing_rbrace"
+    "The right brace is missing on a statement block."
+
+    UNDEFINED_VARIABLE = "undefined_variable"
+    "Trying to use a variable that was not yet defined. (fetch/assign)"
+
+    CANNOT_MUTATE_PARAMETER = "cannot_mutate_parameter"
+    "Trying to change the value of a function parameter (which are immutable)."
+
+    VAR_INIT_TYPE_MISMATCH = "var_init_type_mismatch"
+    "The variable was initialized with a value of the wrong type."
+
     OTHER = "other"
     "A generic error code, used when no other code fits the problem."
 

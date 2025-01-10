@@ -368,7 +368,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             -> call "register_variable" function :
                 - check variable name presence (in variable_to_sym) and if the name is valid
                 - Creation of the symbol for x with its name and value :
-                        symbole = VariableSym(name="x", type_=BuiltInTypeKind.INT, node=stmt, value=42)
+                        symbole = VariableSym(name="x", type_=SemanticType.INT, node=stmt, value=42)
                 - check if the variable is global (parent node is a program) or local.
                 - check if the variable name is yet used :
                     In global case :    it checks presence in global_vars.
@@ -384,7 +384,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             -> call "register_variable" function :
                 - check variable name presence (in variable_to_sym) and if the name is valid
                 - Creation of the symbol for y with its name and value :
-                        symbole = VariableSym(name="y", type_=BuiltInTypeKind.FLOAT, node=stmt, value=42)
+                        symbole = VariableSym(name="y", type_=SemanticType.FLOAT, node=stmt, value=42)
                 - check if the variable is global (parent node is a program) or local.
                 - check if the variable name is yet used :
                     In global case :    it checks presence in global_vars.
@@ -409,8 +409,8 @@ def analyse(program: Program) -> ProgramSemanticInfo:
     canvas_width, canvas_height = None, None
 
     # Adds an error regarding the given node. (We may change error systems later)
-    def register_error(node: InnerNode, message: str, slot=None):
-        node.add_problem(InnerNodeProblem(message, slot=slot))
+    def register_error(node: InnerNode, message: str, slot=None, code=None):
+        node.add_problem(InnerNodeProblem(message, slot=slot, code=code))
 
     # Returns all the visible value inside a Node N.
     # If multiple value have the same name, the oldest will be lost.
@@ -460,13 +460,12 @@ def analyse(program: Program) -> ProgramSemanticInfo:
 
         # Add all the variable declarations before this statement.
         # Don't do anything if we're the only child, of course.
-        if n.parent_slot.multi:
-            for i, c in enumerate(n.parent.get(n.parent_slot)):
-                if n.parent_slot_idx == i:
-                    break
+        for c in n.parent.child_inner_nodes:
+            if c == n:
+                break
 
-                if isinstance(c, VariableDeclarationStmt):
-                    variables[c.name_token_str] = variable_to_sym[c]
+            if isinstance(c, VariableDeclarationStmt) and c in variable_to_sym:
+                variables[c.name_token_str] = variable_to_sym[c]
 
         return variables
 
@@ -478,7 +477,13 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         if n is None:
             return dict()
 
-        return {p.name: p for p in function_to_sym[n].parameters}
+        # Make sure this function actually has a symbol. Some functions don't because they're essentially
+        # invalid. (e.g. inside an "if" block)
+        sym = function_to_sym.get(n, None)
+        if sym is None:
+            return dict()
+
+        return {p.name: p for p in sym.parameters}
 
     # Union of variables + arguments.
     # TODO: Cache this function's results.
@@ -633,7 +638,8 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                 # Let's write a well-suited error message.
                 if e.name_token_str not in global_vars or e.ancestor(FunctionDeclarationStmt) is None:
                     # We just can't see that variable. It likely doesn't exist yet.
-                    register_error(e, f"La variable {e.name_token_str} n'est pas encore définie.")
+                    register_error(e, f"La variable {e.name_token_str} n'est pas encore définie.",
+                                   code=ProblemCode.UNDEFINED_VARIABLE)
                 else:
                     # We're a child of a function declaration, and we're trying to access a global variable.
                     register_error(e, "Impossible d'utiliser une variable globale dans une fonction.")
@@ -730,7 +736,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         if a == b:
             return True
         if a == SemanticType.INT and b == SemanticType.FLOAT:
-            # Currently, we have automatic float -> int conversion
+            # Currently, we have automatic int -> float conversion
             return True
         return False
 
@@ -756,8 +762,8 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             # This is a global variable!
             if name in global_vars:
                 register_error(v, f"La variable {name} est déjà définie.")
-
-            global_vars[v.name_token_str] = symbol
+            else:
+                global_vars[v.name_token_str] = symbol
         else:
             # It's a local variable. We allow variable redefinition (shadowing) there.
             # But we need to check that it doesn't have the same name as an argument!
@@ -775,7 +781,8 @@ def analyse(program: Program) -> ProgramSemanticInfo:
                 # => x is int, 5.3 is float
                 # => We have is_subtype(float, int) that returns FALSE because float is not a subtype of int (it is the contrary)
                 register_error(v.value,
-                               f"La valeur donnée pour la variable {name} est du mauvais type : {value_sym.type} donné, {ty} attendu.")
+                               f"La valeur donnée pour la variable {name} est du mauvais type : {value_sym.type} donné, {ty} attendu.",
+                               code=ProblemCode.VAR_INIT_TYPE_MISMATCH)
 
         # Cursor variables are special. They're always initialised with a cursor by default,
         # and they can't be changed afterward.
@@ -796,7 +803,6 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         params: list[ParameterSym] = []
         for p in f.parameters:
             if p.name_token is None:
-                register_error(p, "Nom de paramètre invalide.")
                 continue
 
             ty = to_builtin_type(p.type)    # This function returns the type of the parameter.
@@ -856,11 +862,13 @@ def analyse(program: Program) -> ProgramSemanticInfo:
             # It doesn't? Report it.
             if var_sym is None:
                 register_error(n, f"La variable {n.name_token_str} n'est pas définie.",
-                               slot=AssignStmt.name_token_slot)
+                               slot=AssignStmt.name_token_slot,
+                               code=ProblemCode.UNDEFINED_VARIABLE)
             elif find_visible_argument(n.name_token_str, n) is not None:    # return a ParameterSym if the node n is a visible parameter (a parameter defined), else return None
                 # It's a parameter. We don't allow assigning to parameters right now, so report it to the user!
                 register_error(n, f"Impossible de modifier la valeur du paramètre {n.name_token_str}.",
-                               slot=AssignStmt.name_token_slot)
+                               slot=AssignStmt.name_token_slot,
+                               code=ProblemCode.CANNOT_MUTATE_PARAMETER)
             elif var_sym.built_in_val is not None:
                 # It's a built-in variable, we can't change its value.
                 register_error(n, f"Impossible de modifier la valeur de la constante {n.name_token_str}.",

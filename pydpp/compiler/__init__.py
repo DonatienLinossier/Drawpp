@@ -25,7 +25,7 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
     from .problem import Problem, ProblemSeverity, ProblemSet, ProblemCode
     from .tokenizer import tokenize, TokenProblem
     from .parser import parse
-    from .semantic import analyse
+    from .semantic import analyse, ProgramSemanticInfo
     from .transpiler import transpile
     from .syntax import Node
 
@@ -75,13 +75,20 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
             return False, problems
 
 
-    def collect_errors(tree: Node, problems: ProblemSet, enable_suggestions=False):
+    def collect_errors(tree: Node, problems: ProblemSet,
+                       enable_suggestions=False,
+                       semantic_info: ProgramSemanticInfo | None = None):
         """
         Collects all errors (node/tokens) from a given syntax tree, into a problem set.
         :param tree: the tree with errors
         :param problems: the problem set to add the errors to
         :param enable_suggestions: whether to enable suggestions, attached to the Problem's suggestions attribute
+        :param semantic_info: semantic info to use for suggestions
         """
+
+        # Make sure that when we enable suggestions, we have some semantic info.
+        assert not enable_suggestions or semantic_info is not None
+
         if tree.has_problems:
             # Traverse the tree using DFS with a stack. All nodes marked "has_problems" has at least
             # one descendant with a problem.
@@ -96,7 +103,7 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
                         span = p.compute_span(node)
                         code = p.code
                         if enable_suggestions:
-                            sug = find_suggestion(node, p)
+                            sug = find_suggestion(node, semantic_info,  p)
                         else:
                             sug = None
                     elif isinstance(p, TokenProblem):
@@ -118,13 +125,15 @@ if __main__ is None or not hasattr(__main__, "__file__") or not __main__.__file_
                         stack.append(c)
 
 
-    def collect_errors_2(tree: Node, enable_suggestions=False) -> ProblemSet:
+    def collect_errors_2(tree: Node, enable_suggestions=False,
+                       semantic_info: ProgramSemanticInfo | None = None) -> ProblemSet:
         """
         Collects all errors (node/tokens) from a given syntax tree, into a problem set.
         :param tree: the tree with errors
-        :param problems: the problem set to add the errors to
+        :param enable_suggestions: whether to enable suggestions, attached to the Problem's suggestions attribute
+        :param semantic_info: semantic info to use for suggestions
         """
 
         ps = ProblemSet()
-        collect_errors(tree, ps, enable_suggestions)
+        collect_errors(tree, ps, enable_suggestions, semantic_info)
         return ps

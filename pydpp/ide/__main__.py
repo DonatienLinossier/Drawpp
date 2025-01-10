@@ -360,7 +360,7 @@ class App(ctk.CTk):
         # Reset errors we've saved before
         txt.drawpp_error_infos = []
 
-        # Close the textbox if it's opened.
+        # Close the tooltip if it's opened.
         self.tt.destroy()
 
         # Get the entire text of the textbox
@@ -403,7 +403,7 @@ class App(ctk.CTk):
         s = profile_start("error finding")
         ps = ProblemSet()
         # Collect all errors from the tree, and put them all in the problem set
-        collect_errors(tree, ps, True)
+        collect_errors(tree, ps, True, semantic)
         i = 0
         for e in ps.grouped[ProblemSeverity.ERROR]:
             # When the span is of zero-length, extend it on the right by one character to indicate something

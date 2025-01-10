@@ -380,6 +380,19 @@ class Node:
         # No child matches the span. It's game over.
         return last_good
 
+    def replace_with(self, other):
+        """
+        Replaces this node with another one. The other node is attached to the parent of this node.
+        """
+        assert self.parent is not None  # Obviously if we're the root we can replace ourselves
+
+        parent = self.parent
+        slot = self.parent_slot
+        idx = self.parent_slot_idx or 0
+
+        self.detach_self()
+
+        parent.attach_child(slot, other, idx)
 
     # =========================
     # PROBLEM PROPERTIES
@@ -668,7 +681,7 @@ class InnerNode(Node):
         Returns an empty tuple if none found.
         """
 
-        # Calculate the length of all auxiliary text of the first token in this node and its descendants.
+        # Find the first token in the tree
         def first_tok(n: InnerNode) -> LeafNode | None:
             for x in n.children:
                 if isinstance(x, LeafNode):
@@ -684,7 +697,38 @@ class InnerNode(Node):
 
     @pre_auxiliary.setter
     def pre_auxiliary(self, value: tuple[AuxiliaryText, ...]):
-        raise NotImplementedError("TODO :D")
+        n = self._get_pre_auxiliary_node()
+
+        # Normally this can't happen in any case, but we do have some very rare edge cases where
+        # a node has no children at all.
+        assert n is not None
+
+        new_tok = Token(
+            n.kind,
+            n.text,
+            value,
+            n.problems
+        )
+        n.replace_with(leaf(new_tok))
+
+    def _get_pre_auxiliary_node(self) -> Optional["LeafNode"]:
+        """
+        Returns the node containing this node's pre-auxiliary text: the first token.
+        """
+
+        # Find the first token in the tree
+        def first_tok(n: InnerNode) -> LeafNode | None:
+            for x in n.children:
+                if isinstance(x, LeafNode):
+                    return x
+                else:
+                    return first_tok(x)
+
+            # Nothing :(
+            return None
+
+        tok = first_tok(self)
+        return tok
 
     # =========================
     # CHILDREN ATTACHMENT/DETACHMENT
@@ -755,9 +799,12 @@ class InnerNode(Node):
     def attach_child(self, slot: NodeSlot[Self, N], el: N, idx=None) -> N:
         a = slot.attr
 
-        assert el.parent is None, "Cannot attach a node that's already attached somewhere else."
         assert hasattr(self, a), f"Node {type(self).__name__} has no slot {a}"
         assert el is not None and slot.accepts(el), f"Slot {slot} cannot accept the node {el!r}"
+
+        # If the newcomer is already attached to another parent, detach it first.
+        if el.parent is not None:
+            el.detach_self()
 
         if not slot.multi:
             if prev := getattr(self, a):
