@@ -18,13 +18,23 @@ typedef struct {
 
 int initSDL(SDL_Window **window, SDL_Renderer **renderer);
 
-void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius);
+void drawCircle(SDL_Renderer* renderer, double centerX, double centerY, double radius);
 
-void drawCircleFill(SDL_Renderer* renderer, int centerX, int centerY, int radius);
+void drawCircleFill(SDL_Renderer* renderer, double centerX, double centerY, double radius);
 
-void drawRect(SDL_Renderer* renderer, int x, int y, int width, int height);
+void drawRect(SDL_Renderer* renderer, double x, double y, double width, double height);
 
-void drawRectFill(SDL_Renderer* renderer, int x, int y, int width, int height);
+void drawRectFill(SDL_Renderer* renderer, double x, double y, double width, double height);
+
+void drawThickLine(SDL_Renderer *renderer, double x1, double y1, double x2, double y2, double thickness);
+
+void drawFilledRectangle(SDL_Renderer *renderer,
+    float lowerLeftX, float lowerLeftY, float width, float height,
+    float angleInRadians);
+
+void drawCircleOutline(SDL_Renderer *renderer, double centerX, double centerY, double radius, double thickness);
+
+void drawPixel(SDL_Renderer *renderer, double x, double y);
 
 // Begins drawing on a new canvas with the given dimensions. Outputs the created canvas on outCanvas.
 // All SDL drawing functions will draw on the canvas' texture rather than on the default surface, until

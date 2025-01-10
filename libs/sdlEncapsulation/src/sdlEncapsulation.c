@@ -5,6 +5,32 @@
 #include "sdlEncapsulation.h"
 #include <stdio.h>
 
+typedef struct {
+    //     X    Y
+    float a00, a01,
+          a10, a11;
+} Matrix2D;
+
+SDL_FPoint apply(Matrix2D transform, SDL_FPoint point) {
+    return (SDL_FPoint){
+        .x = transform.a00 * point.x + transform.a01 * point.y,
+        .y = transform.a10 * point.x + transform.a11 * point.y
+    };
+}
+
+SDL_FPoint sub(SDL_FPoint a, SDL_FPoint b) {
+    return (SDL_FPoint){
+        .x = a.x - b.x,
+        .y = a.y - b.y
+    };
+}
+
+SDL_FPoint add(SDL_FPoint a, SDL_FPoint b) {
+    return (SDL_FPoint){
+        .x = a.x + b.x,
+        .y = a.y + b.y
+    };
+}
 
 int initSDL(SDL_Window **window, SDL_Renderer **renderer) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -31,42 +57,131 @@ int initSDL(SDL_Window **window, SDL_Renderer **renderer) {
     return 0; // Success
 }
 
-void drawCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius) {
-    for (int angle = 0; angle < 360; angle++) {
-        // Convert angle to radians
-        double radians = angle * (M_PI / 180);
+void drawCircle(SDL_Renderer* renderer, double centerX, double centerY, double radius) {
+    // Radius * 4 -> number of pixels to draw in a square
+    // Since a circle is contained in a square, the justification for this calculation
+    // Is that we're "moving" the square's pixels to the right or left, until it fits the circle.
+    // However that's not sufficient due to some diagonals, so I'm just going to multiply by 2.
+    long pixelsToDraw = (long) (radius * 4 * 2);
+    for (int pix = 0; pix < pixelsToDraw; pix++) {
+        double radians = (double)pix/pixelsToDraw*2*M_PI;
         // Calculate x and y using the circle equation
-        int x = centerX + (int)(radius * cos(radians));
-        int y = centerY + (int)(radius * sin(radians));
-        SDL_RenderDrawPoint(renderer, x, y);
+        double x = centerX + radius * cos(radians);
+        double y = centerY + radius * sin(radians);
+        SDL_RenderDrawPointF(renderer, (float)x, (float)y);
     }
 }
 
-void drawCircleFill(SDL_Renderer* renderer, int centerX, int centerY, int radius) {
-    for (int i = -radius; i <= radius; i++) {
-        for (int j = -radius; j <= radius; j++) {
+void drawCircleFill(SDL_Renderer* renderer, double centerX, double centerY, double radius) {
+    for (int i = -(int)round(radius); i <= radius; i++) {
+        for (int j = -(int)round(radius); j <= radius; j++) {
             if (pow(i, 2) + pow(j, 2) <= radius * radius) {
-                SDL_RenderDrawPoint(renderer, centerX + i, centerY + j);
+                SDL_RenderDrawPointF(renderer, (float)(centerX + (double)i), (float)(centerY + (double)j));
             }
         }
     }
 }
 
-void drawRect(SDL_Renderer* renderer, int x, int y, int width, int height) {
-    SDL_RenderDrawLine(renderer, x, y, x+width, y);
-    SDL_RenderDrawLine(renderer, x+width, y, x+width, y+height);
-    SDL_RenderDrawLine(renderer, x+width, y+height, x, y+height);
-    SDL_RenderDrawLine(renderer, x, y+height, x, y);
+void drawRect(SDL_Renderer* renderer, double x, double y, double width, double height) {
+    SDL_RenderDrawLineF(renderer, (float)x, (float)y, (float)(x+width), (float)y);
+    SDL_RenderDrawLineF(renderer, (float)(x+width), (float)y, (float)(x+width), (float)(y+height));
+    SDL_RenderDrawLineF(renderer, (float)(x+width), (float)(y+height), (float)x, (float)(y+height));
+    SDL_RenderDrawLineF(renderer, (float)x, (float)(y+height), (float)x, (float)y);
 }
 
-void drawRectFill(SDL_Renderer* renderer, int x, int y, int width, int height) {
-    for(int i =0; i<width; i++)
-    {
-        for(int j =0; j<height; j++)
-        {
-            SDL_RenderDrawPoint(renderer, x+i, y+j);
+void drawRectFill(SDL_Renderer* renderer, double x, double y, double width, double height) {
+    SDL_FRect rect = { (float)x, (float)y, (float)width, (float)height };
+    SDL_RenderDrawRectF(renderer, &rect);
+}
+
+void drawThickLine(SDL_Renderer *renderer, double x1, double y1, double x2, double y2, double thickness) {
+    double dx = x2 - x1;
+    double dy = y2 - y1;
+    double length = sqrt(dx * dx + dy * dy);
+
+    // Normalize direction vector
+    double nx = dx / length;
+    double ny = dy / length;
+
+    // Perpendicular vector for thickness
+    double px = -ny * (thickness / 2.0);
+    double py = nx * (thickness / 2.0);
+
+    // Define the four corners of the thick line as a rectangle
+    SDL_Vertex vertices[4] = {
+        {.position = {(float)(x1 + px), (float)(y1 + py)}}, // Top-left
+        {.position = {(float)(x2 + px), (float)(y2 + py)}}, // Top-right
+        {.position = {(float)(x2 - px), (float)(y2 - py)}}, // Bottom-right
+        {.position = {(float)(x1 - px), (float)(y1 - py)}}
+    }; // Bottom-left
+
+    // Indices for the two triangles forming the rectangle
+    int indices[6] = {0, 1, 2, 2, 3, 0};
+
+    SDL_RenderGeometry(renderer, NULL, vertices, 4, indices, 6);
+}
+
+void drawFilledRectangle(SDL_Renderer *renderer,
+    float lowerLeftX, float lowerLeftY, float width, float height,
+    float angleInRadians) {
+
+    // llc -> ulc -> urc -> lrc
+    SDL_FPoint llc = {lowerLeftX, lowerLeftY}; // Lower left corner (rect definition)
+    SDL_FPoint urc = {lowerLeftX + width, lowerLeftY + height}; // Upper right corner (rect definition)
+    SDL_FPoint ulc = {llc.x, urc.y}; // Upper left corner
+    SDL_FPoint lrc = {urc.x, llc.y}; // Lower right corner
+
+    // Offset to move the lower left corner to the origin (0, 0), so we rotate around it.
+    SDL_FPoint displacement = {llc.x, llc.y};
+
+    // Derived from Euler's formula
+    Matrix2D rotMathis = {
+        .a00 = SDL_cosf(angleInRadians), .a01 = -SDL_sinf(angleInRadians),
+        .a10 = SDL_sinf(angleInRadians), .a11 = SDL_cosf(angleInRadians)
+    };
+
+    // Apply matrix transformations
+    llc = add(apply(rotMathis, sub(llc, displacement)), displacement);
+    urc = add(apply(rotMathis, sub(urc, displacement)), displacement);
+    ulc = add(apply(rotMathis, sub(ulc, displacement)), displacement);
+    lrc = add(apply(rotMathis, sub(lrc, displacement)), displacement);
+
+    // Make up the vertices
+    SDL_Vertex vertices[] = {
+        {.position = llc},
+        {.position = ulc},
+        {.position = urc},
+        {.position = lrc}
+    };
+    // And the triangles
+    int indices[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    // Draw!!!
+    SDL_RenderGeometry(renderer, NULL, vertices, 4, indices, 6);
+}
+
+void drawCircleOutline(SDL_Renderer *renderer, double centerX, double centerY, double radius, double thickness) {
+    double radiusSquared = radius * radius;
+    double innerRadiusSquared = (radius - thickness) * (radius - thickness);
+
+    long long radiusInt = (long long) round(radius);
+
+    for (long long y = -radiusInt; y <= radiusInt; y++) {
+        for (long long x = -radiusInt; x <= radiusInt; x++) {
+            double distanceSquared = (double)(x * x + y * y);
+
+            if (distanceSquared <= radiusSquared && distanceSquared >= innerRadiusSquared) {
+                SDL_RenderDrawPointF(renderer, (float)(centerX + (double) x),(float)(centerY + (double) y));
+            }
         }
     }
+}
+
+void drawPixel(SDL_Renderer *renderer, double x, double y) {
+    SDL_RenderDrawPointF(renderer, (float)x, (float)y);
 }
 
 bool beginCanvas(SDL_Renderer *renderer, int width, int height, Dpp_Canvas *outCanvas) {
