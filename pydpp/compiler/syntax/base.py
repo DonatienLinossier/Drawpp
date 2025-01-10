@@ -870,6 +870,7 @@ class InnerNode(Node):
         return self
 
     def add_problem(self, problem: InnerNodeProblem):
+        assert problem is not None
         self.problems += (problem, )
         self._update_has_problems()
 

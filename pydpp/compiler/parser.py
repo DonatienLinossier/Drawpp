@@ -652,8 +652,11 @@ class _Parser:
                                            severity=ProblemSeverity.ERROR,
                                            slot=UnaryExpr.op_token_slot)
 
-            # Create the according expression node.
-            return UnaryExpr(leaf(op), expression).with_problems(problem)
+                # Create a node with a problem
+                return UnaryExpr(leaf(op), expression).with_problems(problem)
+            else:
+                # Create a node without a problem
+                return UnaryExpr(leaf(op), expression)
 
         def parenthesized():
             """Recognizes parenthesized expressions, like (expr)."""
