@@ -1,0 +1,73 @@
+int i=600;
+int j=300;
+int p=0;
+jump(i,j);
+i=10;
+j=10;
+changeThickness(2);
+changeColor(200,0,0,255);
+while p!=10{
+jump(i,j);
+circle(70);
+p=p+1;
+}
+p=0;
+i=-10;
+j=10;
+changeThickness(1);
+changeColor(150,0,200,255);
+while p!=10{
+jump(i,j);
+circle(70);
+p=p+1;
+}
+changeThickness(2);
+changeColor(0,200,200,255);
+p=0;
+i=-10;
+j=-10;
+while p!=10{
+jump(i,j);
+circle(70);
+p=p+1;
+}
+changeThickness(1);
+p=0;
+i=10;
+j=-10;
+changeColor(200,200,0,255);
+while p!=10{
+jump(i,j);
+circle(70);
+p=p+1;
+}
+changeThickness(2);
+p=0;
+i=-10;
+j=-10;
+changeColor(200,200,100,255);
+while p!=10{
+jump(i,j);
+circle(70);
+p=p+1;
+}
+changeThickness(1);
+p=0;
+i=10;
+j=-10;
+changeColor(100,200,0,255);
+while p!=10{
+jump(i,j);
+circle(70);
+p=p+1;
+}
+changeThickness(2);
+p=0;
+i=0;
+j=10;
+changeColor(200,100,0,255);
+while p!=20{
+jump(i,j);
+circle(70);
+p=p+1;
+}
