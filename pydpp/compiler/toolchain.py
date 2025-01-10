@@ -166,6 +166,9 @@ def _windows_link(c_path: str, exe_path: str) -> tuple[bool, str]:
 
     # Convert our C and executable paths to absolute paths to avoid any surprises.
     c_path, exe_path = os.path.abspath(c_path), os.path.abspath(exe_path)
+    # Also take the folder name of our C path so we don't put tons of .obj files for no reason
+    c_folder = os.path.dirname(c_path) + "\\" # And don't forget the backslash else it won't be recognized
+                                              # as a folder (???)
 
     # Run the C compiler with two tons of arguments.
     cr = subprocess.run([cl,
@@ -176,13 +179,15 @@ def _windows_link(c_path: str, exe_path: str) -> tuple[bool, str]:
                          sdl2_lib_path, sdl2_main_lib_path,  # Statically link to SDL libraries
                          "shell32.lib",  # Statically link to Shell32 cause for some reason SDL needs that?
                          "/MDd",  # Use the Universal CRT library in debug mode
+                         "/Fo" + c_folder,  # Output object files in the C file's folder
                          "/link",  # Run the linker
                          f"/out:{exe_path}",  # Produce the executable in the wanted path
+                         "/utf-8", # UTF-8 please!
                          "/MACHINE:X64",  # 64-bit supremacy
                          "/SUBSYSTEM:CONSOLE",  # Console application (and not a WIN32/GUI application)
                          ], env=env_map, capture_output=True)
     if cr.returncode != 0:
-        return False, "Compilation failed. Compiler output:\n" + cr.stderr.decode("utf-8")
+        return False, "Compilation failed. Compiler output:\n" + cr.stderr.decode("mbcs")
 
     # Compilation was successful! Now let's just copy our SDL2.dll next to the executable.
     try:

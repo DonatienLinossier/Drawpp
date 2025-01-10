@@ -1,5 +1,6 @@
 import sys
 import typing
+from os import mkdir
 
 import customtkinter as ctk
 from tkinter import filedialog, font
@@ -92,13 +93,26 @@ class App(ctk.CTk):
         Otherwise prints every error in the terminal and allow the user to access the error with a simple double-click action
         """
 
+        tab_name = self.tabview.get()
+
         # Cleans terminal
         self.delete_terminal()
-        self.write_to_terminal(f"{self.tabview.get()} is compiling...")
+        self.write_to_terminal(f"{tab_name} is compiling...")
 
         # Retrieves code from the file and tries to compiles it
-        code = self.textboxes[self.tabview.get()].get("0.0", ctk.END)
-        okay, problems, c_file = compile_code(code, "./fun.exe")
+        code = self.textboxes[tab_name].get("0.0", ctk.END)
+
+        # Make up all paths necessary for compilation
+        exe_suffix = ".exe" if os.name == "nt" else "" # Add the .exe suffix on windows
+        exe_path = f"./dpp-build/{tab_name}" + exe_suffix # Make the executable path
+        c_path = f"./dpp-build/{tab_name}.c" # Same for the C file
+
+        # Create the dpp-build folder if it doesn't exist
+        if not os.path.exists("./dpp-build"):
+            mkdir("./dpp-build")
+
+        # Compile! Now!
+        okay, problems, c_file = compile_code(code, exe_path, c_path)
 
         # Reads every problem to add a pointer to the error in the code itself
         for p in (problems):
@@ -134,7 +148,7 @@ class App(ctk.CTk):
             # Run the app only if compilation was a success
             if okay:
                 # Run the app in the background
-                subprocess.Popen("./fun.exe")
+                subprocess.Popen(exe_path)
         else:
             # Try to show the C code using the system's text editor, if there's a c file to begin with
             if c_file is not None and os.path.exists(c_file):

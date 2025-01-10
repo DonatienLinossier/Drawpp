@@ -19,3 +19,5 @@ fun.exe
 pydpp/ide/**/SDL2.dll
 
 cmake-build-*/
+
+dpp-build/

@@ -181,7 +181,7 @@ class _subBlock:
             print("Color value cannot be lower than 0 or greater than 255.")
             return
 
-        if a<0 or a>1:
+        if a<0 or a>255:
             #todo: handle error
             print("Color a value cannot be lower than 0 or greater than 1.")
             return

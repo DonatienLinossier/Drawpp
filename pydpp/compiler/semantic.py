@@ -904,7 +904,7 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         elif isinstance(n, CanvasStmt):
             # The canvas statement is a bit special.
             # It must be at the very start of the program, and we can't have more than one.
-            if n.parent is not None or n.parent_slot_idx != 0:
+            if n.parent is not program or n.parent_slot_idx != 0:
                 # But, do we have duplicate canvas statements? Let's see...
                 is_duplicate = False
                 for s in program.statements:

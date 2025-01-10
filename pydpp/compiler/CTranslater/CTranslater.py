@@ -344,7 +344,7 @@ class CTranslater:
 
         # Check that alpha value is in the range [0, 255]
         if not (0 <= a <= 255):
-            print(f"Error: Alpha value must be between 0 and 1. Received: {a}")
+            print(f"Error: Alpha value must be between 0 and 255. Received: {a}")
             return  # Return early if alpha value is out of range
 
         self.file.write(
