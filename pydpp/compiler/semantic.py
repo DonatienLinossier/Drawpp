@@ -758,20 +758,6 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         if ty == SemanticType.ERROR:
             register_error(v, "Type de variable inconnu.")
 
-        if v.parent is program:
-            # This is a global variable!
-            if name in global_vars:
-                register_error(v, f"La variable {name} est déjà définie.")
-            else:
-                global_vars[v.name_token_str] = symbol
-        else:
-            # It's a local variable. We allow variable redefinition (shadowing) there.
-            # But we need to check that it doesn't have the same name as an argument!
-            args = visible_arguments_within(v)
-            if name in args:
-                # TODO: Better err message
-                register_error(v, f"La variable locale {name} est déjà définie en tant que paramètre de la fonction ... .")
-
         if v.value is not None and ty != SemanticType.ERROR:
             # If there's a default value, check that it's of the correct type.
             value_sym = register_expression(v.value)
@@ -789,6 +775,20 @@ def analyse(program: Program) -> ProgramSemanticInfo:
         if v.value is not None and ty == SemanticType.CURSOR:
             register_error(v, "Impossible d'initialiser un curseur avec une valeur : "
                               "les curseurs sont déjà initialisés lorsqu'ils sont déclarés.")
+
+        if v.parent is program:
+            # This is a global variable!
+            if name in global_vars:
+                register_error(v, f"La variable {name} est déjà définie.")
+            else:
+                global_vars[v.name_token_str] = symbol
+        else:
+            # It's a local variable. We allow variable redefinition (shadowing) there.
+            # But we need to check that it doesn't have the same name as an argument!
+            args = visible_arguments_within(v)
+            if name in args:
+                # TODO: Better err message
+                register_error(v, f"La variable locale {name} est déjà définie en tant que paramètre de la fonction ... .")
 
         variable_to_sym[v] = symbol
 
