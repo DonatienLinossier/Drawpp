@@ -70,9 +70,19 @@ class App(ctk.CTk):
 
         self.textboxes = {}  # Dict for tab-textboxes
 
-        menu = ctk.CTkTextbox(self.tabview.tab("Menu"), font=ctk.CTkFont(size=20))
+        menu = ctk.CTkTextbox(self.tabview.tab("Menu"), font=ctk.CTkFont(size=17))
         menu.pack(expand=True, fill="both") #let the textbox be visible in "Menu"
         self.textboxes["Menu"] = menu #let the tab be in the dictionnary
+
+        syntax_path = os.path.join(os.path.dirname(__file__), "../../Syntaxe de Draw++.txt")
+        # Put the entirety of the file in the textbox
+        try:
+            with open(syntax_path, "r", encoding="utf-8") as f:
+                menu.insert("end", f.read())
+        except:
+            print("Failed to load syntax file.")
+            pass
+            # Too bad!
 
         for f in semantic.builtin_funcs.values():
             func_sig = f.name + "(" + ", ".join([p.type.value + " " + p.name for p in f.parameters ]) + ")"
@@ -290,7 +300,7 @@ class App(ctk.CTk):
                 fam = "Lucida Console"
             else:
                 fam = fonts[0]
-            showtext.configure(font=ctk.CTkFont(family=fam, size=13))
+            showtext.configure(font=ctk.CTkFont(family=fam, size=15))
 
             self.textboxes[name] = showtext
             self.tabview.set(name)
