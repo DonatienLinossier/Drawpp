@@ -3,6 +3,8 @@
 .venv/**
 !.venv/.gitkeep
 
+.venv-exp/
+
 .idea/**
 .vscode/**
 

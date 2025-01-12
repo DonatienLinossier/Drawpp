@@ -6,7 +6,7 @@ Un langage de programmation pour dessiner procéduralement des images, avec un I
 
 **Windows & Linux**
 - Python 3.12
-- Pipenv : `pip install --user pipenv` ou `sudo apt install pipenv` sur Debian/Ubuntu
+- Pipenv : `pip install --user pipenv` ou `sudo apt install pipenv` sur Debian/Ubuntu  
   **Sur Windows :** Si l'installation émet un avertissement car `pipenv.exe` est inaccessible depuis le PATH, ajoutez le long chemin contenu dans le message d'erreur (qui commence par `C:\Users\[user]\AppData\Local\Packages\`) dans votre PATH (voir [cet article](https://lecrabeinfo.net/modifier-le-path-de-windows-ajouter-un-dossier-au-path.html)), sinon pipenv ne sera pas accessible depuis le terminal
 
 **Windows**
@@ -21,6 +21,15 @@ Sur Debian/Ubuntu, cette commande suffit pour installer tous les prérequis :
 ```bash
 sudo apt install python3 pipenv build-essential libsdl2-dev
 ```
+
+## Lancer l'IDE
+
+Utilisez le script Python `run.py` pour lancer l'IDE.
+
+- Windows : `python run.py`
+- Linux : `python3 run.py` ou `./run.py`
+
+Le script vérifie que toutes les dépendances existent et compile aussi SDL Encapsulation si besoin.
 
 ## Commencer à développer
 
