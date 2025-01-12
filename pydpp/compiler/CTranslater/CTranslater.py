@@ -5,6 +5,19 @@ from ._WhileLoop import _WhileLoop
 from ._ConditionalInstr import _ConditionalInstr
 from ._Cursor import _Cursor
 
+"""
+This class is what encapsulate the whole CTranslater mechanic. 
+
+It handles the C generated file.
+
+It defines all the C functions that can be written in the generated file. 
+A list of all the accepted functions is accessible in self.instr.
+
+It handles the construction and run steps.
+
+See the paper at the root of the project for full details about how it works.
+"""
+
 # To use CTranslater, preferably put it in a "with" statement.
 class CTranslater:
 
@@ -19,11 +32,16 @@ class CTranslater:
             raise IOError(f"Error opening file '{self.filename}': {err}")
         self.closed = False
 
-        self._header()
-        self.conditionalFuncCpt = 0
-        self.main = _subBlock()
-        self._tmpInstr = {}
-        self._tmpCmpt = 0
+        self._header() #Function that writes the start of the C generated file.
+        self.conditionalFuncCpt = 0 #The actual number of conditionalFunc (used for their id)
+        self.main = _subBlock() #The subBlock that store and run the whole user-program.
+                                # /!\ Can contains other subBlocks(via loop, conditional instr...)
+
+        self._tmpInstr = {} #user-defined functions
+        self._tmpCmpt = 0 #The actual number of user-defined function (used for their id)
+
+        # self.instr is a dict that bind the name of a function, with a ref of that funtion.
+        # Note that subBlocks store this references.
         self.instr = {
             "and": self._and,
             "or": self._or,
@@ -63,7 +81,13 @@ class CTranslater:
             "cursorChangeColor": self._cursorChangeColor,
             "cursorChangeThickness": self._cursorChangeThickness,
         }
+
+
+        #This variable is a stack of scope, used for construction step.
+        #it allows to go back to the parents of an element when the user ended a block with .endBlock.
+        #Also useful to see if a function declaration is made in the main, and not in an function.
         self.constructionStack = ["main"]
+
 
         # Width and height of the canvas. And yes, this is where the default values reside.
         self.canvas_width = 1200
@@ -87,6 +111,8 @@ class CTranslater:
     def __del__(self):
         self.close()
 
+
+    #Return the actual stack and handles the Mechanic of self.constructionStack
     def _getActualStackFrame(self):
         if len(self.constructionStack) == 0:
             #happens if the user ended the main func(so the prog)
@@ -111,14 +137,15 @@ class CTranslater:
                     return self.instr[frame]
                 else:
                     print("Unknown stack")
-                #TODO: Handle error
+                    #TODO: Handle error
 
     ####################################
     # Interface functions
+    # The followings functions are the functions that user can use with the CTranslater. (CTranslater.createFunc() for ex)
     ####################################
 
     def add_instruction(self, instructionName, *args) -> None:
-        #TODO: check args
+        #TODO: check args ? Not necessary as it is done before, but still a security
         if instructionName not in self.instr:
             print("Unknown instruction ", instructionName)
             #todo: handle error
@@ -217,7 +244,6 @@ class CTranslater:
     # They should NEVER be called from outside the class
     ##############################
     """
-
     #####################################
     #  Variable related functions (Defined in _subBlock to respect scope)
     ######################################

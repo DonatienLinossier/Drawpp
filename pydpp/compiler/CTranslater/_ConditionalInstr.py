@@ -1,8 +1,9 @@
-"""Not working yet"""
-
 from ._subBlock import _subBlock
 
 """
+This class is what handle the mechanic of conditional instructions.
+
+
 Conditional instructions are defined by:
                 - 3 _subBlocks (_condition, _ifFunction, _elseFunction)
                 - The step of build (Are we building the condition function ? the ifFunction ? or the elseFunction ?)
@@ -31,6 +32,12 @@ class _ConditionalInstr:
         self.elseFunction = _subBlock()
         self.actualSteps = 0
 
+
+    """
+    This fonction is launch at runtime(when compiling).
+    It only implements the mechanic, the real compilation is handle by subBlock. 
+    """
+
     def __call__(self, varDict: dict) -> (dict, any):
         #returns the scope and the returnValue
 
@@ -46,6 +53,20 @@ class _ConditionalInstr:
     ###########################
     # The next functions are used to create the _ConditionalInstr
     ###########################
+
+    #The add_instruction function is the function that is called in the construction step.
+    def add_instruction(self, instr, *args):
+        match self.actualSteps:
+            case 0:
+                self.condition.add_instruction(instr, *args)
+            case 1:
+                self.ifFunction.add_instruction(instr, *args)
+            case 2:
+                self.elseFunction.add_instruction(instr, *args)
+            case _:
+                print("Error !!")
+                #todo: handle error
+
     def nextStep(self):
         self.actualSteps += 1
         #Todo: Add verif that condition returns a bool value before changing step
@@ -68,14 +89,3 @@ class _ConditionalInstr:
         else:
             return False
 
-    def add_instruction(self, instr, *args):
-        match self.actualSteps:
-            case 0:
-                self.condition.add_instruction(instr, *args)
-            case 1:
-                self.ifFunction.add_instruction(instr, *args)
-            case 2:
-                self.elseFunction.add_instruction(instr, *args)
-            case _:
-                print("Error !!")
-                #todo: handle error

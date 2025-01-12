@@ -20,7 +20,7 @@ class _subBlock:
         # Some functions must be overridden when entering a function.
         # For exemple, variable manipulation within a function should only modify the variable in the function
         self.overrideInstr = {
-            "_storeReturnedValueFromFuncInVar": self.storeReturnedValueFromFuncInVar,  #Long.. mais explicite !
+            "_storeReturnedValueFromFuncInVar": self.storeReturnedValueFromFuncInVar,  #Long.. but explicite !
             "_getVar": self.functGetVar,
             "_addToVar": self.functAddToVar,
             "_createVar": self.functCreateVar,
@@ -45,11 +45,14 @@ class _subBlock:
         self.blockVarDict = varDict
 
         for instr in self.instr:
-
             # Extract function
             func = instr[0]
 
-            #if(isinstance(func, _ConditionalInstr)):
+            """
+            if the instruction is a conditional instr or a loop:
+                we execute the instruction, giving it the scope(as scope is shared for this kind of instr)
+                and we collect both the return value(to synchronize scope) and the returnedValue(in case a of returnedValue)
+            """
             if func.__class__.__name__ == "_ConditionalInstr" or func.__class__.__name__ == "_WhileLoop":  #Avoid circular Import !!
                 self.blockVarDict, returnedValue = func(self.blockVarDict)
 
@@ -57,11 +60,12 @@ class _subBlock:
                     return self.blockVarDict, returnedValue
 
             elif func.__class__.__name__ == "_Function" or func.__class__.__name__ == "method":  #Represent function and instr. So basicaly all the others cases.
-                arguments = instr[1]
+                arguments = instr[1] #the list of arguments
                 argumentsFinal = []  #Store the parsed arguments (Use for the varCall)
 
+
+                # Handle variable references
                 for arg in arguments:
-                    # Handle variable references
                     if isinstance(arg, VarCall):
                         if arg.name in self.blockVarDict:
                             argumentsFinal.append(self.blockVarDict[arg.name])
@@ -69,8 +73,9 @@ class _subBlock:
                             pass
                             print(self.blockVarDict)
                             print("Error: unknown variable")
-                            #TODO: HAndle error
+                            #TODO: Handle error
                     else:
+                        #replace the varCall by the value of the variable
                         argumentsFinal.append(arg)
 
 
@@ -78,22 +83,41 @@ class _subBlock:
                     return self.blockVarDict, argumentsFinal[0]
                 else:
                     # Call the function with final arguments
-                    #print("Calling func :", func.__name__, "with arguments", argumentsFinal)
                     self.lastReturnedValueFromFunction = func(*argumentsFinal)
 
             else:
                 print("Error : unhandled type", func.__class__.__name__, "in subBlock call")
+                #TODO: handle error
 
-        return self.blockVarDict, None
+        return self.blockVarDict, None #If all instructions are done, we simply return the scope to the parent element.
 
+    """
+    This function is the function called at the construction step. 
+    Note that it add 2 instructions :
+         - The Ctranslater one: It handles all that is needed to be written in the generated file. (drawing)
+         - the subBlock one: It handles data manipulation. (variable handling) 
+    
+    For some functions, one of the 2 instruction will be empty, as not needeed. But it is also possible that both instructions
+    are defined(ex: jump)
+    """
     def add_instruction(self, func, *args):
         if func.__name__ in self.overrideInstr:
 
-            self.instr.append((self.overrideInstr[func.__name__], args)) #For verif and variable
-            self.instr.append((func, args))
+            self.instr.append((self.overrideInstr[func.__name__], args)) #add the overwritten function for verif and variable
+            self.instr.append((func, args)) # add the CTranslater function
         else:
             self.instr.append((func, args))
 
+
+
+    ###########################################
+    # The followings functions are the overwritten function of the CTranslater.
+    ###########################################
+    """
+    They are mainly overwritten(See add_instruction)  as they need to manipulate the variables of the subBlock scope, not the CTranslater scope.
+    Note that some functions, mainly for drawing purposes, run both the Ctranslater function, and the overwritten function.
+    Ex: jump (the Ctranslater function handle the drawing, and the overwritten function handle the data manipulation in the scope.)
+    """
     def storeReturnedValueFromFuncInVar(self, varName: str) -> None:
         self.functCreateVar(varName, self.lastReturnedValueFromFunction)
 
@@ -199,15 +223,4 @@ class _subBlock:
         if type(cursor) is not _Cursor:
             #TODO: handle error
             print(cursor, "is not a cursor.")
-
-
-
-
-
-
-
-
-
-
-
 

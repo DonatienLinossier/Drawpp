@@ -32,6 +32,17 @@ class _Function:
         # Each function maintains its own variable dictionary, with the name of the variable used as the key
         self.FunctVarDict = {}
 
+    """
+    This fonction is launch at runtime(when compiling).
+    It only implements the mechanic, the real compilation is handle by subBlock. 
+    
+    The functions verify if the number of arguments match the number of parameters.
+    
+    It then links and adds the arguments to the scope.
+
+    And then it execute the code with the subBlock, passing it the scope, and collecting the scope and returnedValue.
+    Only the returned value is returned by the function.
+    """
     def __call__(self, *args) -> any:
         #TODO: Check the type of the arguments
         if len(args) != self.nb_param:
@@ -46,6 +57,12 @@ class _Function:
 
         #TODO: Verif on returned type
         return returnedValue
+
+
+    #The add_instruction function is the function that is called in the construction step.
+    def add_instruction(self, func, *args) -> None:
+        self.subBlock.add_instruction(func, *args)
+
 
     def nextStep(self):
         self.actualStep += 1
@@ -67,5 +84,3 @@ class _Function:
 
 
 
-    def add_instruction(self, func, *args) -> None:
-        self.subBlock.add_instruction(func, *args)

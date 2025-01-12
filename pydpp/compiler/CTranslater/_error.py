@@ -1,4 +1,14 @@
-"""WIP: Not used yet"""
+"""
+WIP: This class is not implemented yet.
+
+The purpose of this class is to handle error in the CTranslater.
+This part is not necessary as most of the errors are handled before the CTranslater, but it is still interesting if
+we want to improve the error detection. The idea is to respect the moto "If it compiles, it runs".
+
+The errors we wanna detect here are errors that we want to anticipate from the runtime. For example, detect endless loop.
+Other securities can be added such as type verification. (no necessary and could be heavy as the type detection is already
+done previously)
+"""
 
 class _error:
     def __init__(self, instructionName: str, description: str, errorStack: str = None):
