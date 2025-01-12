@@ -31,7 +31,7 @@ class App(ctk.CTk):
 
         self.sidebar_frame = ctk.CTkFrame(self, width=140, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(4, weight=1)
+        self.sidebar_frame.grid_rowconfigure(5, weight=1)
 
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Draw++", font=ctk.CTkFont(size=20, weight="bold"))
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
@@ -44,24 +44,24 @@ class App(ctk.CTk):
         self.import_but.grid(row=2, column=0, padx=20, pady=10)
         self.bind("<Control-o>", lambda event: self.imp_event(event))
 
-        self.sup_but = ctk.CTkButton(self.sidebar_frame, text="supprimer", command=self.sup_tab)
-        self.sup_but.grid(row=4, column=0, padx=20, pady=10)
-        self.bind("<Control-w>", lambda event: self.sup_tab(event))
-
         self.save_but = ctk.CTkButton(self.sidebar_frame, text="sauvegarder", command=self.sauv_event)
         self.save_but.grid(row=3, column=0, padx=20, pady=10)
         self.bind("<Control-s>", lambda event: self.sauv_event(event))
 
+        self.sup_but = ctk.CTkButton(self.sidebar_frame, text="supprimer", command=self.sup_tab)
+        self.sup_but.grid(row=4, column=0, padx=20, pady=10)
+        self.bind("<Control-w>", lambda event: self.sup_tab(event))
+
         self.appearance_mode_label = ctk.CTkLabel(self.sidebar_frame, text="Appearance Mode:", anchor="w")
-        self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
+        self.appearance_mode_label.grid(row=6, column=0, padx=20, pady=(10, 0))
         self.appearance_mode_menu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Light", "Dark", "System"],
                                                       command=self.change_appearance_mode)
-        self.appearance_mode_menu.grid(row=6, column=0, padx=20, pady=(10, 10))
+        self.appearance_mode_menu.grid(row=7, column=0, padx=20, pady=(10, 10))
         self.scaling_label = ctk.CTkLabel(self.sidebar_frame, text="UI Scaling:", anchor="w")
-        self.scaling_label.grid(row=7, column=0, padx=20, pady=(10, 0))
+        self.scaling_label.grid(row=8, column=0, padx=20, pady=(10, 0))
         self.scaling_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["80%", "90%", "100%", "110%", "120%"],
                                                      command=self.change_scaling)
-        self.scaling_optionemenu.grid(row=8, column=0, padx=20, pady=(10, 20))
+        self.scaling_optionemenu.grid(row=9, column=0, padx=20, pady=(10, 20))
 
         self.tabview = ctk.CTkTabview(self, width=250)
         self.tabview.grid(row=0, column=1, padx=10, pady=(10, 0), sticky="nsew")
