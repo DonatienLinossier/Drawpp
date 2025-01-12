@@ -74,7 +74,7 @@ class App(ctk.CTk):
         menu.pack(expand=True, fill="both") #let the textbox be visible in "Menu"
         self.textboxes["Menu"] = menu #let the tab be in the dictionnary
 
-        syntax_path = os.path.join(os.path.dirname(__file__), "../../Syntaxe de Draw++.txt")
+        syntax_path = os.path.join(os.path.dirname(__file__), "../../Grammary_Draw++.txt")
         # Put the entirety of the file in the textbox
         try:
             with open(syntax_path, "r", encoding="utf-8") as f:
