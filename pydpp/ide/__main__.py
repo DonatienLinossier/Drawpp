@@ -146,9 +146,7 @@ class App(ctk.CTk):
                 self.terminal.tag_config(t, underline=True, foreground="blue")
                 self.terminal.tag_bind(t, "<Button-1>", lambda event, pos=end: self.get_to_text(textbx, pos))
                 x=len(t) +37
-                print(x)
                 x=str(x)+"c"
-                print(x)
                 x="end-"+x
                 # Writes to the terminal the error message
                 self.write_to_terminal(f"{p} (double clique pour acceder)")
