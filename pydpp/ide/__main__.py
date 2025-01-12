@@ -114,7 +114,7 @@ class App(ctk.CTk):
 
         # Cleans terminal
         self.delete_terminal()
-        self.write_to_terminal(f"{tab_name} is compiling...")
+        self.write_to_terminal(f"{tab_name} se compile...")
 
         # Retrieves code from the file and tries to compiles it
         code = self.textboxes[tab_name].get("0.0", ctk.END)
@@ -166,6 +166,7 @@ class App(ctk.CTk):
             if okay:
                 # Run the app in the background
                 subprocess.Popen(exe_path)
+                self.write_to_terminal("Succès !")
         else:
             # Try to show the C code using the system's text editor, if there's a c file to begin with
             if c_file is not None and os.path.exists(c_file):
