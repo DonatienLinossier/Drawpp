@@ -64,7 +64,7 @@ if len(warns) > 0:
     print("❌ La compilation de programmes Draw++ risque de ne pas fonctionner.")
     print("Voulez-vous quand même tenter de lancer l'IDE ? [o/n]", end=" ")
     answer = input()
-    if answer.lower() != "o" or answer.lower() != "y":
+    if answer.lower() != "o" and answer.lower() != "y":
         sys.exit(1)
 
 # ---- SECOND STAGE: Compile the SDL Encapsulation library ----
@@ -77,9 +77,9 @@ if not has_compiled_sdl_encap:
     res = subprocess.run([python_exe, os.path.join(project_path, "libs", "build_sdlEncapsulation.py")])
     if res.returncode != 0:
         print("❌ La compilation de SDL Encapsulation a échoué. La compilation de programmes Draw++ sera indisponible.")
-        print("Voulez-vous quand même tenter d'exécuter l'IDE? [o/n]", end=" ")
+        print("Voulez-vous quand même tenter de lancer l'IDE? [o/n]", end=" ")
         answer = input()
-        if answer.lower() != "o" or answer.lower() != "y":
+        if answer.lower() != "o" and answer.lower() != "y":
             sys.exit(1)
 
 # ---- THIRD STAGE: Run the IDE ----
@@ -93,7 +93,7 @@ elif find_spec("pipenv") is not None and (len(sys.argv) <= 1 or sys.argv[1] != "
 
     # Do we have a venv we know? Use the Mario Kart Shortcut, else, just use pipenv (but it's so slow!)
     if os.path.exists(venv_python_path):
-        print("Dossier .venv trouvé, C'est parti pour Draw++!")
+        print("Dossier .venv trouvé, c'est parti pour Draw++ !")
         subprocess.run([venv_python_path, "-m", "pydpp.ide"])
     else:
         # Make sure the venv is synchronized before running the IDE.
