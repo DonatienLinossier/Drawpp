@@ -107,13 +107,17 @@ void drawThickLine(SDL_Renderer *renderer, double x1, double y1, double x2, doub
     double px = -ny * (thickness / 2.0);
     double py = nx * (thickness / 2.0);
 
+    // Fetch the current draw color to put them in our vertices
+    SDL_Color color;
+    SDL_GetRenderDrawColor(renderer, &color.r, &color.g, &color.b, &color.a);
+
     // Define the four corners of the thick line as a rectangle
     SDL_Vertex vertices[4] = {
-        {.position = {(float)(x1 + px), (float)(y1 + py)}}, // Top-left
-        {.position = {(float)(x2 + px), (float)(y2 + py)}}, // Top-right
-        {.position = {(float)(x2 - px), (float)(y2 - py)}}, // Bottom-right
-        {.position = {(float)(x1 - px), (float)(y1 - py)}}
-    }; // Bottom-left
+        {.position = {(float)(x1 + px), (float)(y1 + py)}, .color = color}, // Top-left
+        {.position = {(float)(x2 + px), (float)(y2 + py)}, .color = color}, // Top-right
+        {.position = {(float)(x2 - px), (float)(y2 - py)}, .color = color}, // Bottom-right
+        {.position = {(float)(x1 - px), (float)(y1 - py)}, .color = color}  // Bottom-left
+    };
 
     // Indices for the two triangles forming the rectangle
     int indices[6] = {0, 1, 2, 2, 3, 0};
@@ -146,12 +150,16 @@ void drawFilledRectangle(SDL_Renderer *renderer,
     ulc = add(apply(rotMathis, sub(ulc, displacement)), displacement);
     lrc = add(apply(rotMathis, sub(lrc, displacement)), displacement);
 
+    // Fetch the current draw color to put them in our vertices
+    SDL_Color color;
+    SDL_GetRenderDrawColor(renderer, &color.r, &color.g, &color.b, &color.a);
+
     // Make up the vertices
     SDL_Vertex vertices[] = {
-        {.position = llc},
-        {.position = ulc},
-        {.position = urc},
-        {.position = lrc}
+        {.position = llc, .color = color},
+        {.position = ulc, .color = color},
+        {.position = urc, .color = color},
+        {.position = lrc, .color = color}
     };
     // And the triangles
     int indices[] = {

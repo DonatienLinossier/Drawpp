@@ -1,4 +1,4 @@
-# Draw++ (c'est toujours pas terrible comme nom)
+# Draw++
 
 Un langage de programmation pour dessiner procéduralement des images, avec un IDE intégré.
 
@@ -45,7 +45,3 @@ C'est aussi possible d'utiliser l'IDE (Visual Studio Code et PyCharm), ce qui ma
 le venv, sinon il faut trouver un moyen de l'indiquer (il est dans le dossier `.venv`)
 
 Pour installer un paquet, là on utiliserait normalement `pip`, on utilise `pipenv`. Par exemple, `pipenv install customtkinter`.
-
-### Moteur de dessin
-
-Ah bah là j'en sais rien déso (indice : cmake + sdl)
