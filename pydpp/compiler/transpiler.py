@@ -229,7 +229,7 @@ def transpile(program: Program, semantic_info: ProgramSemanticInfo, file_name: s
                 match sym.c_func_name:
                     case "cursorDrawCircle" | "cursorDrawFilledCircle" | "cursorJump" | "cursorChangeColor" | \
                          "cursorRotate" | "cursorChangeThickness" | "cursorDrawFilledRectangle" | "cursorDrawLine" \
-                        | "cursorDrawPixel":
+                        | "cursorDrawPixel" | "cursorDrawRectangle":
                         ct.add_instruction(sym.c_func_name, current_cursor, *args)
                         result = None
 

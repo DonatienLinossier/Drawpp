@@ -20,7 +20,7 @@ _windows_encap_lib_path = os.path.join(_encap_bin_path, "sdlEncapsulation.lib")
 # Seconds (Python Epoch) since last update of the sdlEncapsulation library, so people
 # running an older version of the library will get their library updated.
 # Now this is PEAK versioning!
-_last_encap_update = 1736681171.084337
+_last_encap_update = 1736690460.8000562
 
 def link(c_path: str, exe_path: str) -> tuple[bool, str]:
     # Compiles the sdlEncapsulation library if it's not already compiled.

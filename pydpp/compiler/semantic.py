@@ -295,6 +295,17 @@ builtin_funcs = {
         node=None,
         doc="Dessine un cercle plein de rayon r autour du curseur."
     ),
+    "rect": FunctionSym(
+        name="rect",
+        return_type=SemanticType.NOTHING,
+        parameters=[
+            ParameterSym("width", SemanticType.FLOAT, None),
+            ParameterSym("height", SemanticType.FLOAT, None),
+        ],
+        c_func_name="cursorDrawRectangle",
+        node=None,
+        doc="Dessine un rectangle creux de largeur width et de hauteur height autour du curseur. Applique une rotation."
+    ),
     "rectFill": FunctionSym(
         name="rectFill",
         return_type=SemanticType.NOTHING,

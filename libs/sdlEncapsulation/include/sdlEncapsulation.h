@@ -18,19 +18,14 @@ typedef struct {
 
 int initSDL(SDL_Window **window, SDL_Renderer **renderer);
 
-void drawCircle(SDL_Renderer* renderer, double centerX, double centerY, double radius);
-
-void drawCircleFill(SDL_Renderer* renderer, double centerX, double centerY, double radius);
-
-void drawRect(SDL_Renderer* renderer, double x, double y, double width, double height);
-
-void drawRectFill(SDL_Renderer* renderer, double x, double y, double width, double height);
-
 void drawThickLine(SDL_Renderer *renderer, double x1, double y1, double x2, double y2, double thickness);
 
-void drawFilledRectangle(SDL_Renderer *renderer,
-    float lowerLeftX, float lowerLeftY, float width, float height,
-    float angleInRadians);
+void drawRectangleFill(SDL_Renderer *renderer, double x, double y, double width, double height, double angleInRadians);
+
+void drawRectangleOutline(SDL_Renderer* renderer, double x, double y, double width, double height,
+    double angleInRadians, double thickness);
+
+void drawCircleFill(SDL_Renderer* renderer, double centerX, double centerY, double radius);
 
 void drawCircleOutline(SDL_Renderer *renderer, double centerX, double centerY, double radius, double thickness);
 

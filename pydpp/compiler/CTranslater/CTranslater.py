@@ -55,6 +55,7 @@ class CTranslater:
             "cursorDrawCircle": self._cursorDrawCircle,
             "cursorDrawFilledCircle": self._cursorDrawFilledCircle,
             "cursorDrawFilledRectangle": self._cursorDrawFilledRectangle,
+            "cursorDrawRectangle": self._cursorDrawRectangle,
             "cursorDrawLine": self._cursorDrawLine,
             "cursorDrawPixel": self._cursorDrawPixel,
             "cursorRotate": self._cursorRotate,
@@ -254,7 +255,12 @@ class CTranslater:
     def _cursorDrawFilledRectangle(self, cursor, width, height):
         assert isinstance(cursor, _Cursor)
         self._setColor(cursor.color[0], cursor.color[1], cursor.color[2], cursor.color[3])
-        self._drawFilledRect(cursor.x, cursor.y, width, height, cursor.angle)
+        self._drawRectFill(cursor.x, cursor.y, width, height, cursor.angle)
+
+    def _cursorDrawRectangle(self, cursor, width, height):
+        assert isinstance(cursor, _Cursor)
+        self._setColor(cursor.color[0], cursor.color[1], cursor.color[2], cursor.color[3])
+        self._drawRect(cursor.x, cursor.y, width, height, cursor.angle, cursor.thickness)
 
     def _cursorDrawLine(self, cursor, x, y):
         assert isinstance(cursor, _Cursor)
@@ -341,18 +347,13 @@ class CTranslater:
         #TODO: add type verif for parameters x,y,radius (and range ? yes for radius)
         self.file.write("drawCircleFill(renderer, " + str(x) + ", " + str(y) + ", " + str(radius) + ");\n")
 
-    def _drawRect(self, x, y, width, height):
+    def _drawRect(self, x, y, width, height, angle, thickness):
         #TODO: add type verif for parameters x,y,width,height (and range ? probably not)
         self.file.write(
-            "drawRect(renderer, " + str(x) + ", " + str(y) + ", " + str(width) + ", " + str(height) + ");\n")
+            f"drawRectangleOutline(renderer, {str(x)}, {str(y)}, {str(width)}, {str(height)}, {str(angle)}, {str(thickness)});\n")
 
-    def _drawRectFill(self, x, y, width, height):
-        #TODO: add type verif for parameters x,y,width,height (and range ? probably not)
-        self.file.write(
-            "drawRectFill(renderer, " + str(x) + ", " + str(y) + ", " + str(width) + ", " + str(height) + ");\n")
-
-    def _drawFilledRect(self, x, y, width, height, angle):
-        self.file.write(f"drawFilledRectangle(renderer, {x}, {y}, {width}, {height}, {angle});\n")
+    def _drawRectFill(self, x, y, width, height, angle):
+        self.file.write(f"drawRectangleFill(renderer, {x}, {y}, {width}, {height}, {angle});\n")
 
     def _drawLine(self, x1, y1, x2, y2, thickness):
         self.file.write(f"drawThickLine(renderer, {x1}, {y1}, {x2}, {y2}, {thickness});\n")

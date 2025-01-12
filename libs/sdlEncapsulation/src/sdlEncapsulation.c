@@ -5,31 +5,41 @@
 #include "sdlEncapsulation.h"
 #include <stdio.h>
 
+// A 2D vector using doubles.
+typedef struct {
+    double x;
+    double y;
+} Dpp_Vec2;
+
 typedef struct {
     //     X    Y
-    float a00, a01,
-          a10, a11;
+    double a00, a01,
+           a10, a11;
 } Matrix2D;
 
-SDL_FPoint apply(Matrix2D transform, SDL_FPoint point) {
-    return (SDL_FPoint){
+Dpp_Vec2 apply(Matrix2D transform, Dpp_Vec2 point) {
+    return (Dpp_Vec2){
         .x = transform.a00 * point.x + transform.a01 * point.y,
         .y = transform.a10 * point.x + transform.a11 * point.y
     };
 }
 
-SDL_FPoint sub(SDL_FPoint a, SDL_FPoint b) {
-    return (SDL_FPoint){
+Dpp_Vec2 sub(Dpp_Vec2 a, Dpp_Vec2 b) {
+    return (Dpp_Vec2){
         .x = a.x - b.x,
         .y = a.y - b.y
     };
 }
 
-SDL_FPoint add(SDL_FPoint a, SDL_FPoint b) {
-    return (SDL_FPoint){
+Dpp_Vec2 add(Dpp_Vec2 a, Dpp_Vec2 b) {
+    return (Dpp_Vec2) {
         .x = a.x + b.x,
         .y = a.y + b.y
     };
+}
+
+SDL_FPoint vec2ToSDL(Dpp_Vec2 vec) {
+    return (SDL_FPoint){(float)vec.x, (float)vec.y};
 }
 
 int initSDL(SDL_Window **window, SDL_Renderer **renderer) {
@@ -57,21 +67,6 @@ int initSDL(SDL_Window **window, SDL_Renderer **renderer) {
     return 0; // Success
 }
 
-void drawCircle(SDL_Renderer* renderer, double centerX, double centerY, double radius) {
-    // Radius * 4 -> number of pixels to draw in a square
-    // Since a circle is contained in a square, the justification for this calculation
-    // Is that we're "moving" the square's pixels to the right or left, until it fits the circle.
-    // However that's not sufficient due to some diagonals, so I'm just going to multiply by 2.
-    long pixelsToDraw = (long) (radius * 4 * 2);
-    for (int pix = 0; pix < pixelsToDraw; pix++) {
-        double radians = (double)pix/pixelsToDraw*2*M_PI;
-        // Calculate x and y using the circle equation
-        double x = centerX + radius * cos(radians);
-        double y = centerY + radius * sin(radians);
-        SDL_RenderDrawPointF(renderer, (float)x, (float)y);
-    }
-}
-
 void drawCircleFill(SDL_Renderer* renderer, double centerX, double centerY, double radius) {
     for (int i = -(int)round(radius); i <= radius; i++) {
         for (int j = -(int)round(radius); j <= radius; j++) {
@@ -80,18 +75,6 @@ void drawCircleFill(SDL_Renderer* renderer, double centerX, double centerY, doub
             }
         }
     }
-}
-
-void drawRect(SDL_Renderer* renderer, double x, double y, double width, double height) {
-    SDL_RenderDrawLineF(renderer, (float)x, (float)y, (float)(x+width), (float)y);
-    SDL_RenderDrawLineF(renderer, (float)(x+width), (float)y, (float)(x+width), (float)(y+height));
-    SDL_RenderDrawLineF(renderer, (float)(x+width), (float)(y+height), (float)x, (float)(y+height));
-    SDL_RenderDrawLineF(renderer, (float)x, (float)(y+height), (float)x, (float)y);
-}
-
-void drawRectFill(SDL_Renderer* renderer, double x, double y, double width, double height) {
-    SDL_FRect rect = { (float)x, (float)y, (float)width, (float)height };
-    SDL_RenderDrawRectF(renderer, &rect);
 }
 
 void drawThickLine(SDL_Renderer *renderer, double x1, double y1, double x2, double y2, double thickness) {
@@ -125,30 +108,30 @@ void drawThickLine(SDL_Renderer *renderer, double x1, double y1, double x2, doub
     SDL_RenderGeometry(renderer, NULL, vertices, 4, indices, 6);
 }
 
-void drawFilledRectangle(SDL_Renderer *renderer,
-    float lowerLeftX, float lowerLeftY, float width, float height,
-    float angleInRadians) {
-
-    // llc -> ulc -> urc -> lrc
-    SDL_FPoint llc = {lowerLeftX, lowerLeftY}; // Lower left corner (rect definition)
-    SDL_FPoint urc = {lowerLeftX + width, lowerLeftY + height}; // Upper right corner (rect definition)
-    SDL_FPoint ulc = {llc.x, urc.y}; // Upper left corner
-    SDL_FPoint lrc = {urc.x, llc.y}; // Lower right corner
-
-    // Offset to move the lower left corner to the origin (0, 0), so we rotate around it.
-    SDL_FPoint displacement = {llc.x, llc.y};
-
+// Utility function to rotate the four points of a rectangle, around the given pivot point.
+// Used by: drawFilledRectangle, drawThickRectangle
+static void applyRotation(Dpp_Vec2 points[4], Dpp_Vec2 pivot, double angleInRadians) {
     // Derived from Euler's formula
     Matrix2D rotMathis = {
-        .a00 = SDL_cosf(angleInRadians), .a01 = -SDL_sinf(angleInRadians),
-        .a10 = SDL_sinf(angleInRadians), .a11 = SDL_cosf(angleInRadians)
+        .a00 = cos(angleInRadians), .a01 = -sin(angleInRadians),
+        .a10 = sin(angleInRadians), .a11 = cos(angleInRadians)
     };
 
-    // Apply matrix transformations
-    llc = add(apply(rotMathis, sub(llc, displacement)), displacement);
-    urc = add(apply(rotMathis, sub(urc, displacement)), displacement);
-    ulc = add(apply(rotMathis, sub(ulc, displacement)), displacement);
-    lrc = add(apply(rotMathis, sub(lrc, displacement)), displacement);
+    // Apply matrix transformations to all the points.
+    for (int i = 0; i < 4; i++) {
+        points[i] = add(apply(rotMathis, sub(points[i], pivot)), pivot);
+    }
+}
+
+void drawRectangleFill(SDL_Renderer *renderer, double x, double y, double width, double height, double angleInRadians) {
+    // Calculate the four points of the rectangle, and rotate them by using the first point as pivot.
+    Dpp_Vec2 points[] = {
+        {x, y},                     // Lower left corner
+        {x, y + height},            // Upper left corner
+        {x + width, y + height},    // Upper right corner
+        {x + width, y},             // Lower right corner
+    };
+    applyRotation(points, points[0], angleInRadians);
 
     // Fetch the current draw color to put them in our vertices
     SDL_Color color;
@@ -156,19 +139,61 @@ void drawFilledRectangle(SDL_Renderer *renderer,
 
     // Make up the vertices
     SDL_Vertex vertices[] = {
-        {.position = llc, .color = color},
-        {.position = ulc, .color = color},
-        {.position = urc, .color = color},
-        {.position = lrc, .color = color}
+        {.position = vec2ToSDL(points[0]), .color = color},
+        {.position = vec2ToSDL(points[1]), .color = color},
+        {.position = vec2ToSDL(points[2]), .color = color},
+        {.position = vec2ToSDL(points[3]), .color = color}
     };
     // And the triangles
     int indices[] = {
-        0, 1, 2,
-        0, 2, 3
+        0, 1, 2, // llc -> ulc -> urc
+        2, 3, 0 // urc -> lrc -> llc
     };
 
     // Draw!!!
     SDL_RenderGeometry(renderer, NULL, vertices, 4, indices, 6);
+}
+
+void drawRectangleOutline(SDL_Renderer* renderer, double x, double y, double width, double height,
+    double angleInRadians, double thickness) {
+    // Cap the thickness to avoid drawing outside the rectangle.
+    if (thickness > width) {
+        thickness = width;
+    } else if (thickness > height) {
+        thickness = height;
+    }
+
+    // Calculate the four points of the rectangle.
+    Dpp_Vec2 points[] = {
+        {x, y},                     // Lower left corner
+        {x, y + height},            // Upper left corner
+        {x + width, y + height},    // Upper right corner
+        {x + width, y},             // Lower right corner
+    };
+
+    // Calculate the four "adjusted" points of the rectangles.
+    // Those are used to draw horizontal lines (ulc->urc & lrc->llc) correctly in respect to thickness.
+    double ht = thickness / 2; // Half thickness
+    Dpp_Vec2 adjustedPoints[] = {
+        {x - ht, y},                      // Lower left corner EXTENDED to the left
+        {x - ht, y + height},             // Upper left corner EXTENDED to the left
+        {x + width + ht, y + height},  // Upper right corner EXTENDED to the right
+        {x + width + ht, y},           // Lower right corner EXTENDED to the right
+    };
+
+    // Apply the rotation to both points, with lower left corner as the pivot.
+    applyRotation(points, points[0], angleInRadians);
+    applyRotation(adjustedPoints, points[0], angleInRadians);
+
+    // Draw all lines, clockwise.
+    // llc -> ulc
+    drawThickLine(renderer, points[0].x, points[0].y, points[1].x, points[1].y, thickness);
+    // ulc -> urc (adjusted for thickness!)
+    drawThickLine(renderer, adjustedPoints[1].x, adjustedPoints[1].y, adjustedPoints[2].x, adjustedPoints[2].y, thickness);
+    // urc -> lrc
+    drawThickLine(renderer, points[2].x, points[2].y, points[3].x, points[3].y, thickness);
+    // lrc -> llc (adjusted for thickness!)
+    drawThickLine(renderer, adjustedPoints[3].x, adjustedPoints[3].y, adjustedPoints[0].x, adjustedPoints[0].y, thickness);
 }
 
 void drawCircleOutline(SDL_Renderer *renderer, double centerX, double centerY, double radius, double thickness) {
